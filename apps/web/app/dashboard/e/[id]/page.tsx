@@ -523,7 +523,7 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
           </thead>
           <tbody>
             {categories.map((c) =>
-              editing?.id === c.id ? (
+              editing && editing.id === c.id ? (
                 <tr key={c.id}>
                   <td>
                     <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
