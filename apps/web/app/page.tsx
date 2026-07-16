@@ -3,6 +3,42 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 
+const FEATURES = [
+  {
+    icon: "✉️",
+    title: "Invitations personnalisées",
+    text: "Chaque invité reçoit son propre lien : programme, lieu, dress code. Vous voyez qui a ouvert et qui a confirmé, sans relancer personne.",
+  },
+  {
+    icon: "🎟️",
+    title: "Billetterie sécurisée",
+    text: "Catégories Standard, VIP, VIP+ avec paiement en ligne. QR codes signés à usage unique, impossibles à dupliquer.",
+  },
+  {
+    icon: "📊",
+    title: "Suivi par vendeur",
+    text: "Attribuez des quotas à vos vendeurs et suivez leurs ventes en temps réel. Le jour J, scannez les billets à l'entrée depuis votre téléphone.",
+  },
+];
+
+const STEPS = [
+  {
+    num: "1",
+    title: "Créez votre événement",
+    text: "Anniversaire, gala, soirée communautaire : décrivez votre événement en quelques minutes, sans carte bancaire.",
+  },
+  {
+    num: "2",
+    title: "Invitez ou vendez",
+    text: "Envoyez des invitations avec RSVP en un clic, ou mettez vos billets en vente avec vos propres vendeurs.",
+  },
+  {
+    num: "3",
+    title: "Accueillez sereinement",
+    text: "Le jour J, scannez les QR codes à l'entrée. Chaque billet n'est valide qu'une seule fois — zéro fraude, zéro stress.",
+  },
+];
+
 export default function Home() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "err" | "info"; text: string; url?: string } | null>(null);
@@ -27,45 +63,50 @@ export default function Home() {
   }
 
   return (
-    <main className="container narrow">
+    <main className="container landing">
       <div className="hero">
-        <h1>Vos événements, sans les relances</h1>
+        <span className="hero-badge">Invitations · RSVP · Billetterie</span>
+        <h1>
+          Vos événements, <em>sans les relances</em>
+        </h1>
         <p>
           Une fiche unique par événement, des invitations personnalisées avec RSVP en un clic, et une
           billetterie sécurisée avec suivi par vendeur — anniversaires, galas, soirées communautaires.
         </p>
+        <div className="cta-row">
+          <a href="#login" className="btn btn-accent">
+            Commencer gratuitement
+          </a>
+          <a href="#how" className="btn btn-ghost">
+            Comment ça marche ?
+          </a>
+        </div>
       </div>
 
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Connexion / Inscription</h2>
-        <p className="muted">Pas de mot de passe : recevez un lien magique par email.</p>
-        <form onSubmit={requestLink}>
-          <label htmlFor="email">Votre email</label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="vous@exemple.com"
-          />
-          <button type="submit" className="btn-accent" disabled={busy}>
-            {busy ? "Envoi…" : "Recevoir mon lien de connexion"}
-          </button>
-        </form>
-        {status && (
-          <div className={`alert ${status.kind === "err" ? "err" : status.kind === "ok" ? "ok" : "info"}`}>
-            {status.text}
-            {status.url && (
-              <p>
-                <a href={status.url}>→ Ouvrir le lien de connexion</a>
-              </p>
-            )}
+      <div className="grid3">
+        {FEATURES.map((f) => (
+          <div key={f.title} className="card feature">
+            <div className="feature-icon">{f.icon}</div>
+            <h3>{f.title}</h3>
+            <p className="muted">{f.text}</p>
           </div>
-        )}
+        ))}
       </div>
 
-      <div className="grid2">
+      <section id="how" className="section">
+        <h2 className="section-title">Comment ça marche</h2>
+        <div className="grid3">
+          {STEPS.map((s) => (
+            <div key={s.num} className="step">
+              <div className="step-num">{s.num}</div>
+              <h3>{s.title}</h3>
+              <p className="muted">{s.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid2 usecases">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>🎂 Événements privés</h3>
           <p className="muted">
@@ -81,6 +122,41 @@ export default function Home() {
           </p>
         </div>
       </div>
+
+      <section id="login" className="section login-section">
+        <div className="card login-card">
+          <h2 style={{ marginTop: 0 }}>Connexion / Inscription</h2>
+          <p className="muted">Pas de mot de passe : recevez un lien magique par email.</p>
+          <form onSubmit={requestLink}>
+            <label htmlFor="email">Votre email</label>
+            <input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="vous@exemple.com"
+            />
+            <button type="submit" className="btn-accent" disabled={busy}>
+              {busy ? "Envoi…" : "Recevoir mon lien de connexion"}
+            </button>
+          </form>
+          {status && (
+            <div className={`alert ${status.kind === "err" ? "err" : status.kind === "ok" ? "ok" : "info"}`}>
+              {status.text}
+              {status.url && (
+                <p>
+                  <a href={status.url}>→ Ouvrir le lien de connexion</a>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <footer className="landing-footer muted">
+        EventGalo — invitations, RSVP et billetterie pour vos événements.
+      </footer>
     </main>
   );
 }
