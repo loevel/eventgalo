@@ -16,6 +16,7 @@
   "env": {
     "staging": {
       "name": "eventgalo-web-staging",
+      "routes": [],
       "assets": {
         "directory": ".open-next/assets",
         "binding": "ASSETS"
