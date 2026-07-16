@@ -32,7 +32,7 @@ jobs:
 
       - name: Build web (staging)
         working-directory: apps/web
-        run: pnpm run build
+        run: pnpm run build:worker
 
       - name: Deploy web (staging)
         working-directory: apps/web
@@ -68,7 +68,7 @@ jobs:
 
       - name: Build web (production)
         working-directory: apps/web
-        run: pnpm run build
+        run: pnpm run build:worker
 
       - name: Deploy web (production)
         working-directory: apps/web
