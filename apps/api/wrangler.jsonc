@@ -31,7 +31,7 @@
   "triggers": { "crons": ["0 4 * * *"] },
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
-    "WEB_BASE_URL": "https://eventgalo-web.davechendjou.workers.dev",
+    "WEB_BASE_URL": "https://eventgalo.com",
     "ENVIRONMENT": "production",
     "EMAIL_FROM": "EventGalo <billetterie@eventgalo.com>"
   },
