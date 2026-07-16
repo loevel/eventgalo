@@ -1,0 +1,11 @@
+{
+  "name": "@eventgalo/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "echo 'shared: types only, no build'"
+  }
+}

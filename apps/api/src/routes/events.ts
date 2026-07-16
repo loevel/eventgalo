@@ -1,0 +1,550 @@
+import { Hono } from "hono";
+import Stripe from "stripe";
+import type { AppContext, Env } from "../types";
+import { nowIso, randomToken, slugify, uuid } from "../lib/crypto";
+import { requireAuth } from "../lib/auth";
+import { layout, sendEmail } from "../lib/email";
+import { MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
+import { callEventDO, DOError } from "../do/event-do";
+
+const events = new Hono<AppContext>();
+events.use("*", requireAuth);
+
+interface EventRow {
+  id: string;
+  organizer_id: string;
+  title: string;
+  capacity: number;
+  starts_at: string;
+  type: string;
+  status: string;
+  public_slug: string;
+  scanner_key: string;
+  [k: string]: unknown;
+}
+
+async function getOwnedEvent(env: Env, eventId: string, userId: string): Promise<EventRow | null> {
+  return env.DB.prepare("SELECT * FROM events WHERE id = ? AND organizer_id = ?")
+    .bind(eventId, userId)
+    .first<EventRow>();
+}
+
+async function sumCategoryQuantities(env: Env, eventId: string, excludeCategoryId?: string): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT COALESCE(SUM(quantity), 0) AS total FROM ticket_categories WHERE event_id = ?${excludeCategoryId ? " AND id != ?" : ""}`,
+  )
+    .bind(...(excludeCategoryId ? [eventId, excludeCategoryId] : [eventId]))
+    .first<{ total: number }>();
+  return row?.total ?? 0;
+}
+
+/* ------------------------------- Événements ------------------------------ */
+
+events.post("/", async (c) => {
+  const user = c.get("user");
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const title = String(b.title ?? "").trim();
+  const starts_at = String(b.starts_at ?? "").trim();
+  if (!title || !starts_at) return c.json({ error: "Titre et date de début requis" }, 400);
+  const capacity = Math.max(0, Number(b.capacity ?? 0) | 0);
+  const type = b.type === "ticketed" ? "ticketed" : "private";
+  const status = b.status === "draft" ? "draft" : "published";
+
+  const id = uuid();
+  const slug = slugify(title);
+  const scannerKey = randomToken(12);
+  await c.env.DB.prepare(
+    `INSERT INTO events (id, organizer_id, title, description, starts_at, ends_at, venue, address,
+       dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id, user.id, title,
+      (b.description as string) ?? null, starts_at, (b.ends_at as string) ?? null,
+      (b.venue as string) ?? null, (b.address as string) ?? null,
+      (b.dress_code as string) ?? null, (b.seating_plan as string) ?? null,
+      capacity, slug, scannerKey, type, status,
+      b.refund_policy ? JSON.stringify(b.refund_policy) : null,
+      nowIso(), nowIso(),
+    )
+    .run();
+  const created = await getOwnedEvent(c.env, id, user.id);
+  return c.json({ event: created }, 201);
+});
+
+events.get("/", async (c) => {
+  const user = c.get("user");
+  const rows = await c.env.DB.prepare(
+    `SELECT e.*,
+       (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id) AS guest_count,
+       (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id AND g.rsvp_status = 'yes') AS yes_count,
+       (SELECT COUNT(*) FROM tickets t WHERE t.event_id = e.id AND t.status IN ('valid','used')) AS tickets_sold
+     FROM events e WHERE e.organizer_id = ? ORDER BY e.starts_at DESC`,
+  )
+    .bind(user.id)
+    .all();
+  return c.json({ events: rows.results });
+});
+
+events.get("/:id", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const [guests, categories, sellers, quotas, announcements, refunds, sales] = await Promise.all([
+    c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ? ORDER BY price_cents").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
+    c.env.DB.prepare(
+      `SELECT q.* FROM seller_quotas q JOIN sellers s ON s.id = q.seller_id WHERE s.event_id = ?`,
+    ).bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM announcements WHERE event_id = ? ORDER BY created_at DESC").bind(event.id).all(),
+    c.env.DB.prepare(
+      `SELECT r.*, t.serial, t.buyer_name, t.buyer_email, c2.name AS category_name, tr.amount_cents / tr.quantity AS unit_cents, tr.currency
+       FROM refund_requests r
+       JOIN tickets t ON t.id = r.ticket_id
+       JOIN transactions tr ON tr.id = r.transaction_id
+       JOIN ticket_categories c2 ON c2.id = t.category_id
+       WHERE t.event_id = ? ORDER BY r.created_at DESC`,
+    ).bind(event.id).all(),
+    c.env.DB.prepare(
+      `SELECT t.seller_id, t.category_id, COUNT(*) AS count, SUM(tr.amount_cents / tr.quantity) AS revenue_cents
+       FROM tickets t JOIN transactions tr ON tr.id = t.transaction_id
+       WHERE t.event_id = ? AND t.status IN ('valid','used')
+       GROUP BY t.seller_id, t.category_id`,
+    ).bind(event.id).all(),
+  ]);
+  return c.json({
+    event,
+    guests: guests.results,
+    categories: categories.results,
+    sellers: sellers.results,
+    seller_quotas: quotas.results,
+    announcements: announcements.results,
+    refund_requests: refunds.results,
+    sales: sales.results,
+  });
+});
+
+events.patch("/:id", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+
+  if (b.status !== undefined && !["draft", "published", "archived"].includes(String(b.status))) {
+    return c.json({ error: "Statut invalide" }, 400);
+  }
+
+  if (b.capacity !== undefined) {
+    const newCapacity = Number(b.capacity) | 0;
+    const catSum = await sumCategoryQuantities(c.env, event.id);
+    const soldRow = await c.env.DB.prepare(
+      "SELECT COALESCE(SUM(sold), 0) AS total FROM ticket_categories WHERE event_id = ?",
+    ).bind(event.id).first<{ total: number }>();
+    const totalSold = soldRow?.total ?? 0;
+    if (newCapacity < catSum) {
+      return c.json({ error: `Capacité (${newCapacity}) inférieure à la somme des catégories (${catSum})` }, 409);
+    }
+    if (newCapacity < totalSold) {
+      return c.json({ error: `Capacité (${newCapacity}) inférieure aux billets déjà vendus (${totalSold})` }, 409);
+    }
+  }
+
+  const allowed = [
+    "title", "description", "starts_at", "ends_at", "venue", "address",
+    "dress_code", "seating_plan", "capacity", "type", "status",
+  ] as const;
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  for (const key of allowed) {
+    if (b[key] !== undefined) {
+      sets.push(`${key} = ?`);
+      values.push(b[key]);
+    }
+  }
+  if (b.refund_policy !== undefined) {
+    sets.push("refund_policy = ?");
+    values.push(b.refund_policy ? JSON.stringify(b.refund_policy) : null);
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  sets.push("updated_at = ?");
+  values.push(nowIso(), event.id);
+  await c.env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+  return c.json({ event: await getOwnedEvent(c.env, event.id, user.id) });
+});
+
+/* --------------------------------- Invités ------------------------------- */
+
+events.post("/:id/guests", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ guests?: Array<Record<string, unknown>> }>().catch(() => ({}) as Record<string, never>);
+  const list = Array.isArray(b.guests) ? b.guests : [];
+  if (!list.length) return c.json({ error: "Liste d'invités vide" }, 400);
+  if (list.length > 200) return c.json({ error: "Maximum 200 invités par lot" }, 400);
+
+  const created = [];
+  const statements = [];
+  for (const g of list) {
+    const name = String(g.name ?? "").trim();
+    if (!name) continue;
+    const id = uuid();
+    const token = randomToken(18);
+    created.push({ id, name, token });
+    statements.push(
+      c.env.DB.prepare(
+        `INSERT INTO guests (id, event_id, name, email, phone, token, table_name, plus_ones)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        id, event.id, name,
+        (g.email as string) || null, (g.phone as string) || null,
+        token, (g.table_name as string) || null, Number(g.plus_ones ?? 0) | 0,
+      ),
+    );
+  }
+  if (!statements.length) return c.json({ error: "Aucun invité valide" }, 400);
+  await c.env.DB.batch(statements);
+
+  // Envoi des invitations par email (si adresse fournie et Resend configuré)
+  c.executionCtx.waitUntil(
+    (async () => {
+      for (let i = 0; i < list.length; i++) {
+        const g = list[i];
+        const rec = created[i];
+        if (g?.email && rec) {
+          const url = `${c.env.WEB_BASE_URL}/i/${rec.token}`;
+          await sendEmail(
+            c.env,
+            String(g.email),
+            `Invitation : ${event.title}`,
+            layout(
+              `Vous êtes invité·e — ${event.title}`,
+              `<p>Voici votre lien d'invitation personnel :</p>
+               <p><a href="${url}">${url}</a></p>
+               <p>Vous y trouverez tous les détails et pourrez confirmer votre présence en un clic.</p>`,
+            ),
+            url,
+          );
+        }
+      }
+    })(),
+  );
+
+  const rows = await c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at")
+    .bind(event.id)
+    .all();
+  return c.json({ guests: rows.results }, 201);
+});
+
+events.delete("/:id/guests/:gid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  // Les photos de l'invité deviennent orphelines (modérables par l'organisateur)
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE media SET guest_id = NULL WHERE guest_id = ?").bind(c.req.param("gid")),
+    c.env.DB.prepare("DELETE FROM guests WHERE id = ? AND event_id = ?").bind(c.req.param("gid"), event.id),
+  ]);
+  return c.json({ ok: true });
+});
+
+/* -------------------------------- Annonces ------------------------------- */
+
+events.post("/:id/announcements", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ body?: string }>().catch(() => ({}) as Record<string, never>);
+  const text = (b.body ?? "").trim();
+  if (!text) return c.json({ error: "Message vide" }, 400);
+  const id = uuid();
+  await c.env.DB.prepare("INSERT INTO announcements (id, event_id, body) VALUES (?, ?, ?)")
+    .bind(id, event.id, text)
+    .run();
+
+  // Notification email aux invités ayant une adresse
+  c.executionCtx.waitUntil(
+    (async () => {
+      const guests = await c.env.DB.prepare(
+        "SELECT name, email, token FROM guests WHERE event_id = ? AND email IS NOT NULL",
+      ).bind(event.id).all<{ name: string; email: string; token: string }>();
+      for (const g of guests.results) {
+        await sendEmail(
+          c.env,
+          g.email,
+          `Mise à jour : ${event.title}`,
+          layout(`Mise à jour — ${event.title}`, `<p>${text}</p><p><a href="${c.env.WEB_BASE_URL}/i/${g.token}">Voir l'invitation</a></p>`),
+        );
+      }
+    })(),
+  );
+  return c.json({ ok: true, id }, 201);
+});
+
+/* ------------------------- Catégories de billets ------------------------- */
+
+events.post("/:id/categories", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const name = String(b.name ?? "").trim();
+  const quantity = Number(b.quantity ?? 0) | 0;
+  const price = Math.max(0, Number(b.price_cents ?? 0) | 0);
+  if (!name || quantity < 1) return c.json({ error: "Nom et quantité (≥1) requis" }, 400);
+
+  const existing = await sumCategoryQuantities(c.env, event.id);
+  if (existing + quantity > event.capacity) {
+    return c.json(
+      { error: `Somme des catégories (${existing + quantity}) dépasserait la capacité totale (${event.capacity})` },
+      409,
+    );
+  }
+  const id = uuid();
+  await c.env.DB.prepare(
+    `INSERT INTO ticket_categories (id, event_id, name, description, price_cents, currency, quantity)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, event.id, name, (b.description as string) ?? null, price, String(b.currency ?? "CAD"), quantity)
+    .run();
+  return c.json({ id }, 201);
+});
+
+events.patch("/:id/categories/:cid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const cat = await c.env.DB.prepare("SELECT * FROM ticket_categories WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("cid"), event.id)
+    .first<{ id: string; sold: number; quantity: number }>();
+  if (!cat) return c.json({ error: "Catégorie introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+
+  if (b.quantity !== undefined) {
+    const newQty = Number(b.quantity) | 0;
+    if (newQty < cat.sold) {
+      return c.json({ error: `Impossible de réduire sous les ${cat.sold} billets déjà vendus` }, 409);
+    }
+    const others = await sumCategoryQuantities(c.env, event.id, cat.id);
+    if (others + newQty > event.capacity) {
+      return c.json({ error: `Somme des catégories (${others + newQty}) dépasserait la capacité (${event.capacity})` }, 409);
+    }
+    const quotasRow = await c.env.DB.prepare(
+      "SELECT COALESCE(SUM(quota),0) AS total FROM seller_quotas WHERE category_id = ?",
+    ).bind(cat.id).first<{ total: number }>();
+    if ((quotasRow?.total ?? 0) > newQty) {
+      return c.json({ error: `Les quotas vendeurs (${quotasRow?.total}) dépasseraient la nouvelle quantité (${newQty})` }, 409);
+    }
+  }
+
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  for (const key of ["name", "description", "price_cents", "quantity"] as const) {
+    if (b[key] !== undefined) {
+      sets.push(`${key} = ?`);
+      values.push(b[key]);
+    }
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  values.push(cat.id);
+  await c.env.DB.prepare(`UPDATE ticket_categories SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+  return c.json({ ok: true });
+});
+
+/* -------------------------------- Vendeurs ------------------------------- */
+
+events.post("/:id/sellers", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ name?: string; email?: string; quotas?: Array<{ category_id: string; quota: number }> }>()
+    .catch(() => ({}) as Record<string, never>);
+  const name = String(b.name ?? "").trim();
+  if (!name) return c.json({ error: "Nom du vendeur requis" }, 400);
+  const quotas = Array.isArray(b.quotas) ? b.quotas.filter((q) => q.category_id && Number(q.quota) > 0) : [];
+
+  // Règle 5.4.3 : Σ(quotas d'une catégorie) ≤ quantité de la catégorie
+  for (const q of quotas) {
+    const cat = await c.env.DB.prepare("SELECT quantity FROM ticket_categories WHERE id = ? AND event_id = ?")
+      .bind(q.category_id, event.id)
+      .first<{ quantity: number }>();
+    if (!cat) return c.json({ error: `Catégorie ${q.category_id} introuvable` }, 400);
+    const assigned = await c.env.DB.prepare(
+      "SELECT COALESCE(SUM(quota),0) AS total FROM seller_quotas WHERE category_id = ?",
+    ).bind(q.category_id).first<{ total: number }>();
+    if ((assigned?.total ?? 0) + Number(q.quota) > cat.quantity) {
+      return c.json(
+        { error: `Quota trop élevé : ${(assigned?.total ?? 0) + Number(q.quota)} > ${cat.quantity} pour cette catégorie` },
+        409,
+      );
+    }
+  }
+
+  const sellerId = uuid();
+  const code = randomToken(9).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10) || randomToken(8);
+  const statements = [
+    c.env.DB.prepare("INSERT INTO sellers (id, event_id, name, email, code) VALUES (?, ?, ?, ?, ?)")
+      .bind(sellerId, event.id, name, b.email ?? null, code),
+  ];
+  for (const q of quotas) {
+    statements.push(
+      c.env.DB.prepare("INSERT INTO seller_quotas (id, seller_id, category_id, quota) VALUES (?, ?, ?, ?)")
+        .bind(uuid(), sellerId, q.category_id, Number(q.quota) | 0),
+    );
+  }
+  await c.env.DB.batch(statements);
+  return c.json({ id: sellerId, code }, 201);
+});
+
+/* ------------------------------ Remboursements ---------------------------- */
+
+events.post("/:id/refund-requests/:rid/decision", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ approve?: boolean }>().catch(() => ({}) as Record<string, never>);
+
+  const request = await c.env.DB.prepare(
+    `SELECT r.*, t.event_id, tr.stripe_payment_intent, tr.amount_cents, tr.quantity, tr.currency
+     FROM refund_requests r
+     JOIN tickets t ON t.id = r.ticket_id
+     JOIN transactions tr ON tr.id = r.transaction_id
+     WHERE r.id = ? AND t.event_id = ? AND r.status = 'pending'`,
+  )
+    .bind(c.req.param("rid"), event.id)
+    .first<{
+      id: string; ticket_id: string; transaction_id: string;
+      stripe_payment_intent: string | null; amount_cents: number; quantity: number; currency: string;
+    }>();
+  if (!request) return c.json({ error: "Demande introuvable ou déjà traitée" }, 404);
+
+  if (!b.approve) {
+    await c.env.DB.prepare("UPDATE refund_requests SET status = 'rejected', decided_at = ? WHERE id = ?")
+      .bind(nowIso(), request.id)
+      .run();
+    return c.json({ ok: true, status: "rejected" });
+  }
+
+  // 1. Le billet retourne au pool + compteurs vendeur décrémentés (via DO, atomique)
+  try {
+    await callEventDO(c.env, event.id, { action: "refund_ticket", ticket_id: request.ticket_id });
+  } catch (e) {
+    if (e instanceof DOError) return c.json({ error: e.message }, 409);
+    throw e;
+  }
+
+  // 2. Refund Stripe (part du billet dans la transaction, pondérée par la politique)
+  let policy: { kind?: string; percent?: number } | null = null;
+  if (typeof event.refund_policy === "string" && event.refund_policy) {
+    try {
+      policy = JSON.parse(event.refund_policy);
+    } catch {
+      policy = null;
+    }
+  }
+  const unitAmount = Math.floor(request.amount_cents / request.quantity);
+  const refundAmount =
+    policy?.kind === "partial"
+      ? Math.floor((unitAmount * Math.min(100, Math.max(0, Number(policy.percent ?? 100)))) / 100)
+      : unitAmount;
+  let stripeRefundId: string | null = null;
+  if (request.stripe_payment_intent && c.env.STRIPE_SECRET_KEY && refundAmount > 0) {
+    const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { httpClient: Stripe.createFetchHttpClient() });
+    const refund = await stripe.refunds.create({
+      payment_intent: request.stripe_payment_intent,
+      amount: refundAmount,
+    });
+    stripeRefundId = refund.id;
+  }
+
+  await c.env.DB.prepare(
+    "UPDATE refund_requests SET status = 'approved', decided_at = ?, stripe_refund_id = ?, refund_amount_cents = ? WHERE id = ?",
+  )
+    .bind(nowIso(), stripeRefundId, refundAmount, request.id)
+    .run();
+  return c.json({ ok: true, status: "approved", stripe_refund_id: stripeRefundId, refund_amount_cents: refundAmount });
+});
+
+/* ------------------------------ Photos (média) ---------------------------- */
+
+events.get("/:id/media", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const rows = await c.env.DB.prepare(MEDIA_LIST_QUERY).bind(event.id).all();
+  return c.json({ media: rows.results });
+});
+
+events.post("/:id/media", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) return c.json({ error: "Fichier manquant" }, 400);
+  const invalid = validateMediaFile(file);
+  if (invalid) return c.json({ error: invalid }, 400);
+  const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM media WHERE event_id = ?")
+    .bind(event.id)
+    .first<{ n: number }>();
+  if ((count?.n ?? 0) >= MAX_MEDIA_PER_EVENT) {
+    return c.json({ error: "La galerie de cet événement est pleine" }, 409);
+  }
+  const id = uuid();
+  const key = `events/${event.id}/${id}`;
+  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  await c.env.DB.prepare(
+    "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)",
+  )
+    .bind(id, event.id, key, file.type)
+    .run();
+  return c.json({ media: { id, guest_id: null, content_type: file.type } }, 201);
+});
+
+events.delete("/:id/media/:mid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const media = await c.env.DB.prepare("SELECT id, r2_key FROM media WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("mid"), event.id)
+    .first<{ id: string; r2_key: string }>();
+  if (!media) return c.json({ error: "Photo introuvable" }, 404);
+  await c.env.MEDIA.delete(media.r2_key);
+  await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id).run();
+  return c.json({ ok: true });
+});
+
+/* ------------------------------ Export (RGPD) ----------------------------- */
+
+events.get("/:id/export", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const [guests, categories, sellers, tickets, transactions, announcements] = await Promise.all([
+    c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ?").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ?").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ?").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM tickets WHERE event_id = ?").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM transactions WHERE event_id = ?").bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM announcements WHERE event_id = ?").bind(event.id).all(),
+  ]);
+  const payload = {
+    exported_at: nowIso(),
+    event,
+    guests: guests.results,
+    categories: categories.results,
+    sellers: sellers.results,
+    tickets: tickets.results,
+    transactions: transactions.results,
+    announcements: announcements.results,
+  };
+  return new Response(JSON.stringify(payload, null, 2), {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="eventgalo-export-${event.public_slug}.json"`,
+    },
+  });
+});
+
+export default events;

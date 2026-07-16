@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eventgalo-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "eventgalo-db",
+      "database_id": "9f46ba11-ca0f-445c-9abf-be69b5be81a2"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "2daef69c33a5411db488daf6417b5c17"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "eventgalo-media"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "EVENT_DO", "class_name": "EventDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventDO"] }],
+  "triggers": { "crons": ["0 4 * * *"] },
+  "vars": {
+    "WEB_BASE_URL": "https://eventgalo-web.davechendjou.workers.dev",
+    "ENVIRONMENT": "production"
+  }
+}
