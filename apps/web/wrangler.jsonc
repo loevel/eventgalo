@@ -9,14 +9,11 @@
     "binding": "ASSETS"
   },
   "observability": { "enabled": true },
-  "routes": [
-    { "pattern": "eventgalo.com", "custom_domain": true },
-    { "pattern": "www.eventgalo.com", "custom_domain": true }
-  ],
+  // Custom domains (eventgalo.com, www.eventgalo.com) are attached via the
+  // Cloudflare dashboard: the CI token lacks zone-level Workers Routes access.
   "env": {
     "staging": {
       "name": "eventgalo-web-staging",
-      "routes": [],
       "assets": {
         "directory": ".open-next/assets",
         "binding": "ASSETS"
