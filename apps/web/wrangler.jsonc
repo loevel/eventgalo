@@ -9,6 +9,10 @@
     "binding": "ASSETS"
   },
   "observability": { "enabled": true },
+  "routes": [
+    { "pattern": "eventgalo.com", "custom_domain": true },
+    { "pattern": "www.eventgalo.com", "custom_domain": true }
+  ],
   "env": {
     "staging": {
       "name": "eventgalo-web-staging",
