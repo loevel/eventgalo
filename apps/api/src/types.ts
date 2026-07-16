@@ -3,6 +3,7 @@ export interface Env {
   KV: KVNamespace;
   MEDIA: R2Bucket;
   EVENT_DO: DurableObjectNamespace;
+  EMAIL: SendEmail;
   WEB_BASE_URL: string;
   ENVIRONMENT: string;
   /** Secret : signature HMAC des QR codes de billets */
@@ -10,7 +11,6 @@ export interface Env {
   /** Secrets optionnels */
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
 }
 

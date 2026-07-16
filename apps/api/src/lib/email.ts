@@ -6,9 +6,9 @@ export interface EmailResult {
 }
 
 /**
- * Envoi d'email via Resend si RESEND_API_KEY est configurée.
- * Sinon (dev / pré-lancement) : log console et retour du lien en clair
- * pour que le front puisse l'afficher.
+ * Envoi d'email via le binding Cloudflare Email Sending (env.EMAIL) si
+ * EMAIL_FROM est configurée. Sinon (dev / pré-lancement) : log console et
+ * retour du lien en clair pour que le front puisse l'afficher.
  */
 export async function sendEmail(
   env: Env,
@@ -17,28 +17,22 @@ export async function sendEmail(
   html: string,
   debugUrl?: string,
 ): Promise<EmailResult> {
-  if (!env.RESEND_API_KEY) {
+  if (!env.EMAIL_FROM) {
     console.log(`[email:dev] to=${to} subject=${subject} url=${debugUrl ?? "-"}`);
     return { sent: false, debug_url: debugUrl };
   }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM ?? "EventGalo <onboarding@resend.dev>",
-      to: [to],
+  try {
+    await env.EMAIL.send({
+      from: env.EMAIL_FROM,
+      to,
       subject,
       html,
-    }),
-  });
-  if (!res.ok) {
-    console.error(`[email] échec Resend ${res.status}: ${await res.text()}`);
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error(`[email] échec Cloudflare Email Sending: ${err}`);
     return { sent: false, debug_url: debugUrl };
   }
-  return { sent: true };
 }
 
 export function layout(title: string, body: string): string {

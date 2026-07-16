@@ -29,8 +29,45 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventDO"] }],
   "triggers": { "crons": ["0 4 * * *"] },
+  "send_email": [{ "name": "EMAIL" }],
   "vars": {
     "WEB_BASE_URL": "https://eventgalo-web.davechendjou.workers.dev",
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "EMAIL_FROM": "EventGalo <billetterie@eventgalo.com>"
+  },
+  "env": {
+    "staging": {
+      "name": "eventgalo-api-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "eventgalo-db-staging",
+          "database_id": "40d1720e-c4c8-476b-b567-091e8b6a2ff9"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "d5ecacf2e1af4a9bba16076c0719c71c"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "MEDIA",
+          "bucket_name": "eventgalo-media-staging"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "EVENT_DO", "class_name": "EventDO" }]
+      },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventDO"] }],
+      "triggers": { "crons": ["0 4 * * *"] },
+      "send_email": [{ "name": "EMAIL" }],
+      "vars": {
+        "WEB_BASE_URL": "https://eventgalo-web-staging.davechendjou.workers.dev",
+        "ENVIRONMENT": "staging",
+        "EMAIL_FROM": "EventGalo (staging) <billetterie-staging@eventgalo.com>"
+      }
+    }
   }
 }
