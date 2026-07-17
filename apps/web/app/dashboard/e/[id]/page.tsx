@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
 import { MediaGallery, type MediaItem } from "@/components/media-gallery";
+import { TicketPreview } from "@/components/ticket-preview";
 
 interface Detail {
   event: Record<string, any>;
@@ -504,9 +505,20 @@ function AnnounceForm({ eventId, act }: { eventId: string; act: (fn: () => Promi
 function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categories: Array<Record<string, any>>; act: (fn: () => Promise<unknown>, ok?: string) => void }) {
   const [form, setForm] = useState({ name: "", price: "", quantity: "" });
   const [editing, setEditing] = useState<{ id: string; name: string; price: string; quantity: string } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; priceCents: number } | null>(null);
   const allocated = categories.reduce((s, c) => s + c.quantity, 0);
   return (
     <>
+      {preview && (
+        <TicketPreview
+          eventTitle={ev.title}
+          startsAt={ev.starts_at}
+          venue={ev.venue}
+          categoryName={preview.name}
+          priceCents={preview.priceCents}
+          onClose={() => setPreview(null)}
+        />
+      )}
       <div className="card" style={{ overflowX: "auto" }}>
         <h3 style={{ marginTop: 0 }}>
           Catégories <span className="muted">({allocated}/{ev.capacity} places allouées)</span>
@@ -585,6 +597,12 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
                   <td>
                     <button
                       className="btn-sm btn-ghost"
+                      onClick={() => setPreview({ name: c.name, priceCents: c.price_cents })}
+                    >
+                      👁️ Aperçu
+                    </button>{" "}
+                    <button
+                      className="btn-sm btn-ghost"
                       onClick={() =>
                         setEditing({
                           id: c.id,
@@ -636,6 +654,14 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
           }}
         >
           Créer
+        </button>{" "}
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={!form.name}
+          onClick={() => setPreview({ name: form.name, priceCents: Math.round(Number(form.price || 0) * 100) })}
+        >
+          👁️ Aperçu du billet
         </button>
       </div>
     </>
