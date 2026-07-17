@@ -397,6 +397,122 @@ events.post("/:id/sellers", async (c) => {
   return c.json({ id: sellerId, code }, 201);
 });
 
+events.patch("/:id/sellers/:sid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const sid = c.req.param("sid");
+  const seller = await c.env.DB.prepare("SELECT id FROM sellers WHERE id = ? AND event_id = ?")
+    .bind(sid, event.id)
+    .first();
+  if (!seller) return c.json({ error: "Vendeur introuvable" }, 404);
+  const b = await c.req.json<{ name?: string; email?: string | null }>().catch(() => ({}) as Record<string, never>);
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (b.name !== undefined) {
+    const name = String(b.name).trim();
+    if (!name) return c.json({ error: "Nom du vendeur requis" }, 400);
+    sets.push("name = ?");
+    values.push(name);
+  }
+  if (b.email !== undefined) {
+    sets.push("email = ?");
+    values.push(b.email || null);
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  values.push(sid);
+  await c.env.DB.prepare(`UPDATE sellers SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+  return c.json({ ok: true });
+});
+
+events.delete("/:id/sellers/:sid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const sid = c.req.param("sid");
+  const seller = await c.env.DB.prepare("SELECT id FROM sellers WHERE id = ? AND event_id = ?")
+    .bind(sid, event.id)
+    .first();
+  if (!seller) return c.json({ error: "Vendeur introuvable" }, 404);
+  const sold = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM tickets WHERE seller_id = ?")
+    .bind(sid)
+    .first<{ n: number }>();
+  if ((sold?.n ?? 0) > 0) {
+    return c.json({ error: "Impossible de supprimer : ce vendeur a déjà des ventes. Retirez plutôt ses quotas." }, 409);
+  }
+  await c.env.DB.prepare("DELETE FROM sellers WHERE id = ?").bind(sid).run();
+  return c.json({ ok: true });
+});
+
+// Ajoute ou modifie le quota d'une catégorie pour un vendeur (upsert)
+events.post("/:id/sellers/:sid/quotas", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const sid = c.req.param("sid");
+  const seller = await c.env.DB.prepare("SELECT id FROM sellers WHERE id = ? AND event_id = ?")
+    .bind(sid, event.id)
+    .first();
+  if (!seller) return c.json({ error: "Vendeur introuvable" }, 404);
+  const b = await c.req.json<{ category_id?: string; quota?: number }>().catch(() => ({}) as Record<string, never>);
+  const categoryId = String(b.category_id ?? "");
+  const quota = Number(b.quota ?? 0) | 0;
+  if (!categoryId || quota < 1) return c.json({ error: "Catégorie et quota (≥1) requis" }, 400);
+
+  const cat = await c.env.DB.prepare("SELECT quantity FROM ticket_categories WHERE id = ? AND event_id = ?")
+    .bind(categoryId, event.id)
+    .first<{ quantity: number }>();
+  if (!cat) return c.json({ error: "Catégorie introuvable" }, 404);
+
+  const existing = await c.env.DB.prepare(
+    "SELECT id, sold FROM seller_quotas WHERE seller_id = ? AND category_id = ?",
+  )
+    .bind(sid, categoryId)
+    .first<{ id: string; sold: number }>();
+  if (existing && quota < existing.sold) {
+    return c.json({ error: `Quota (${quota}) inférieur aux billets déjà vendus par ce vendeur (${existing.sold})` }, 409);
+  }
+
+  const otherAssigned = await c.env.DB.prepare(
+    "SELECT COALESCE(SUM(quota),0) AS total FROM seller_quotas WHERE category_id = ? AND seller_id != ?",
+  )
+    .bind(categoryId, sid)
+    .first<{ total: number }>();
+  if ((otherAssigned?.total ?? 0) + quota > cat.quantity) {
+    return c.json(
+      { error: `Quota trop élevé : ${(otherAssigned?.total ?? 0) + quota} > ${cat.quantity} pour cette catégorie` },
+      409,
+    );
+  }
+
+  if (existing) {
+    await c.env.DB.prepare("UPDATE seller_quotas SET quota = ? WHERE id = ?").bind(quota, existing.id).run();
+  } else {
+    await c.env.DB.prepare("INSERT INTO seller_quotas (id, seller_id, category_id, quota) VALUES (?, ?, ?, ?)")
+      .bind(uuid(), sid, categoryId, quota)
+      .run();
+  }
+  return c.json({ ok: true }, existing ? 200 : 201);
+});
+
+events.delete("/:id/sellers/:sid/quotas/:qid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const q = await c.env.DB.prepare(
+    `SELECT q.id, q.sold FROM seller_quotas q JOIN sellers s ON s.id = q.seller_id
+     WHERE q.id = ? AND q.seller_id = ? AND s.event_id = ?`,
+  )
+    .bind(c.req.param("qid"), c.req.param("sid"), event.id)
+    .first<{ id: string; sold: number }>();
+  if (!q) return c.json({ error: "Quota introuvable" }, 404);
+  if (q.sold > 0) {
+    return c.json({ error: "Impossible de retirer : des billets ont déjà été vendus dans cette catégorie" }, 409);
+  }
+  await c.env.DB.prepare("DELETE FROM seller_quotas WHERE id = ?").bind(q.id).run();
+  return c.json({ ok: true });
+});
+
 /* ------------------------------ Remboursements ---------------------------- */
 
 events.post("/:id/refund-requests/:rid/decision", async (c) => {

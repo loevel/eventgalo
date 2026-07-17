@@ -791,38 +791,16 @@ function SellersTab({
       )}
 
       {ranked.map(({ seller: s, myQuotas, count, revenue }) => (
-        <div className="card" key={s.id}>
-          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <strong>{s.name}</strong>
-            <span className="muted">
-              {count} billet{count === 1 ? "" : "s"} · {formatPrice(revenue)}
-            </span>
-          </div>
-          {myQuotas.length === 0 && <p className="muted" style={{ fontSize: 14, margin: "4px 0" }}>Aucun quota attribué.</p>}
-          {myQuotas.map((mq) => {
-            const cat = categories.find((c) => c.id === mq.category_id);
-            const pct = mq.quota > 0 ? Math.min(100, Math.round((mq.sold / mq.quota) * 100)) : 0;
-            return (
-              <div key={mq.id} style={{ margin: "8px 0" }}>
-                <div className="muted" style={{ fontSize: 14 }}>
-                  {cat?.name ?? "Catégorie supprimée"} : {mq.sold}/{mq.quota} vendus
-                </div>
-                <div style={{ background: "var(--line)", borderRadius: 99, height: 6, marginTop: 4 }}>
-                  <div
-                    style={{
-                      width: `${pct}%`,
-                      background: pct >= 100 ? "var(--err)" : "var(--accent)",
-                      height: 6,
-                      borderRadius: 99,
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-          <label>Lien de vente</label>
-          <CopyField value={`${WEB}/s/${s.code}`} />
-        </div>
+        <SellerCard
+          key={s.id}
+          eventId={ev.id}
+          seller={s}
+          myQuotas={myQuotas}
+          categories={categories}
+          count={count}
+          revenue={revenue}
+          act={act}
+        />
       ))}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Ajouter un vendeur</h3>
@@ -868,5 +846,219 @@ function SellersTab({
         </button>
       </div>
     </>
+  );
+}
+
+function SellerCard({
+  eventId, seller, myQuotas, categories, count, revenue, act,
+}: {
+  eventId: string;
+  seller: Record<string, any>;
+  myQuotas: Array<Record<string, any>>;
+  categories: Array<Record<string, any>>;
+  count: number;
+  revenue: number;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(seller.name);
+  const [email, setEmail] = useState(seller.email ?? "");
+  const [editingQuotaId, setEditingQuotaId] = useState<string | null>(null);
+  const [quotaValue, setQuotaValue] = useState("");
+  const [addingCategoryId, setAddingCategoryId] = useState("");
+  const [addingQuota, setAddingQuota] = useState("");
+
+  const assignedCategoryIds = new Set(myQuotas.map((mq) => mq.category_id));
+  const availableCategories = categories.filter((c) => !assignedCategoryIds.has(c.id));
+
+  return (
+    <div className="card">
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        {editing ? (
+          <div className="grid2" style={{ flex: 1, marginRight: 12 }}>
+            <div>
+              <label>Nom</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div>
+              <label>Email (optionnel)</label>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+          </div>
+        ) : (
+          <strong>{seller.name}</strong>
+        )}
+        <span className="muted">
+          {count} billet{count === 1 ? "" : "s"} · {formatPrice(revenue)}
+        </span>
+      </div>
+
+      {editing ? (
+        <div style={{ margin: "10px 0" }}>
+          <button
+            className="btn-sm btn-accent"
+            onClick={() => {
+              act(
+                () =>
+                  api(`/api/events/${eventId}/sellers/${seller.id}`, {
+                    method: "PATCH",
+                    body: { name, email: email || null },
+                  }),
+                "Vendeur modifié",
+              );
+              setEditing(false);
+            }}
+          >
+            Enregistrer
+          </button>{" "}
+          <button className="btn-sm btn-ghost" onClick={() => setEditing(false)}>
+            Annuler
+          </button>
+        </div>
+      ) : (
+        <div style={{ margin: "10px 0" }}>
+          <button className="btn-sm btn-ghost" onClick={() => setEditing(true)}>
+            ✏️ Modifier
+          </button>{" "}
+          <button
+            className="btn-sm btn-ghost"
+            onClick={() => {
+              if (confirm(`Supprimer le vendeur ${seller.name} ? Cette action est irréversible.`)) {
+                act(() => api(`/api/events/${eventId}/sellers/${seller.id}`, { method: "DELETE" }), "Vendeur supprimé");
+              }
+            }}
+          >
+            🗑️ Supprimer
+          </button>
+        </div>
+      )}
+
+      {myQuotas.length === 0 && <p className="muted" style={{ fontSize: 14, margin: "4px 0" }}>Aucun quota attribué.</p>}
+      {myQuotas.map((mq) => {
+        const cat = categories.find((c) => c.id === mq.category_id);
+        const pct = mq.quota > 0 ? Math.min(100, Math.round((mq.sold / mq.quota) * 100)) : 0;
+        const isEditingThis = editingQuotaId === mq.id;
+        return (
+          <div key={mq.id} style={{ margin: "8px 0" }}>
+            <div className="muted" style={{ fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span>
+                {cat?.name ?? "Catégorie supprimée"} : {mq.sold}/{isEditingThis ? "…" : mq.quota} vendus
+              </span>
+              {isEditingThis ? (
+                <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="number"
+                    min={mq.sold}
+                    value={quotaValue}
+                    onChange={(e) => setQuotaValue(e.target.value)}
+                    style={{ width: 70 }}
+                  />
+                  <button
+                    className="btn-sm btn-accent"
+                    onClick={() => {
+                      act(
+                        () =>
+                          api(`/api/events/${eventId}/sellers/${seller.id}/quotas`, {
+                            method: "POST",
+                            body: { category_id: mq.category_id, quota: Number(quotaValue) },
+                          }),
+                        "Quota modifié",
+                      );
+                      setEditingQuotaId(null);
+                    }}
+                  >
+                    OK
+                  </button>
+                  <button className="btn-sm btn-ghost" onClick={() => setEditingQuotaId(null)}>
+                    ✕
+                  </button>
+                </span>
+              ) : (
+                <span style={{ display: "flex", gap: 6 }}>
+                  <button
+                    className="btn-sm btn-ghost"
+                    onClick={() => {
+                      setEditingQuotaId(mq.id);
+                      setQuotaValue(String(mq.quota));
+                    }}
+                  >
+                    Modifier
+                  </button>
+                  {mq.sold === 0 && (
+                    <button
+                      className="btn-sm btn-ghost"
+                      onClick={() => {
+                        if (confirm(`Retirer la catégorie ${cat?.name ?? ""} de ce vendeur ?`)) {
+                          act(
+                            () => api(`/api/events/${eventId}/sellers/${seller.id}/quotas/${mq.id}`, { method: "DELETE" }),
+                            "Quota retiré",
+                          );
+                        }
+                      }}
+                    >
+                      Retirer
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
+            <div style={{ background: "var(--line)", borderRadius: 99, height: 6, marginTop: 4 }}>
+              <div
+                style={{
+                  width: `${pct}%`,
+                  background: pct >= 100 ? "var(--err)" : "var(--accent)",
+                  height: 6,
+                  borderRadius: 99,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+
+      {availableCategories.length > 0 && (
+        <div className="grid2" style={{ alignItems: "center", margin: "10px 0" }}>
+          <select value={addingCategoryId} onChange={(e) => setAddingCategoryId(e.target.value)}>
+            <option value="">+ Ajouter une catégorie…</option>
+            {availableCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} (max dispo : {c.quantity})
+              </option>
+            ))}
+          </select>
+          <span style={{ display: "flex", gap: 6 }}>
+            <input
+              type="number"
+              min={1}
+              placeholder="Quota"
+              value={addingQuota}
+              onChange={(e) => setAddingQuota(e.target.value)}
+              style={{ width: 90 }}
+            />
+            <button
+              className="btn-sm btn-accent"
+              disabled={!addingCategoryId || !addingQuota}
+              onClick={() => {
+                act(
+                  () =>
+                    api(`/api/events/${eventId}/sellers/${seller.id}/quotas`, {
+                      method: "POST",
+                      body: { category_id: addingCategoryId, quota: Number(addingQuota) },
+                    }),
+                  "Catégorie ajoutée",
+                );
+                setAddingCategoryId("");
+                setAddingQuota("");
+              }}
+            >
+              Ajouter
+            </button>
+          </span>
+        </div>
+      )}
+
+      <label>Lien de vente</label>
+      <CopyField value={`${WEB}/s/${seller.code}`} />
+    </div>
   );
 }
