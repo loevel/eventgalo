@@ -1,11 +1,35 @@
 import type { MetadataRoute } from "next";
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  return [
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
+
+// Regénéré à chaque requête pour refléter les événements publiés récemment
+export const dynamic = "force-dynamic";
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const entries: MetadataRoute.Sitemap = [
     {
       url: "https://eventgalo.com",
       changeFrequency: "weekly",
       priority: 1,
     },
   ];
+
+  try {
+    const res = await fetch(`${API_BASE}/api/public/events`, { cache: "no-store" });
+    if (res.ok) {
+      const data = (await res.json()) as { events: Array<{ public_slug: string; updated_at: string | null }> };
+      for (const ev of data.events) {
+        entries.push({
+          url: `https://eventgalo.com/e/${ev.public_slug}`,
+          ...(ev.updated_at ? { lastModified: new Date(ev.updated_at) } : {}),
+          changeFrequency: "daily",
+          priority: 0.8,
+        });
+      }
+    }
+  } catch {
+    // API indisponible : on sert au moins la page d'accueil
+  }
+
+  return entries;
 }

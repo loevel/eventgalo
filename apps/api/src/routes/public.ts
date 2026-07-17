@@ -13,6 +13,14 @@ const PUBLIC_EVENT_FIELDS = `id, title, description, starts_at, ends_at, venue, 
 
 /* ---------------------------- Page publique ------------------------------ */
 
+// Liste des événements publiés (slug + date de mise à jour) — utilisée par le sitemap du site web
+pub.get("/events", async (c) => {
+  const events = await c.env.DB.prepare(
+    "SELECT public_slug, updated_at FROM events WHERE status = 'published' ORDER BY updated_at DESC LIMIT 1000",
+  ).all();
+  return c.json({ events: events.results });
+});
+
 pub.get("/events/:slug", async (c) => {
   const event = await c.env.DB.prepare(
     `SELECT ${PUBLIC_EVENT_FIELDS} FROM events WHERE public_slug = ? AND status = 'published'`,
