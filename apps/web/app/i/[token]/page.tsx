@@ -10,6 +10,7 @@ export default function InvitePage() {
   const [data, setData] = useState<Record<string, any> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
 
   useEffect(() => {
     api(`/api/public/invite/${token}`, { auth: false })
@@ -23,9 +24,9 @@ export default function InvitePage() {
       await api(`/api/public/invite/${token}/rsvp`, {
         method: "POST",
         auth: false,
-        body: { status, consent: true },
+        body: { status, consent: true, note: note.trim() || undefined },
       });
-      setData((d) => (d ? { ...d, guest: { ...d.guest, rsvp_status: status } } : d));
+      setData((d) => (d ? { ...d, guest: { ...d.guest, rsvp_status: status, rsvp_note: note.trim() || d.guest.rsvp_note } } : d));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -47,6 +48,11 @@ export default function InvitePage() {
         <p>
           Vous êtes invité·e à <strong>{ev.title}</strong>
         </p>
+        {guest.guardian_name && (
+          <p className="muted" style={{ fontSize: 13 }}>
+            À l&apos;attention de {guest.guardian_name}
+          </p>
+        )}
       </div>
 
       <div className="card">
@@ -67,6 +73,12 @@ export default function InvitePage() {
               En confirmant, vous consentez à l&apos;utilisation de vos coordonnées pour cet événement
               (supprimées 30 jours après).
             </p>
+            {ev.rsvp_question && (
+              <div style={{ textAlign: "left", marginBottom: 12 }}>
+                <label>{ev.rsvp_question}</label>
+                <input value={note} onChange={(e) => setNote(e.target.value)} />
+              </div>
+            )}
             <button className="btn-accent" disabled={busy} onClick={() => rsvp("yes")}>
               ✓ Je serai présent·e
             </button>{" "}
@@ -77,6 +89,11 @@ export default function InvitePage() {
         ) : guest.rsvp_status === "yes" ? (
           <>
             <div className="alert ok">✓ Présence confirmée — merci !</div>
+            {guest.rsvp_note && (
+              <p className="muted" style={{ fontSize: 13 }}>
+                {ev.rsvp_question ?? "Votre réponse"} : {guest.rsvp_note}
+              </p>
+            )}
             <button className="btn-ghost btn-sm" disabled={busy} onClick={() => rsvp("no")}>
               Finalement je ne peux plus venir
             </button>

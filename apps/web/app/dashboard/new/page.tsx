@@ -12,17 +12,21 @@ interface Category {
   quantity: number;
 }
 
-function parseGuestLines(text: string): Array<{ name: string; email: string | null; table_name: string | null }> {
+function parseGuestLines(
+  text: string,
+): Array<{ name: string; email: string | null; table_name: string | null; guardian_name: string | null }> {
   return text
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => {
-      const [name, email, table_name] = l.split(",").map((s) => s.trim());
-      return { name, email: email || null, table_name: table_name || null };
+      const [name, email, table_name, guardian_name] = l.split(",").map((s) => s.trim());
+      return { name, email: email || null, table_name: table_name || null, guardian_name: guardian_name || null };
     })
     .filter((g) => g.name);
 }
+
+const KIDS_RSVP_QUESTION = "Allergies alimentaires ou informations utiles ? (optionnel)";
 
 const STEP_LABELS = ["Essentiels", "Configuration", "Récapitulatif"] as const;
 
@@ -36,6 +40,7 @@ export default function NewEvent() {
   // Étape 1 — essentiels
   const [title, setTitle] = useState("");
   const [type, setType] = useState<"private" | "ticketed">("private");
+  const [occasion, setOccasion] = useState<"generic" | "kids">("generic");
   const [startsAt, setStartsAt] = useState("");
   const [venue, setVenue] = useState("");
   const [address, setAddress] = useState("");
@@ -52,6 +57,7 @@ export default function NewEvent() {
   // Étape 3 — récapitulatif
   const [description, setDescription] = useState("");
   const [dressCode, setDressCode] = useState("");
+  const [rsvpQuestion, setRsvpQuestion] = useState("");
   const [refundKind, setRefundKind] = useState("full");
   const [refundDays, setRefundDays] = useState("7");
   const [refundPercent, setRefundPercent] = useState("50");
@@ -66,6 +72,10 @@ export default function NewEvent() {
   useEffect(() => {
     if (eventId && type === "ticketed" && step === 2) loadCategories(eventId);
   }, [eventId, type, step, loadCategories]);
+
+  useEffect(() => {
+    if (occasion === "kids" && !rsvpQuestion) setRsvpQuestion(KIDS_RSVP_QUESTION);
+  }, [occasion, rsvpQuestion]);
 
   async function continueFromStep1(e: React.FormEvent) {
     e.preventDefault();
@@ -137,6 +147,7 @@ export default function NewEvent() {
         body: {
           description: description || null,
           dress_code: dressCode || null,
+          rsvp_question: type === "private" ? rsvpQuestion || null : null,
           status: publish ? "published" : "draft",
           refund_policy:
             type === "ticketed"
@@ -190,6 +201,22 @@ export default function NewEvent() {
               <option value="private">Privé (invitations &amp; RSVP)</option>
               <option value="ticketed">Avec billetterie (catégories, vendeurs, paiements)</option>
             </select>
+          )}
+
+          {type === "private" && (
+            <>
+              <label>C&apos;est quel genre d&apos;événement ?</label>
+              <select value={occasion} onChange={(e) => setOccasion(e.target.value as "generic" | "kids")}>
+                <option value="generic">Événement privé (générique)</option>
+                <option value="kids">🎈 Anniversaire d&apos;enfant</option>
+              </select>
+              {occasion === "kids" && (
+                <p className="muted" style={{ fontSize: 13 }}>
+                  On adapte la saisie des invités pour indiquer facilement le parent à contacter, et on ajoute une
+                  question RSVP pour les allergies et infos utiles.
+                </p>
+              )}
+            </>
           )}
 
           <label>Date et heure *</label>
@@ -262,16 +289,22 @@ export default function NewEvent() {
       {step === 2 && type === "private" && (
         <>
           <div className="card">
-            <h3 style={{ marginTop: 0 }}>Invités</h3>
+            <h3 style={{ marginTop: 0 }}>{occasion === "kids" ? "Enfants invités" : "Invités"}</h3>
             <p className="muted">
-              Un invité par ligne : Nom, email (optionnel), table (optionnel). Les invitations seront envoyées par
-              email seulement à la fin, une fois l&apos;événement finalisé.
+              {occasion === "kids"
+                ? "Un enfant par ligne : nom de l'enfant, email du parent (optionnel), table (optionnel), nom du parent/contact (optionnel). Chaque parent recevra un lien personnel au nom de son enfant."
+                : "Un invité par ligne : Nom, email (optionnel), table (optionnel), contact/parent (optionnel)."}{" "}
+              Les invitations seront envoyées par email seulement à la fin, une fois l&apos;événement finalisé.
             </p>
             <textarea
               rows={6}
               value={guestBulk}
               onChange={(e) => setGuestBulk(e.target.value)}
-              placeholder={"Awa Diop, awa@exemple.com, Table 3\nJean K."}
+              placeholder={
+                occasion === "kids"
+                  ? "Léa Martin, maman.lea@exemple.com, , Sophie Martin (maman de Léa)\nNoah Petit,,, Papa de Noah — 514-555-1234"
+                  : "Awa Diop, awa@exemple.com, Table 3\nJean K."
+              }
             />
             {guestList.length > 0 && (
               <p className="muted" style={{ marginBottom: 0 }}>
@@ -299,6 +332,21 @@ export default function NewEvent() {
             <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
             <label>Dress code</label>
             <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />
+
+            {type === "private" && (
+              <>
+                <label>Question RSVP (optionnel)</label>
+                <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+                  Affichée aux invités au moment de confirmer leur présence. Utile pour les allergies, un besoin de
+                  transport, etc.
+                </p>
+                <input
+                  value={rsvpQuestion}
+                  onChange={(e) => setRsvpQuestion(e.target.value)}
+                  placeholder="Allergies alimentaires ou informations utiles ?"
+                />
+              </>
+            )}
 
             {type === "ticketed" && (
               <>

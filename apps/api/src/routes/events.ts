@@ -55,8 +55,8 @@ events.post("/", async (c) => {
   const scannerKey = randomToken(12);
   await c.env.DB.prepare(
     `INSERT INTO events (id, organizer_id, title, description, starts_at, ends_at, venue, address,
-       dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, rsvp_question, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id, user.id, title,
@@ -65,6 +65,7 @@ events.post("/", async (c) => {
       (b.dress_code as string) ?? null, (b.seating_plan as string) ?? null,
       capacity, slug, scannerKey, type, status,
       b.refund_policy ? JSON.stringify(b.refund_policy) : null,
+      (b.rsvp_question as string) || null,
       nowIso(), nowIso(),
     )
     .run();
@@ -152,7 +153,7 @@ events.patch("/:id", async (c) => {
 
   const allowed = [
     "title", "description", "starts_at", "ends_at", "venue", "address",
-    "dress_code", "seating_plan", "capacity", "type", "status",
+    "dress_code", "seating_plan", "capacity", "type", "status", "rsvp_question",
   ] as const;
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -194,12 +195,13 @@ events.post("/:id/guests", async (c) => {
     created.push({ id, name, token });
     statements.push(
       c.env.DB.prepare(
-        `INSERT INTO guests (id, event_id, name, email, phone, token, table_name, plus_ones)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO guests (id, event_id, name, email, phone, token, table_name, plus_ones, guardian_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id, event.id, name,
         (g.email as string) || null, (g.phone as string) || null,
         token, (g.table_name as string) || null, Number(g.plus_ones ?? 0) | 0,
+        (g.guardian_name as string) || null,
       ),
     );
   }

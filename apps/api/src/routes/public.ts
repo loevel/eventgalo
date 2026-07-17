@@ -9,7 +9,7 @@ import { callEventDO, DOError } from "../do/event-do";
 const pub = new Hono<AppContext>();
 
 const PUBLIC_EVENT_FIELDS = `id, title, description, starts_at, ends_at, venue, address,
-  dress_code, capacity, public_slug, type, status, refund_policy`;
+  dress_code, capacity, public_slug, type, status, refund_policy, rsvp_question`;
 
 /* ---------------------------- Page publique ------------------------------ */
 
@@ -61,12 +61,19 @@ pub.get("/invite/:token", async (c) => {
 });
 
 pub.post("/invite/:token/rsvp", async (c) => {
-  const b = await c.req.json<{ status?: string; consent?: boolean }>().catch(() => ({}) as Record<string, never>);
+  const b = await c.req.json<{ status?: string; consent?: boolean; note?: string }>().catch(() => ({}) as Record<string, never>);
   if (b.status !== "yes" && b.status !== "no") return c.json({ error: "Statut invalide" }, 400);
+  const note = typeof b.note === "string" ? b.note.trim().slice(0, 500) : undefined;
   const res = await c.env.DB.prepare(
-    "UPDATE guests SET rsvp_status = ?, rsvp_at = ?, consent_at = COALESCE(consent_at, ?) WHERE token = ?",
+    `UPDATE guests SET rsvp_status = ?, rsvp_at = ?, consent_at = COALESCE(consent_at, ?)
+     ${note !== undefined ? ", rsvp_note = ?" : ""}
+     WHERE token = ?`,
   )
-    .bind(b.status, nowIso(), b.consent ? nowIso() : null, c.req.param("token"))
+    .bind(
+      ...(note !== undefined
+        ? [b.status, nowIso(), b.consent ? nowIso() : null, note || null, c.req.param("token")]
+        : [b.status, nowIso(), b.consent ? nowIso() : null, c.req.param("token")]),
+    )
     .run();
   if (res.meta.changes === 0) return c.json({ error: "Invitation introuvable" }, 404);
   return c.json({ ok: true, status: b.status });
