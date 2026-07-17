@@ -123,7 +123,7 @@ export default function EventAdmin() {
           ...(ev.type === "ticketed"
             ? ([
                 ["billets", "Billetterie"],
-                ["vendeurs", `Vendeurs (${sellers.length})`],
+                ["vendeurs", `Vendeurs & ventes (${sellers.length})`],
                 ["remboursements", `Remboursements (${refund_requests.filter((r) => r.status === "pending").length})`],
                 ["scan", "Scan"],
               ] as const)
@@ -681,31 +681,149 @@ function SellersTab({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [q, setQ] = useState<Record<string, string>>({});
+
+  const ticketCount = (rows: Array<Record<string, any>>) => rows.reduce((t, x) => t + (x.count ?? 0), 0);
+  const revenueOf = (rows: Array<Record<string, any>>) => rows.reduce((t, x) => t + (x.revenue_cents ?? 0), 0);
+
+  const directSales = sales.filter((x) => !x.seller_id);
+  const directCount = ticketCount(directSales);
+  const totalCount = ticketCount(sales);
+  const totalRevenue = revenueOf(sales);
+
+  const ranked = [...sellers]
+    .map((s) => {
+      const mySales = sales.filter((x) => x.seller_id === s.id);
+      const myQuotas = quotas.filter((x) => x.seller_id === s.id);
+      const quotaTotal = myQuotas.reduce((t, x) => t + x.quota, 0);
+      const quotaSold = myQuotas.reduce((t, x) => t + x.sold, 0);
+      return {
+        seller: s,
+        myQuotas,
+        count: ticketCount(mySales),
+        revenue: revenueOf(mySales),
+        quotaTotal,
+        quotaSold,
+      };
+    })
+    .sort((a, b) => b.revenue - a.revenue || b.count - a.count);
+
   return (
     <>
-      {sellers.map((s) => {
-        const myQuotas = quotas.filter((x) => x.seller_id === s.id);
-        const mySales = sales.filter((x) => x.seller_id === s.id);
-        const revenue = mySales.reduce((t, x) => t + (x.revenue_cents ?? 0), 0);
-        return (
-          <div className="card" key={s.id}>
-            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <strong>{s.name}</strong>
-              <span className="muted">{formatPrice(revenue)} de ventes</span>
-            </div>
-            {myQuotas.map((mq) => {
-              const cat = categories.find((c) => c.id === mq.category_id);
-              return (
-                <div key={mq.id} className="muted" style={{ fontSize: 14 }}>
-                  {cat?.name} : {mq.sold}/{mq.quota} vendus
-                </div>
-              );
-            })}
-            <label>Lien de vente</label>
-            <CopyField value={`${WEB}/s/${s.code}`} />
+      {(sellers.length > 0 || totalCount > 0) && (
+        <div className="grid3">
+          <div className="card stat">
+            <div className="num">{totalCount}</div>
+            <div className="lbl">Billets vendus au total</div>
           </div>
-        );
-      })}
+          <div className="card stat">
+            <div className="num">{formatPrice(totalRevenue)}</div>
+            <div className="lbl">Revenus au total</div>
+          </div>
+          <div className="card stat">
+            <div className="num">{directCount}</div>
+            <div className="lbl">Ventes sans vendeur</div>
+          </div>
+        </div>
+      )}
+
+      {sellers.length === 0 && totalCount === 0 && (
+        <div className="card">
+          <p className="muted" style={{ margin: 0 }}>
+            Aucune vente pour l&apos;instant. Ajoutez un vendeur ci-dessous pour lui donner un lien de vente
+            personnel, ou partagez directement le lien public de l&apos;événement.
+          </p>
+        </div>
+      )}
+
+      {sellers.length === 0 && totalCount > 0 && (
+        <div className="card">
+          <p className="muted" style={{ margin: 0 }}>
+            Toutes les ventes proviennent du lien public de l&apos;événement — aucun vendeur n&apos;a encore été
+            ajouté.
+          </p>
+        </div>
+      )}
+
+      {ranked.length > 0 && (
+        <div className="card" style={{ overflowX: "auto" }}>
+          <h3 style={{ marginTop: 0 }}>Classement des vendeurs</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Vendeur</th>
+                <th>Billets</th>
+                <th>Revenus</th>
+                <th>Quota utilisé</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranked.map((r, i) => (
+                <tr key={r.seller.id}>
+                  <td>{i + 1}</td>
+                  <td>{r.seller.name}</td>
+                  <td>{r.count}</td>
+                  <td>{formatPrice(r.revenue)}</td>
+                  <td>
+                    {r.quotaTotal > 0 ? (
+                      <>
+                        {r.quotaSold}/{r.quotaTotal}{" "}
+                        <span className="muted">({Math.round((r.quotaSold / r.quotaTotal) * 100)}%)</span>
+                      </>
+                    ) : (
+                      <span className="muted">Aucun quota</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {directCount > 0 && (
+                <tr>
+                  <td>—</td>
+                  <td className="muted">Ventes directes (sans vendeur)</td>
+                  <td>{directCount}</td>
+                  <td>{formatPrice(revenueOf(directSales))}</td>
+                  <td className="muted">—</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {ranked.map(({ seller: s, myQuotas, count, revenue }) => (
+        <div className="card" key={s.id}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <strong>{s.name}</strong>
+            <span className="muted">
+              {count} billet{count === 1 ? "" : "s"} · {formatPrice(revenue)}
+            </span>
+          </div>
+          {myQuotas.length === 0 && <p className="muted" style={{ fontSize: 14, margin: "4px 0" }}>Aucun quota attribué.</p>}
+          {myQuotas.map((mq) => {
+            const cat = categories.find((c) => c.id === mq.category_id);
+            const pct = mq.quota > 0 ? Math.min(100, Math.round((mq.sold / mq.quota) * 100)) : 0;
+            return (
+              <div key={mq.id} style={{ margin: "8px 0" }}>
+                <div className="muted" style={{ fontSize: 14 }}>
+                  {cat?.name ?? "Catégorie supprimée"} : {mq.sold}/{mq.quota} vendus
+                </div>
+                <div style={{ background: "var(--line)", borderRadius: 99, height: 6, marginTop: 4 }}>
+                  <div
+                    style={{
+                      width: `${pct}%`,
+                      background: pct >= 100 ? "var(--err)" : "var(--accent)",
+                      height: 6,
+                      borderRadius: 99,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <label>Lien de vente</label>
+          <CopyField value={`${WEB}/s/${s.code}`} />
+        </div>
+      ))}
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Ajouter un vendeur</h3>
         <div className="grid2">
