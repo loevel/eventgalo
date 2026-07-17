@@ -155,7 +155,10 @@ export default function Home() {
       </section>
 
       <footer className="landing-footer muted">
-        EventGalo — invitations, RSVP et billetterie pour vos événements.
+        <p style={{ margin: "0 0 8px" }}>EventGalo — invitations, RSVP et billetterie pour vos événements.</p>
+        <p style={{ margin: 0 }}>
+          <a href="/cgu">Conditions générales d&apos;utilisation</a> · <a href="/confidentialite">Politique de confidentialité</a>
+        </p>
       </footer>
     </main>
   );
