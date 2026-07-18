@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, formatDate, getToken } from "@/lib/api";
+import { Reveal } from "@/components/reveal";
 
 interface EventListItem {
   id: string;
@@ -105,20 +106,22 @@ export default function Dashboard() {
       )}
 
       {stats && events && events.length > 0 && (
-        <div className="grid3" style={{ marginTop: 14 }}>
-          <div className="card stat">
-            <div className="num">{stats.upcoming}</div>
-            <div className="lbl">Événements à venir</div>
+        <Reveal>
+          <div className="grid3" style={{ marginTop: 14 }}>
+            <div className="card stat">
+              <div className="num">{stats.upcoming}</div>
+              <div className="lbl">Événements à venir</div>
+            </div>
+            <div className="card stat">
+              <div className="num">{stats.confirmed}</div>
+              <div className="lbl">Invités confirmés</div>
+            </div>
+            <div className="card stat">
+              <div className="num">{stats.ticketsSold}</div>
+              <div className="lbl">Billets vendus</div>
+            </div>
           </div>
-          <div className="card stat">
-            <div className="num">{stats.confirmed}</div>
-            <div className="lbl">Invités confirmés</div>
-          </div>
-          <div className="card stat">
-            <div className="num">{stats.ticketsSold}</div>
-            <div className="lbl">Billets vendus</div>
-          </div>
-        </div>
+        </Reveal>
       )}
 
       {events && events.length > 0 && (
@@ -150,36 +153,38 @@ export default function Dashboard() {
         </div>
       )}
 
-      {filtered?.map((e) => (
-        <Link key={e.id} href={`/dashboard/e/${e.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-          <div className="card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <div>
-                <strong style={{ fontSize: 17 }}>
-                  {e.type === "ticketed" ? "🎟️ " : "🎂 "}
-                  {e.title}
-                  {!e.is_owner && (
-                    <span className="badge mut" style={{ marginLeft: 8, fontWeight: 400 }}>
-                      Co-organisé
+      {filtered?.map((e, i) => (
+        <Reveal key={e.id} delay={Math.min(i, 6) * 60}>
+          <Link href={`/dashboard/e/${e.id}`} className="card-link">
+            <div className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <div>
+                  <strong style={{ fontSize: 17 }}>
+                    {e.type === "ticketed" ? "🎟️ " : "🎂 "}
+                    {e.title}
+                    {!e.is_owner && (
+                      <span className="badge mut" style={{ marginLeft: 8, fontWeight: 400 }}>
+                        Co-organisé
+                      </span>
+                    )}
+                  </strong>
+                  <div className="muted">{relativeDate(e.starts_at)} · {formatDate(e.starts_at)}</div>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 13 }}>
+                  {e.status !== "published" && (
+                    <span className={`badge ${e.status === "draft" ? "warn" : "mut"}`}>
+                      {e.status === "draft" ? "Brouillon" : "Archivé"}
                     </span>
                   )}
-                </strong>
-                <div className="muted">{relativeDate(e.starts_at)} · {formatDate(e.starts_at)}</div>
-              </div>
-              <div style={{ textAlign: "right", fontSize: 13 }}>
-                {e.status !== "published" && (
-                  <span className={`badge ${e.status === "draft" ? "warn" : "mut"}`}>
-                    {e.status === "draft" ? "Brouillon" : "Archivé"}
-                  </span>
-                )}
-                <div className="muted" style={{ marginTop: 6 }}>
-                  {e.yes_count}/{e.guest_count} confirmés
-                  {e.type === "ticketed" ? ` · ${e.tickets_sold} billets` : ""}
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    {e.yes_count}/{e.guest_count} confirmés
+                    {e.type === "ticketed" ? ` · ${e.tickets_sold} billets` : ""}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </Link>
+          </Link>
+        </Reveal>
       ))}
     </main>
   );
