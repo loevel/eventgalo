@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { api, formatPrice } from "@/lib/api";
+import { parsePerks } from "@/lib/perks";
 
 interface Category {
   id: string;
   name: string;
+  perks?: string | null;
   price_cents: number;
   currency: string;
   quantity: number;
@@ -121,29 +124,42 @@ export function CheckoutForm({
         const catRemaining = c.quantity - c.sold;
         const isSoldOut = catRemaining <= 0;
         const isLow = !isSoldOut && catRemaining <= 5;
+        const perks = parsePerks(c.perks);
+        const isSelected = catId === c.id;
         return (
           <div
             key={c.id}
-            className={`cat-card ${catId === c.id ? "selected" : ""} ${isSoldOut ? "disabled" : ""}`}
+            className={`cat-card ${isSelected ? "selected" : ""} ${isSoldOut ? "disabled" : ""} ${perks.length ? "has-perks" : ""}`}
             onClick={() => setCatId(c.id)}
             role="radio"
-            aria-checked={catId === c.id}
+            aria-checked={isSelected}
             tabIndex={0}
           >
-            <div>
-              <div className="cat-name">{c.name}</div>
-              <div className={`cat-remaining ${isLow ? "low" : ""}`}>
-                {isSoldOut ? "Épuisé" : isLow ? (
-                  <>
-                    <span className="pulse-dot" style={{ marginRight: 5 }} />
-                    Plus que {catRemaining} place{catRemaining > 1 ? "s" : ""} !
-                  </>
-                ) : (
-                  `${catRemaining} places disponibles`
-                )}
+            <div className="cat-card-head">
+              <div>
+                <div className="cat-name">{c.name}</div>
+                <div className={`cat-remaining ${isLow ? "low" : ""}`}>
+                  {isSoldOut ? "Épuisé" : isLow ? (
+                    <>
+                      <span className="pulse-dot" style={{ marginRight: 5 }} />
+                      Plus que {catRemaining} place{catRemaining > 1 ? "s" : ""} !
+                    </>
+                  ) : (
+                    `${catRemaining} places disponibles`
+                  )}
+                </div>
               </div>
+              <div className="cat-price">{formatPrice(c.price_cents, c.currency)}</div>
             </div>
-            <div className="cat-price">{formatPrice(c.price_cents, c.currency)}</div>
+            {perks.length > 0 && (
+              <ul className="cat-perks">
+                {perks.map((p, i) => (
+                  <li key={i} style={{ transitionDelay: isSelected ? `${i * 45}ms` : "0ms" }}>
+                    <Check /> {p}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         );
       })}

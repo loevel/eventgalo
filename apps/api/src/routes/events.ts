@@ -263,10 +263,10 @@ events.post("/:id/duplicate", async (c) => {
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
 
   const categories = await c.env.DB.prepare(
-    "SELECT name, description, price_cents, currency, quantity FROM ticket_categories WHERE event_id = ?",
+    "SELECT name, description, perks, price_cents, currency, quantity FROM ticket_categories WHERE event_id = ?",
   )
     .bind(event.id)
-    .all<{ name: string; description: string | null; price_cents: number; currency: string; quantity: number }>();
+    .all<{ name: string; description: string | null; perks: string | null; price_cents: number; currency: string; quantity: number }>();
 
   const newId = uuid();
   const slug = slugify(`${String(event.title)}-copie`);
@@ -283,9 +283,9 @@ events.post("/:id/duplicate", async (c) => {
   for (const cat of categories.results) {
     statements.push(
       c.env.DB.prepare(
-        `INSERT INTO ticket_categories (id, event_id, name, description, price_cents, currency, quantity)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(uuid(), newId, cat.name, cat.description, cat.price_cents, cat.currency, cat.quantity),
+        `INSERT INTO ticket_categories (id, event_id, name, description, perks, price_cents, currency, quantity)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(uuid(), newId, cat.name, cat.description, cat.perks, cat.price_cents, cat.currency, cat.quantity),
     );
   }
   await c.env.DB.batch(statements);
@@ -406,6 +406,17 @@ events.post("/:id/announcements", async (c) => {
 
 /* ------------------------- Catégories de billets ------------------------- */
 
+/** Normalise la liste d'avantages d'une catégorie : max 30 entrées de 140 caractères. */
+function sanitizePerks(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return null;
+  const perks = raw
+    .map((p) => String(p ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 30)
+    .map((p) => p.slice(0, 140));
+  return perks.length ? JSON.stringify(perks) : null;
+}
+
 events.post("/:id/categories", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
@@ -425,10 +436,10 @@ events.post("/:id/categories", async (c) => {
   }
   const id = uuid();
   await c.env.DB.prepare(
-    `INSERT INTO ticket_categories (id, event_id, name, description, price_cents, currency, quantity)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ticket_categories (id, event_id, name, description, perks, price_cents, currency, quantity)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, event.id, name, (b.description as string) ?? null, price, String(b.currency ?? "CAD"), quantity)
+    .bind(id, event.id, name, (b.description as string) ?? null, sanitizePerks(b.perks), price, String(b.currency ?? "CAD"), quantity)
     .run();
   return c.json({ id }, 201);
 });
@@ -467,6 +478,10 @@ events.patch("/:id/categories/:cid", async (c) => {
       sets.push(`${key} = ?`);
       values.push(b[key]);
     }
+  }
+  if (b.perks !== undefined) {
+    sets.push("perks = ?");
+    values.push(sanitizePerks(b.perks));
   }
   if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
   values.push(cat.id);

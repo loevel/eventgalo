@@ -32,7 +32,7 @@ pub.get("/events/:slug", async (c) => {
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const [categories, announcements] = await Promise.all([
     c.env.DB.prepare(
-      "SELECT id, name, description, price_cents, currency, quantity, sold FROM ticket_categories WHERE event_id = ? ORDER BY price_cents",
+      "SELECT id, name, description, perks, price_cents, currency, quantity, sold FROM ticket_categories WHERE event_id = ? ORDER BY price_cents",
     ).bind(event.id).all(),
     c.env.DB.prepare("SELECT body, created_at FROM announcements WHERE event_id = ? ORDER BY created_at DESC LIMIT 20")
       .bind(event.id).all(),
@@ -259,7 +259,7 @@ pub.get("/seller/:code", async (c) => {
   ).bind(seller.event_id).first();
   if (!event) return c.json({ error: "Événement archivé" }, 410);
   const categories = await c.env.DB.prepare(
-    `SELECT tc.id, tc.name, tc.price_cents, tc.currency, tc.quantity, tc.sold,
+    `SELECT tc.id, tc.name, tc.perks, tc.price_cents, tc.currency, tc.quantity, tc.sold,
             q.quota, q.sold AS seller_sold
      FROM ticket_categories tc
      LEFT JOIN seller_quotas q ON q.category_id = tc.id AND q.seller_id = ?
@@ -455,8 +455,8 @@ pub.get("/transactions/:id", async (c) => {
 
 pub.get("/tickets/:serial", async (c) => {
   const ticket = await c.env.DB.prepare(
-    `SELECT t.*, tc.name AS category_name, tc.price_cents, tc.currency,
-            e.title AS event_title, e.starts_at, e.venue, e.address, e.public_slug, e.refund_policy
+    `SELECT t.*, tc.name AS category_name, tc.perks AS category_perks, tc.price_cents, tc.currency,
+            e.title AS event_title, e.starts_at, e.ends_at, e.venue, e.address, e.dress_code, e.public_slug, e.refund_policy
      FROM tickets t
      JOIN ticket_categories tc ON tc.id = t.category_id
      JOIN events e ON e.id = t.event_id

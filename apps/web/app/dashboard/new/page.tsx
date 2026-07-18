@@ -49,7 +49,7 @@ export default function NewEvent() {
 
   // Étape 2 — billetterie
   const [categories, setCategories] = useState<Category[]>([]);
-  const [catForm, setCatForm] = useState({ name: "", price: "", quantity: "" });
+  const [catForm, setCatForm] = useState({ name: "", price: "", quantity: "", perks: "" });
 
   // Étape 2 — invités (saisis localement, envoyés seulement à la fin)
   const [guestBulk, setGuestBulk] = useState("");
@@ -122,9 +122,10 @@ export default function NewEvent() {
           name: catForm.name,
           price_cents: Math.round(Number(catForm.price || 0) * 100),
           quantity: Number(catForm.quantity),
+          perks: catForm.perks.split("\n").map((p) => p.trim()).filter(Boolean),
         },
       });
-      setCatForm({ name: "", price: "", quantity: "" });
+      setCatForm({ name: "", price: "", quantity: "", perks: "" });
       loadCategories(eventId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
@@ -286,6 +287,16 @@ export default function NewEvent() {
             </div>
             <label>Quantité</label>
             <input type="number" min={1} value={catForm.quantity} onChange={(e) => setCatForm({ ...catForm, quantity: e.target.value })} />
+            <label>Avantages inclus (un par ligne, optionnel)</label>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Affichés sur la page de l&apos;événement et sur le billet — ex. bouteilles incluses, accès loge, repas.
+            </p>
+            <textarea
+              rows={4}
+              value={catForm.perks}
+              onChange={(e) => setCatForm({ ...catForm, perks: e.target.value })}
+              placeholder={"3 bouteilles de vin rouge\n2 bouteilles de whisky 12 ans d'âge\n4 bouteilles d'eau"}
+            />
             <button type="button" className="btn-accent" onClick={addCategory} disabled={!catForm.name || !catForm.quantity}>
               + Ajouter cette catégorie
             </button>

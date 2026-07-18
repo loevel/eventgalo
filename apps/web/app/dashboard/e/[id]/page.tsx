@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
 import { MediaGallery, type MediaItem } from "@/components/media-gallery";
 import { TicketPreview } from "@/components/ticket-preview";
+import { parsePerks } from "@/lib/perks";
 
 interface Detail {
   event: Record<string, any>;
@@ -667,9 +668,9 @@ function CategoriesTab({
   waitlist: Array<Record<string, any>>;
   act: (fn: () => Promise<unknown>, ok?: string) => void;
 }) {
-  const [form, setForm] = useState({ name: "", price: "", quantity: "" });
-  const [editing, setEditing] = useState<{ id: string; name: string; price: string; quantity: string } | null>(null);
-  const [preview, setPreview] = useState<{ name: string; priceCents: number } | null>(null);
+  const [form, setForm] = useState({ name: "", price: "", quantity: "", perks: "" });
+  const [editing, setEditing] = useState<{ id: string; name: string; price: string; quantity: string; perks: string } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; priceCents: number; perks: string[] } | null>(null);
   const [openWaitlist, setOpenWaitlist] = useState<string | null>(null);
   const allocated = categories.reduce((s, c) => s + c.quantity, 0);
   return (
@@ -681,6 +682,7 @@ function CategoriesTab({
           venue={ev.venue}
           categoryName={preview.name}
           priceCents={preview.priceCents}
+          perks={preview.perks}
           onClose={() => setPreview(null)}
         />
       )}
@@ -702,7 +704,8 @@ function CategoriesTab({
           <tbody>
             {categories.map((c) =>
               editing && editing.id === c.id ? (
-                <tr key={c.id}>
+                <React.Fragment key={c.id}>
+                <tr>
                   <td>
                     <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
                   </td>
@@ -739,6 +742,7 @@ function CategoriesTab({
                                 name: editing.name,
                                 price_cents: Math.round(Number(editing.price || 0) * 100),
                                 quantity: Number(editing.quantity),
+                                perks: editing.perks.split("\n").map((p) => p.trim()).filter(Boolean),
                               },
                             }),
                           "Catégorie modifiée",
@@ -753,9 +757,28 @@ function CategoriesTab({
                     </button>
                   </td>
                 </tr>
+                <tr>
+                  <td colSpan={6}>
+                    <label style={{ marginTop: 0 }}>Avantages inclus (un par ligne)</label>
+                    <textarea
+                      rows={4}
+                      value={editing.perks}
+                      onChange={(e) => setEditing({ ...editing, perks: e.target.value })}
+                      placeholder={"3 bouteilles de vin rouge\n2 bouteilles de whisky 12 ans d'âge\n4 bouteilles d'eau"}
+                    />
+                  </td>
+                </tr>
+                </React.Fragment>
               ) : (
                 <tr key={c.id}>
-                  <td>{c.name}</td>
+                  <td>
+                    {c.name}
+                    {parsePerks(c.perks).length > 0 && (
+                      <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                        {parsePerks(c.perks).length} avantage{parsePerks(c.perks).length > 1 ? "s" : ""} inclus
+                      </span>
+                    )}
+                  </td>
                   <td>{formatPrice(c.price_cents, c.currency)}</td>
                   <td>
                     {c.sold}/{c.quantity}
@@ -776,7 +799,7 @@ function CategoriesTab({
                   <td>
                     <button
                       className="btn-sm btn-ghost"
-                      onClick={() => setPreview({ name: c.name, priceCents: c.price_cents })}
+                      onClick={() => setPreview({ name: c.name, priceCents: c.price_cents, perks: parsePerks(c.perks) })}
                     >
                       👁️ Aperçu
                     </button>{" "}
@@ -788,6 +811,7 @@ function CategoriesTab({
                           name: c.name,
                           price: String(c.price_cents / 100),
                           quantity: String(c.quantity),
+                          perks: parsePerks(c.perks).join("\n"),
                         })
                       }
                     >
@@ -858,6 +882,16 @@ function CategoriesTab({
         </div>
         <label>Quantité</label>
         <input type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
+        <label>Avantages inclus (un par ligne, optionnel)</label>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Affichés sur la page de l&apos;événement et sur le billet — bouteilles incluses, accès loge, repas, etc.
+        </p>
+        <textarea
+          rows={4}
+          value={form.perks}
+          onChange={(e) => setForm({ ...form, perks: e.target.value })}
+          placeholder={"3 bouteilles de vin rouge\n2 bouteilles de whisky 12 ans d'âge\n4 bouteilles d'eau"}
+        />
         <button
           className="btn-accent"
           onClick={() => {
@@ -869,11 +903,12 @@ function CategoriesTab({
                     name: form.name,
                     price_cents: Math.round(Number(form.price || 0) * 100),
                     quantity: Number(form.quantity),
+                    perks: form.perks.split("\n").map((p) => p.trim()).filter(Boolean),
                   },
                 }),
               "Catégorie créée",
             );
-            setForm({ name: "", price: "", quantity: "" });
+            setForm({ name: "", price: "", quantity: "", perks: "" });
           }}
         >
           Créer
@@ -882,7 +917,13 @@ function CategoriesTab({
           type="button"
           className="btn-ghost"
           disabled={!form.name}
-          onClick={() => setPreview({ name: form.name, priceCents: Math.round(Number(form.price || 0) * 100) })}
+          onClick={() =>
+            setPreview({
+              name: form.name,
+              priceCents: Math.round(Number(form.price || 0) * 100),
+              perks: form.perks.split("\n").map((p) => p.trim()).filter(Boolean),
+            })
+          }
         >
           👁️ Aperçu du billet
         </button>

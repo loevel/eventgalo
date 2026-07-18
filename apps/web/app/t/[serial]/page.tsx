@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
+import { CalendarDays, CalendarPlus, Check, MapPin, Printer, Shirt, Sparkles } from "lucide-react";
 import { API_BASE, api, formatDate, formatPrice } from "@/lib/api";
+import { parsePerks } from "@/lib/perks";
 
 export default function TicketPage() {
   const { serial } = useParams<{ serial: string }>();
@@ -26,32 +28,77 @@ export default function TicketPage() {
   if (!data) return <main className="container narrow"><p className="muted">Chargement…</p></main>;
 
   const t = data.ticket;
+  const perks = parsePerks(t.category_perks);
   return (
     <main className="container narrow">
-      <div className="card ticket-qr">
-        <h2 style={{ margin: "0 0 4px" }}>{t.event_title}</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          {formatDate(t.starts_at)}
-          {t.venue ? ` · ${t.venue}` : ""}
-        </p>
-        <p>
-          <span className="badge warn">{t.category_name}</span>{" "}
-          <span className={`badge ${t.status === "valid" ? "ok" : t.status === "used" ? "mut" : "err"}`}>
-            {t.status === "valid" ? "Valide" : t.status === "used" ? "Déjà utilisé" : "Remboursé/annulé"}
+      <div className="ticket-shell">
+        <div className="ticket-head">
+          <span className="ticket-brand">
+            Event<em>Galo</em>
           </span>
-        </p>
-        {qr && t.status === "valid" && <img src={qr} alt={`QR code du billet ${t.serial}`} />}
-        <div className="serial">{t.serial}</div>
-        <p className="muted">{t.buyer_name}</p>
-        <p className="muted" style={{ fontSize: 12, textAlign: "center" }}>
-          Billet nominatif à usage unique. Présentez ce QR code à l&apos;entrée.
-        </p>
-        <button className="btn-ghost no-print" onClick={() => window.print()}>
-          🖨️ Imprimer / Enregistrer en PDF
-        </button>{" "}
-        <a className="btn-ghost btn-sm no-print" href={`${API_BASE}/api/public/tickets/${serial}/ics`}>
-          📅 Agenda
-        </a>
+          <h2 className="ticket-title">{t.event_title}</h2>
+          <div className="ticket-meta">
+            <span>
+              <CalendarDays /> {formatDate(t.starts_at)}
+            </span>
+            {t.venue && (
+              <span>
+                <MapPin /> {t.venue}
+                {t.address ? `, ${t.address}` : ""}
+              </span>
+            )}
+            {t.dress_code && (
+              <span>
+                <Shirt /> {t.dress_code}
+              </span>
+            )}
+          </div>
+          <div className="ticket-badges">
+            <span className="ticket-cat">{t.category_name}</span>
+            <span className={`badge ${t.status === "valid" ? "ok" : t.status === "used" ? "mut" : "err"}`}>
+              {t.status === "valid" ? "Valide" : t.status === "used" ? "Déjà utilisé" : "Remboursé/annulé"}
+            </span>
+          </div>
+        </div>
+
+        <div className="ticket-perf" aria-hidden="true" />
+
+        <div className="ticket-body">
+          {qr && t.status === "valid" && (
+            <div className="ticket-qr-frame">
+              <img src={qr} alt={`QR code du billet ${t.serial}`} />
+            </div>
+          )}
+          <div className="serial">{t.serial}</div>
+          <p className="ticket-holder">{t.buyer_name}</p>
+
+          {perks.length > 0 && (
+            <div className="ticket-perks">
+              <h3>
+                <Sparkles /> Inclus avec votre billet {t.category_name}
+              </h3>
+              <ul>
+                {perks.map((p, i) => (
+                  <li key={i} style={{ animationDelay: `${0.55 + i * 0.09}s` }}>
+                    <Check /> {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="muted ticket-note">
+            Billet nominatif à usage unique. Présentez ce QR code à l&apos;entrée.
+          </p>
+          <div className="ticket-actions no-print">
+            <button className="btn-ghost btn-sm" onClick={() => window.print()}>
+              <Printer size={15} /> Imprimer / PDF
+            </button>
+            <a className="btn btn-ghost btn-sm" href={`${API_BASE}/api/public/tickets/${serial}/ics`}>
+              <CalendarPlus size={15} /> Agenda
+            </a>
+          </div>
+        </div>
       </div>
 
       {t.status === "valid" && (
