@@ -2,9 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, DownloadCloud, Store, Upload } from "lucide-react";
-import { API_BASE, api, getToken } from "@/lib/api";
+import { Building2, DownloadCloud, Inbox, Store, Upload } from "lucide-react";
+import { API_BASE, api, formatDate, getToken } from "@/lib/api";
 import { COMPANY_SECTORS, SOCIAL_KEYS, SOCIAL_LABELS, parseSocials, type SocialKey } from "@/lib/sponsor";
+
+interface SponsorRequest {
+  id: string;
+  token: string;
+  status: "invited" | "pending" | "confirmed" | "declined";
+  amount_cents: number | null;
+  paid_at: string | null;
+  invite_message: string | null;
+  source: string;
+  created_at: string;
+  tier_name: string | null;
+  event_title: string;
+  starts_at: string | null;
+  venue: string | null;
+}
 
 interface Company {
   id: string;
@@ -34,9 +49,13 @@ export default function CompanyPage() {
   const [uploading, setUploading] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [requests, setRequests] = useState<SponsorRequest[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
+    api<{ requests: SponsorRequest[] }>("/api/company/requests")
+      .then((r) => setRequests(r.requests))
+      .catch(() => {});
     api<{ company: Company | null }>("/api/company")
       .then((r) => {
         if (r.company) {
@@ -169,6 +188,59 @@ export default function CompanyPage() {
 
       {flash && <div className="alert ok">{flash}</div>}
       {error && <div className="alert err">{error}</div>}
+
+      {requests.length > 0 && (
+        <div className="card">
+          <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+            <Inbox size={17} /> Demandes et sponsorings
+            {requests.some((r) => r.status === "invited") && (
+              <span className="badge warn">
+                {requests.filter((r) => r.status === "invited").length} à traiter
+              </span>
+            )}
+          </h3>
+          {requests.map((r) => (
+            <div
+              key={r.id}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid var(--line)" }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <strong>{r.event_title}</strong>
+                <span className="muted" style={{ display: "block", fontSize: 13 }}>
+                  {r.starts_at ? formatDate(r.starts_at) : ""}
+                  {r.venue ? ` · ${r.venue}` : ""}
+                  {r.tier_name ? ` · ${r.tier_name}` : ""}
+                </span>
+                {r.invite_message && r.status === "invited" && (
+                  <span className="muted" style={{ display: "block", fontSize: 13, fontStyle: "italic" }}>
+                    « {r.invite_message} »
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
+                  className={`badge ${
+                    r.status === "confirmed" ? "ok" : r.status === "pending" ? "warn" : r.status === "declined" ? "err" : "mut"
+                  }`}
+                >
+                  {r.status === "confirmed"
+                    ? "Confirmé"
+                    : r.status === "pending"
+                      ? "Engagé"
+                      : r.status === "declined"
+                        ? "Décliné"
+                        : "Nouvelle demande"}
+                </span>
+                {r.status !== "declined" && (
+                  <a className="btn btn-ghost btn-sm" href={`/sp/${r.token}`} style={{ marginTop: 0 }}>
+                    {r.status === "invited" ? "Voir la proposition" : "Ouvrir"}
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {companyId && (
         <div className="card">

@@ -307,6 +307,44 @@ pub.post("/sponsor/:token/checkout", async (c) => {
   return c.json({ checkout_url: session.url });
 });
 
+/** L'entreprise décline la proposition de sponsoring. */
+pub.post("/sponsor/:token/decline", async (c) => {
+  const sponsor = await c.env.DB.prepare(
+    `SELECT s.id, s.event_id, s.status, s.company_name, e.title AS event_title
+     FROM sponsors s JOIN events e ON e.id = s.event_id WHERE s.token = ?`,
+  )
+    .bind(c.req.param("token"))
+    .first<{ id: string; event_id: string; status: string; company_name: string | null; event_title: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (sponsor.status === "confirmed") return c.json({ error: "Sponsoring déjà confirmé — contactez l'organisation" }, 409);
+  await c.env.DB.prepare("UPDATE sponsors SET status = 'declined' WHERE id = ?").bind(sponsor.id).run();
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      const org = await c.env.DB.prepare(
+        `SELECT u.email FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?`,
+      )
+        .bind(sponsor.event_id)
+        .first<{ email: string }>();
+      if (!org) return;
+      await sendEmail(
+        c.env,
+        org.email,
+        `Proposition déclinée — ${sponsor.event_title}`,
+        layout(
+          "Proposition de sponsoring déclinée",
+          `<p>${sponsor.company_name ? `<strong>${sponsor.company_name}</strong>` : "L'entreprise contactée"}
+             a décliné la proposition de sponsoring pour <strong>${sponsor.event_title}</strong>.</p>
+           <p>Vous pouvez explorer d'autres entreprises dans
+             <a href="${c.env.WEB_BASE_URL}/sponsors">l'annuaire des sponsors</a>.</p>`,
+          { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: sponsor.event_title },
+        ),
+      );
+    })(),
+  );
+  return c.json({ ok: true, status: "declined" });
+});
+
 /** Upload du logo de l'entreprise sponsor. */
 pub.post("/sponsor/:token/logo", async (c) => {
   const sponsor = await c.env.DB.prepare("SELECT id, event_id FROM sponsors WHERE token = ?")

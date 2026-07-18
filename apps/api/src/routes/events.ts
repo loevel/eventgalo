@@ -1001,6 +1001,63 @@ events.post("/:id/sponsors", async (c) => {
   return c.json({ id, token, url, email_sent: result.sent, debug_url: result.debug_url }, 201);
 });
 
+/**
+ * Demande de sponsoring en un clic depuis l'annuaire : l'email de l'entreprise
+ * n'est jamais exposé à l'organisateur — la plateforme fait l'intermédiaire.
+ */
+events.post("/:id/sponsors/from-directory", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ company_id?: string; message?: string }>().catch(() => ({}) as Record<string, never>);
+  if (!b.company_id) return c.json({ error: "Entreprise requise" }, 400);
+  const co = await c.env.DB.prepare(
+    `SELECT co.id, co.name, co.website, u.email AS owner_email
+     FROM companies co JOIN users u ON u.id = co.owner_user_id
+     WHERE co.id = ? AND co.listed = 1`,
+  )
+    .bind(b.company_id)
+    .first<{ id: string; name: string; website: string | null; owner_email: string }>();
+  if (!co) return c.json({ error: "Entreprise introuvable dans l'annuaire" }, 404);
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM sponsors WHERE event_id = ? AND company_id = ? AND status IN ('invited','pending','confirmed')`,
+  )
+    .bind(event.id, co.id)
+    .first();
+  if (existing) return c.json({ error: `Une demande est déjà en cours auprès de ${co.name} pour cet événement` }, 409);
+
+  const message = typeof b.message === "string" && b.message.trim() ? b.message.trim().slice(0, 800) : null;
+  const id = uuid();
+  const token = randomToken(16);
+  await c.env.DB.prepare(
+    `INSERT INTO sponsors (id, event_id, company_id, company_name, website, contact_email, token, invite_message, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'directory')`,
+  )
+    .bind(id, event.id, co.id, co.name, co.website, co.owner_email, token, message)
+    .run();
+
+  const url = `${c.env.WEB_BASE_URL}/sp/${token}`;
+  const logoUrl = await eventLogoUrl(c.env, event.id);
+  const result = await sendEmail(
+    c.env,
+    co.owner_email,
+    `Proposition de sponsoring — ${event.title}`,
+    layout(
+      `${co.name} : une association aimerait vous avoir comme sponsor !`,
+      `<p>L'organisation de <strong>${event.title}</strong> a découvert votre profil dans l'annuaire
+         EventGalo et vous propose de sponsoriser son événement.</p>
+       ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${message} »</p>` : ""}
+       <p>Découvrez les paliers proposés et leurs avantages, puis engagez-vous en ligne — ou déclinez si
+          l'occasion ne vous convient pas :</p>
+       <p><a href="${url}">Voir la proposition</a></p>`,
+      { logoUrl, eventTitle: String(event.title) },
+    ),
+    url,
+  );
+  return c.json({ id, email_sent: result.sent, debug_url: result.debug_url }, 201);
+});
+
 /** Décision de l'organisateur : confirmer, refuser, ou repasser en attente. */
 events.patch("/:id/sponsors/:sid", async (c) => {
   const user = c.get("user");

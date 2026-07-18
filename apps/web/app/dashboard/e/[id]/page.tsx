@@ -1551,15 +1551,7 @@ function SponsorsTab({
           L&apos;entreprise reçoit un lien privé où elle découvre vos paliers, choisit son offre, renseigne ses
           informations et téléverse son logo. Vous confirmez ensuite son sponsoring une fois le paiement reçu.
         </p>
-        <DirectoryPicker
-          onPick={(co) =>
-            setInvite({
-              email: co.public_email ?? "",
-              company: co.name,
-              contact: "",
-            })
-          }
-        />
+        <DirectoryPicker eventId={ev.id} act={act} />
         <div className="grid2">
           <div>
             <label>Email du contact *</label>
@@ -1687,14 +1679,16 @@ function SponsorsTab({
   );
 }
 
-/** Recherche dans l'annuaire public des sponsors pour préremplir une invitation. */
+/** Recherche dans l'annuaire public et envoi de demandes de sponsoring en un clic. */
 function DirectoryPicker({
-  onPick,
+  eventId, act,
 }: {
-  onPick: (co: { name: string; public_email: string | null }) => void;
+  eventId: string;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [message, setMessage] = useState("");
   const [results, setResults] = useState<Array<Record<string, any>> | null>(null);
   const [searching, setSearching] = useState(false);
 
@@ -1758,32 +1752,48 @@ function DirectoryPicker({
         </p>
       )}
       {results !== null && results.length > 0 && (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-          {results.slice(0, 8).map((co) => (
-            <div
-              key={co.id}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8 }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <strong>{co.name}</strong>
-                <span className="muted" style={{ display: "block", fontSize: 12 }}>
-                  {[co.sector, co.city].filter(Boolean).join(" · ") || "—"}
-                  {co.sponsorships > 0 ? ` · ${co.sponsorships} sponsoring${co.sponsorships > 1 ? "s" : ""}` : ""}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="btn-sm btn-ghost"
-                onClick={() => {
-                  onPick({ name: co.name, public_email: co.public_email ?? null });
-                  setOpen(false);
-                }}
+        <>
+          <label style={{ marginTop: 10 }}>Un mot pour l&apos;entreprise (optionnel, commun aux demandes)</label>
+          <textarea
+            rows={2}
+            maxLength={800}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Pourquoi ce partenariat a du sens…"
+          />
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            {results.slice(0, 8).map((co) => (
+              <div
+                key={co.id}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8 }}
               >
-                Choisir
-              </button>
-            </div>
-          ))}
-        </div>
+                <div style={{ minWidth: 0 }}>
+                  <strong>{co.name}</strong>
+                  <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                    {[co.sector, co.city].filter(Boolean).join(" · ") || "—"}
+                    {co.sponsorships > 0 ? ` · ${co.sponsorships} sponsoring${co.sponsorships > 1 ? "s" : ""}` : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-sm btn-accent"
+                  onClick={() =>
+                    act(
+                      () =>
+                        api(`/api/events/${eventId}/sponsors/from-directory`, {
+                          method: "POST",
+                          body: { company_id: co.id, message: message.trim() || null },
+                        }),
+                      `Demande envoyée à ${co.name}`,
+                    )
+                  }
+                >
+                  Proposer
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

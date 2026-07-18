@@ -536,9 +536,26 @@ export default function SponsorPage() {
                 pour le paiement (virement ou facture) et confirmera ensuite votre sponsoring.
               </p>
               {error && <div className="alert err">{error}</div>}
-              <button type="submit" className="btn-accent" disabled={busy || !tierId || !company}>
-                {busy ? "Envoi…" : "Confirmer mon engagement"}
-              </button>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <button type="submit" className="btn-accent" disabled={busy || !tierId || !company}>
+                  {busy ? "Envoi…" : "Confirmer mon engagement"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!confirm("Décliner cette proposition de sponsoring ? L'organisation en sera informée.")) return;
+                    setBusy(true);
+                    api(`/api/public/sponsor/${token}/decline`, { method: "POST", auth: false, body: {} })
+                      .then(load)
+                      .catch((e) => setError(e instanceof Error ? e.message : "Erreur"))
+                      .finally(() => setBusy(false));
+                  }}
+                >
+                  Décliner la proposition
+                </button>
+              </div>
             </div>
           </form>
         )}

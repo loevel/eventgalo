@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BadgeCheck, Globe, MapPin, Search, Store } from "lucide-react";
 import { COMPANY_SECTORS, parseSocials, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
+import { ProposeSponsorship } from "@/components/propose-sponsorship";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -125,6 +126,7 @@ export default async function SponsorDirectoryPage({
                     );
                   })}
                 </div>
+                <ProposeSponsorship companyId={co.id} companyName={co.name} />
               </div>
             );
           })}

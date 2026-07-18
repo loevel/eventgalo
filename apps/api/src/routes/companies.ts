@@ -123,6 +123,27 @@ company.post("/import", async (c) => {
   });
 });
 
+/** Demandes et sponsorings liés à mon entreprise (par rattachement ou par email). */
+company.get("/requests", async (c) => {
+  const user = c.get("user");
+  const co = await c.env.DB.prepare("SELECT id FROM companies WHERE owner_user_id = ?")
+    .bind(user.id)
+    .first<{ id: string }>();
+  const rows = await c.env.DB.prepare(
+    `SELECT s.id, s.token, s.status, s.amount_cents, s.paid_at, s.invite_message, s.source, s.created_at,
+            t.name AS tier_name,
+            e.title AS event_title, e.starts_at, e.venue, e.public_slug
+     FROM sponsors s
+     JOIN events e ON e.id = s.event_id
+     LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
+     WHERE s.company_id = ? OR s.contact_email = ?
+     ORDER BY s.created_at DESC LIMIT 50`,
+  )
+    .bind(co?.id ?? "-", user.email)
+    .all();
+  return c.json({ requests: rows.results });
+});
+
 /* ----------------------------- Annuaire public ----------------------------- */
 
 const directory = new Hono<AppContext>();
