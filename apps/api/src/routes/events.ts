@@ -6,6 +6,7 @@ import { requireAuth } from "../lib/auth";
 import { layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
+import { notifyWaitlist } from "../lib/waitlist";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
@@ -91,7 +92,7 @@ events.get("/:id", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [guests, categories, sellers, quotas, announcements, refunds, sales] = await Promise.all([
+  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist] = await Promise.all([
     c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ? ORDER BY price_cents").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
@@ -113,6 +114,7 @@ events.get("/:id", async (c) => {
        WHERE t.event_id = ? AND t.status IN ('valid','used')
        GROUP BY t.seller_id, t.category_id`,
     ).bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM waitlist WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
   ]);
   return c.json({
     event,
@@ -123,6 +125,7 @@ events.get("/:id", async (c) => {
     announcements: announcements.results,
     refund_requests: refunds.results,
     sales: sales.results,
+    waitlist: waitlist.results,
   });
 });
 
@@ -172,6 +175,43 @@ events.patch("/:id", async (c) => {
   values.push(nowIso(), event.id);
   await c.env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
   return c.json({ event: await getOwnedEvent(c.env, event.id, user.id) });
+});
+
+events.post("/:id/duplicate", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+
+  const categories = await c.env.DB.prepare(
+    "SELECT name, description, price_cents, currency, quantity FROM ticket_categories WHERE event_id = ?",
+  )
+    .bind(event.id)
+    .all<{ name: string; description: string | null; price_cents: number; currency: string; quantity: number }>();
+
+  const newId = uuid();
+  const slug = slugify(`${String(event.title)}-copie`);
+  const scannerKey = randomToken(12);
+  const statements = [
+    c.env.DB.prepare(
+      `INSERT INTO events (id, organizer_id, title, description, starts_at, ends_at, venue, address,
+         dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, rsvp_question, created_at, updated_at)
+       SELECT ?, organizer_id, title, description, starts_at, ends_at, venue, address,
+         dress_code, seating_plan, capacity, ?, ?, type, 'draft', refund_policy, rsvp_question, ?, ?
+       FROM events WHERE id = ?`,
+    ).bind(newId, slug, scannerKey, nowIso(), nowIso(), event.id),
+  ];
+  for (const cat of categories.results) {
+    statements.push(
+      c.env.DB.prepare(
+        `INSERT INTO ticket_categories (id, event_id, name, description, price_cents, currency, quantity)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(uuid(), newId, cat.name, cat.description, cat.price_cents, cat.currency, cat.quantity),
+    );
+  }
+  await c.env.DB.batch(statements);
+
+  const created = await getOwnedEvent(c.env, newId, user.id);
+  return c.json({ event: created }, 201);
 });
 
 /* --------------------------------- Invités ------------------------------- */
@@ -351,6 +391,23 @@ events.patch("/:id/categories/:cid", async (c) => {
   if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
   values.push(cat.id);
   await c.env.DB.prepare(`UPDATE ticket_categories SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+
+  if (b.quantity !== undefined) {
+    const freed = (Number(b.quantity) | 0) - cat.quantity;
+    if (freed > 0) c.executionCtx.waitUntil(notifyWaitlist(c.env, cat.id, freed));
+  }
+  return c.json({ ok: true });
+});
+
+/* ----------------------------- Liste d'attente ---------------------------- */
+
+events.delete("/:id/waitlist/:wid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  await c.env.DB.prepare("DELETE FROM waitlist WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("wid"), event.id)
+    .run();
   return c.json({ ok: true });
 });
 
@@ -524,7 +581,7 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
   const b = await c.req.json<{ approve?: boolean }>().catch(() => ({}) as Record<string, never>);
 
   const request = await c.env.DB.prepare(
-    `SELECT r.*, t.event_id, tr.stripe_payment_intent, tr.amount_cents, tr.quantity, tr.currency
+    `SELECT r.*, t.event_id, t.category_id, tr.stripe_payment_intent, tr.amount_cents, tr.quantity, tr.currency
      FROM refund_requests r
      JOIN tickets t ON t.id = r.ticket_id
      JOIN transactions tr ON tr.id = r.transaction_id
@@ -532,7 +589,7 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
   )
     .bind(c.req.param("rid"), event.id)
     .first<{
-      id: string; ticket_id: string; transaction_id: string;
+      id: string; ticket_id: string; transaction_id: string; category_id: string;
       stripe_payment_intent: string | null; amount_cents: number; quantity: number; currency: string;
     }>();
   if (!request) return c.json({ error: "Demande introuvable ou déjà traitée" }, 404);
@@ -551,6 +608,7 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
     if (e instanceof DOError) return c.json({ error: e.message }, 409);
     throw e;
   }
+  c.executionCtx.waitUntil(notifyWaitlist(c.env, request.category_id, 1));
 
   // 2. Refund Stripe (part du billet dans la transaction, pondérée par la politique)
   let policy: { kind?: string; percent?: number } | null = null;

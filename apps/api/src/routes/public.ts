@@ -375,6 +375,36 @@ pub.post("/checkout", async (c) => {
   });
 });
 
+/* ------------------------------ Liste d'attente ---------------------------- */
+
+pub.post("/waitlist", async (c) => {
+  // 10 requêtes / min par IP : dissuade le spam sur ce formulaire public.
+  if (await isRateLimited(c.env, "waitlist", clientIp(c), 10, 60)) return tooManyRequests(c);
+  const b = await c.req
+    .json<{ category_id?: string; name?: string; email?: string; phone?: string }>()
+    .catch(() => ({}) as Record<string, never>);
+  const name = String(b.name ?? "").trim();
+  const email = String(b.email ?? "").trim().toLowerCase();
+  if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return c.json({ error: "Nom et email requis" }, 400);
+  }
+  const cat = await c.env.DB.prepare(
+    `SELECT c.id, c.event_id, c.quantity, c.sold FROM ticket_categories c
+     JOIN events e ON e.id = c.event_id WHERE c.id = ? AND e.status = 'published'`,
+  )
+    .bind(String(b.category_id ?? ""))
+    .first<{ id: string; event_id: string; quantity: number; sold: number }>();
+  if (!cat) return c.json({ error: "Catégorie introuvable" }, 404);
+  if (cat.quantity - cat.sold > 0) return c.json({ error: "Cette catégorie n'est pas épuisée" }, 409);
+
+  await c.env.DB.prepare(
+    "INSERT INTO waitlist (id, event_id, category_id, name, email, phone) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(uuid(), cat.event_id, cat.id, name, email, (b.phone as string) || null)
+    .run();
+  return c.json({ ok: true }, 201);
+});
+
 export async function sendTicketsEmail(
   env: AppContext["Bindings"],
   email: string,

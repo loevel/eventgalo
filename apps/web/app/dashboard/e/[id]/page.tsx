@@ -16,6 +16,7 @@ interface Detail {
   announcements: Array<Record<string, any>>;
   refund_requests: Array<Record<string, any>>;
   sales: Array<Record<string, any>>;
+  waitlist: Array<Record<string, any>>;
 }
 
 const WEB = typeof window !== "undefined" ? window.location.origin : "";
@@ -81,7 +82,7 @@ export default function EventAdmin() {
     );
   }
 
-  const { event: ev, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales } = data;
+  const { event: ev, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales, waitlist } = data;
   const opened = guests.filter((g) => g.opened_at).length;
   const yes = guests.filter((g) => g.rsvp_status === "yes").length;
   const no = guests.filter((g) => g.rsvp_status === "no").length;
@@ -92,9 +93,27 @@ export default function EventAdmin() {
     <main className="container">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h1 style={{ marginBottom: 0 }}>{ev.title}</h1>
-        <Link href={`/dashboard/e/${ev.id}/edit`} className="btn btn-ghost btn-sm">
-          ✏️ Modifier
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={async () => {
+              setError(null);
+              try {
+                const { event: copy } = await api<{ event: { id: string } }>(`/api/events/${ev.id}/duplicate`, {
+                  method: "POST",
+                });
+                router.push(`/dashboard/e/${copy.id}`);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Erreur");
+              }
+            }}
+          >
+            🧬 Dupliquer
+          </button>
+          <Link href={`/dashboard/e/${ev.id}/edit`} className="btn btn-ghost btn-sm">
+            ✏️ Modifier
+          </Link>
+        </div>
       </div>
       <p className="muted">
         {formatDate(ev.starts_at)} {ev.venue ? `· ${ev.venue}` : ""} ·{" "}
@@ -241,7 +260,7 @@ export default function EventAdmin() {
 
       {tab === "photos" && <MediaTab eventId={ev.id} act={act} />}
 
-      {tab === "billets" && <CategoriesTab ev={ev} categories={categories} act={act} />}
+      {tab === "billets" && <CategoriesTab ev={ev} categories={categories} waitlist={waitlist} act={act} />}
 
       {tab === "vendeurs" && (
         <SellersTab ev={ev} sellers={sellers} quotas={seller_quotas} categories={categories} sales={sales} act={act} />
@@ -560,10 +579,18 @@ function AnnounceForm({ eventId, act }: { eventId: string; act: (fn: () => Promi
   );
 }
 
-function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categories: Array<Record<string, any>>; act: (fn: () => Promise<unknown>, ok?: string) => void }) {
+function CategoriesTab({
+  ev, categories, waitlist, act,
+}: {
+  ev: Record<string, any>;
+  categories: Array<Record<string, any>>;
+  waitlist: Array<Record<string, any>>;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
   const [form, setForm] = useState({ name: "", price: "", quantity: "" });
   const [editing, setEditing] = useState<{ id: string; name: string; price: string; quantity: string } | null>(null);
   const [preview, setPreview] = useState<{ name: string; priceCents: number } | null>(null);
+  const [openWaitlist, setOpenWaitlist] = useState<string | null>(null);
   const allocated = categories.reduce((s, c) => s + c.quantity, 0);
   return (
     <>
@@ -588,6 +615,7 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
               <th>Prix</th>
               <th>Vendus</th>
               <th>Restants</th>
+              <th>Attente</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -618,6 +646,7 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
                     />
                   </td>
                   <td>{c.quantity - c.sold}</td>
+                  <td>{waitlist.filter((w) => w.category_id === c.id).length}</td>
                   <td>
                     <button
                       className="btn-sm btn-accent"
@@ -653,6 +682,18 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
                   </td>
                   <td>{c.quantity - c.sold}</td>
                   <td>
+                    {waitlist.filter((w) => w.category_id === c.id).length > 0 ? (
+                      <button
+                        className="btn-sm btn-ghost"
+                        onClick={() => setOpenWaitlist(openWaitlist === c.id ? null : c.id)}
+                      >
+                        {waitlist.filter((w) => w.category_id === c.id).length}
+                      </button>
+                    ) : (
+                      0
+                    )}
+                  </td>
+                  <td>
                     <button
                       className="btn-sm btn-ghost"
                       onClick={() => setPreview({ name: c.name, priceCents: c.price_cents })}
@@ -678,6 +719,50 @@ function CategoriesTab({ ev, categories, act }: { ev: Record<string, any>; categ
             )}
           </tbody>
         </table>
+        {openWaitlist &&
+          (() => {
+            const cat = categories.find((c) => c.id === openWaitlist);
+            const entries = waitlist.filter((w) => w.category_id === openWaitlist);
+            return (
+              <div style={{ marginTop: 16 }}>
+                <h4>Liste d&apos;attente — {cat?.name}</h4>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Email</th>
+                      <th>Inscrit le</th>
+                      <th>Statut</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map((w) => (
+                      <tr key={w.id}>
+                        <td>{w.name}</td>
+                        <td>{w.email}</td>
+                        <td>{formatDate(w.created_at)}</td>
+                        <td>{w.notified_at ? "Prévenu·e" : "En attente"}</td>
+                        <td>
+                          <button
+                            className="btn-sm btn-ghost"
+                            onClick={() =>
+                              act(
+                                () => api(`/api/events/${ev.id}/waitlist/${w.id}`, { method: "DELETE" }),
+                                "Retiré de la liste d'attente",
+                              )
+                            }
+                          >
+                            Retirer
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Ajouter une catégorie</h3>

@@ -6,6 +6,7 @@ import eventRoutes from "./routes/events";
 import publicRoutes from "./routes/public";
 import webhookRoutes from "./routes/stripe-webhook";
 import { nowIso } from "./lib/crypto";
+import { layout, sendEmail } from "./lib/email";
 
 export { EventDO } from "./do/event-do";
 
@@ -67,9 +68,85 @@ async function purgeExpiredEvents(env: Env): Promise<void> {
   }
 }
 
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  starts_at: string;
+  venue: string | null;
+}
+
+/**
+ * Rappel automatique ~24h avant l'événement, envoyé une seule fois par invité/billet
+ * (marqué via reminder_sent_at). Le cron tourne toutes les heures ; la fenêtre de
+ * 2h absorbe les décalages d'exécution sans doublons.
+ */
+async function sendEventReminders(env: Env): Promise<void> {
+  const now = Date.now();
+  const windowStart = new Date(now + 23 * 3600 * 1000).toISOString();
+  const windowEnd = new Date(now + 25 * 3600 * 1000).toISOString();
+
+  const events = await env.DB.prepare(
+    `SELECT id, title, starts_at, venue FROM events WHERE status = 'published' AND starts_at BETWEEN ? AND ?`,
+  )
+    .bind(windowStart, windowEnd)
+    .all<UpcomingEvent>();
+
+  for (const event of events.results) {
+    const where = event.venue ? ` à ${event.venue}` : "";
+
+    const guests = await env.DB.prepare(
+      `SELECT id, name, email, token FROM guests
+       WHERE event_id = ? AND email IS NOT NULL AND reminder_sent_at IS NULL AND rsvp_status != 'no'`,
+    )
+      .bind(event.id)
+      .all<{ id: string; name: string; email: string; token: string }>();
+    for (const g of guests.results) {
+      const url = `${env.WEB_BASE_URL}/i/${g.token}`;
+      await sendEmail(
+        env,
+        g.email,
+        `Rappel : ${event.title}, c'est bientôt !`,
+        layout(
+          `À très bientôt — ${event.title}`,
+          `<p>Petit rappel : l'événement <strong>${event.title}</strong> a lieu demain${where}.</p>
+           <p><a href="${url}">Voir mon invitation</a></p>`,
+        ),
+        url,
+      );
+      await env.DB.prepare("UPDATE guests SET reminder_sent_at = ? WHERE id = ?").bind(nowIso(), g.id).run();
+    }
+
+    const tickets = await env.DB.prepare(
+      `SELECT id, buyer_email, serial FROM tickets
+       WHERE event_id = ? AND status IN ('valid','used') AND reminder_sent_at IS NULL`,
+    )
+      .bind(event.id)
+      .all<{ id: string; buyer_email: string; serial: string }>();
+    for (const t of tickets.results) {
+      const url = `${env.WEB_BASE_URL}/t/${t.serial}`;
+      await sendEmail(
+        env,
+        t.buyer_email,
+        `Rappel : ${event.title}, c'est bientôt !`,
+        layout(
+          `À très bientôt — ${event.title}`,
+          `<p>Petit rappel : l'événement <strong>${event.title}</strong> a lieu demain${where}.</p>
+           <p><a href="${url}">Voir mon billet</a></p>`,
+        ),
+        url,
+      );
+      await env.DB.prepare("UPDATE tickets SET reminder_sent_at = ? WHERE id = ?").bind(nowIso(), t.id).run();
+    }
+  }
+}
+
 export default {
   fetch: app.fetch,
-  scheduled: async (_event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
-    ctx.waitUntil(purgeExpiredEvents(env));
+  scheduled: async (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
+    if (event.cron === "0 * * * *") {
+      ctx.waitUntil(sendEventReminders(env));
+    } else {
+      ctx.waitUntil(purgeExpiredEvents(env));
+    }
   },
 };

@@ -68,6 +68,22 @@ export async function seedGuest(
   return { id, token };
 }
 
+export async function seedCategory(
+  eventId: string,
+  overrides: Partial<{ name: string; quantity: number; sold: number; priceCents: number }> = {},
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO ticket_categories (id, event_id, name, price_cents, quantity, sold) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      id, eventId, overrides.name ?? "Général",
+      overrides.priceCents ?? 0, overrides.quantity ?? 10, overrides.sold ?? 0,
+    )
+    .run();
+  return { id };
+}
+
 export function jsonInit(method: string, body?: unknown, headers: Record<string, string> = {}): RequestInit {
   return {
     method,
