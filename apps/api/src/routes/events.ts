@@ -900,15 +900,16 @@ events.post("/:id/sponsor-tiers", async (c) => {
   const name = String(b.name ?? "").trim();
   const quantity = Math.max(1, Number(b.quantity ?? 1) | 0);
   if (!name) return c.json({ error: "Nom du palier requis" }, 400);
+  const showcase = ["logo", "standard", "full"].includes(String(b.showcase)) ? String(b.showcase) : "logo";
   const id = uuid();
   await c.env.DB.prepare(
-    `INSERT INTO sponsor_tiers (id, event_id, name, description, price_cents, currency, quantity, perks, rank)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sponsor_tiers (id, event_id, name, description, price_cents, currency, quantity, perks, rank, showcase)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id, event.id, name, (b.description as string) || null,
       Math.max(0, Number(b.price_cents ?? 0) | 0), String(b.currency ?? "CAD"),
-      quantity, sanitizePerks(b.perks), Math.max(0, Number(b.rank ?? 0) | 0),
+      quantity, sanitizePerks(b.perks), Math.max(0, Number(b.rank ?? 0) | 0), showcase,
     )
     .run();
   return c.json({ id }, 201);
@@ -934,6 +935,10 @@ events.patch("/:id/sponsor-tiers/:tid", async (c) => {
   if (b.perks !== undefined) {
     sets.push("perks = ?");
     values.push(sanitizePerks(b.perks));
+  }
+  if (b.showcase !== undefined && ["logo", "standard", "full"].includes(String(b.showcase))) {
+    sets.push("showcase = ?");
+    values.push(String(b.showcase));
   }
   if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
   values.push(c.req.param("tid"));

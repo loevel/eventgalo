@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { BadgeCheck, Building2, Check, CreditCard, Handshake, Hourglass, Upload } from "lucide-react";
+import { BadgeCheck, Building2, Check, CreditCard, Handshake, Hourglass, ImagePlus, Megaphone, Trash2, Upload } from "lucide-react";
 import { API_BASE, api, formatDate, formatPrice } from "@/lib/api";
 import { parsePerks } from "@/lib/perks";
+import { SOCIAL_KEYS, SOCIAL_LABELS, parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
 
 interface SponsorPayload {
   sponsor: {
@@ -18,6 +19,12 @@ interface SponsorPayload {
     status: "invited" | "pending" | "confirmed" | "declined";
     amount_cents: number | null;
     paid_at: string | null;
+    description: string | null;
+    address: string | null;
+    phone: string | null;
+    public_email: string | null;
+    video_url: string | null;
+    socials: string | null;
   };
   event: {
     title: string;
@@ -36,8 +43,10 @@ interface SponsorPayload {
     quantity: number;
     perks: string | null;
     rank: number;
+    showcase: "logo" | "standard" | "full";
   }>;
   taken: Array<{ tier_id: string; n: number }>;
+  photos: Array<{ id: string }>;
   stripe_enabled: boolean;
 }
 
@@ -61,6 +70,16 @@ export default function SponsorPage() {
   const [logoId, setLogoId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // Vitrine (profil public du sponsor)
+  const [profile, setProfile] = useState({
+    description: "", address: "", phone: "", public_email: "", website: "", video_url: "",
+    socials: {} as Partial<Record<SocialKey, string>>,
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+
   const load = useCallback(() => {
     api<SponsorPayload>(`/api/public/sponsor/${token}`, { auth: false })
       .then((d) => {
@@ -71,6 +90,15 @@ export default function SponsorPage() {
         setContact(d.sponsor.contact_name ?? "");
         setMessage(d.sponsor.message ?? "");
         setLogoId(d.sponsor.logo_media_id);
+        setProfile({
+          description: d.sponsor.description ?? "",
+          address: d.sponsor.address ?? "",
+          phone: d.sponsor.phone ?? "",
+          public_email: d.sponsor.public_email ?? "",
+          website: d.sponsor.website ?? "",
+          video_url: d.sponsor.video_url ?? "",
+          socials: parseSocials(d.sponsor.socials),
+        });
       })
       .catch((e) => setError(e.message));
   }, [token]);
@@ -124,6 +152,49 @@ export default function SponsorPage() {
     }
   }
 
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingProfile(true);
+    setProfileSaved(false);
+    setError(null);
+    try {
+      await api(`/api/public/sponsor/${token}/profile`, {
+        method: "PATCH",
+        auth: false,
+        body: {
+          description: profile.description || null,
+          address: profile.address || null,
+          phone: profile.phone || null,
+          public_email: profile.public_email || null,
+          website: profile.website || null,
+          video_url: profile.video_url || null,
+          socials: profile.socials,
+        },
+      });
+      setProfileSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function uploadPhoto(file: File) {
+    setPhotoUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await api(`/api/public/sponsor/${token}/media`, { method: "POST", auth: false, body: fd });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setPhotoUploading(false);
+      if (photoInput.current) photoInput.current.value = "";
+    }
+  }
+
   async function commit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -148,6 +219,9 @@ export default function SponsorPage() {
   const { sponsor, event: ev, tiers } = data;
   const takenBy = (id: string) => data.taken.find((t) => t.tier_id === id)?.n ?? 0;
   const logoUrl = logoId ? `${API_BASE}/api/public/media/${logoId}/file` : null;
+  const myTier = tiers.find((t) => t.id === sponsor.tier_id);
+  const showcase = myTier?.showcase ?? "logo";
+  const embed = videoEmbedUrl(profile.video_url);
 
   return (
     <>
@@ -257,6 +331,141 @@ export default function SponsorPage() {
             </div>
             {error && <div className="alert err">{error}</div>}
           </div>
+        )}
+
+        {(sponsor.status === "pending" || sponsor.status === "confirmed") && showcase !== "logo" && (
+          <form className="card" onSubmit={saveProfile}>
+            <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <Megaphone size={17} /> Votre vitrine sur la page de l&apos;événement
+            </h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Votre palier <strong>{myTier?.name}</strong> inclut une vitrine{" "}
+              {showcase === "full" ? (
+                <>
+                  <strong>complète</strong> : présentation, coordonnées, réseaux sociaux, jusqu&apos;à 6 photos et
+                  une vidéo
+                </>
+              ) : (
+                <>
+                  <strong>intermédiaire</strong> : présentation, coordonnées et réseaux sociaux
+                </>
+              )}
+              . Tout est visible par les visiteurs de la page de l&apos;événement.
+            </p>
+
+            <label>Présentation de votre entreprise</label>
+            <textarea
+              rows={4}
+              maxLength={1200}
+              value={profile.description}
+              onChange={(e) => setProfile({ ...profile, description: e.target.value })}
+              placeholder="Qui vous êtes, ce que vous faites, pourquoi vous soutenez cet événement…"
+            />
+            <div className="grid2">
+              <div>
+                <label>Adresse</label>
+                <input value={profile.address} onChange={(e) => setProfile({ ...profile, address: e.target.value })} />
+              </div>
+              <div>
+                <label>Téléphone</label>
+                <input value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid2">
+              <div>
+                <label>Email public</label>
+                <input type="email" value={profile.public_email} onChange={(e) => setProfile({ ...profile, public_email: e.target.value })} />
+              </div>
+              <div>
+                <label>Site web</label>
+                <input type="url" value={profile.website} onChange={(e) => setProfile({ ...profile, website: e.target.value })} placeholder="https://…" />
+              </div>
+            </div>
+
+            <label style={{ marginTop: 16 }}>Réseaux sociaux</label>
+            <div className="grid2">
+              {SOCIAL_KEYS.map((key) => (
+                <div key={key}>
+                  <label style={{ fontWeight: 400, fontSize: 12, margin: "8px 0 2px" }}>{SOCIAL_LABELS[key]}</label>
+                  <input
+                    type="url"
+                    value={profile.socials[key] ?? ""}
+                    onChange={(e) => setProfile({ ...profile, socials: { ...profile.socials, [key]: e.target.value } })}
+                    placeholder="https://…"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {showcase === "full" && (
+              <>
+                <label style={{ marginTop: 16 }}>Vidéo de présentation (lien YouTube ou Vimeo)</label>
+                <input
+                  type="url"
+                  value={profile.video_url}
+                  onChange={(e) => setProfile({ ...profile, video_url: e.target.value })}
+                  placeholder="https://www.youtube.com/watch?v=…"
+                />
+                {profile.video_url && !embed && (
+                  <p className="muted" style={{ color: "var(--err)", fontSize: 13 }}>
+                    Lien non reconnu — collez une URL YouTube ou Vimeo.
+                  </p>
+                )}
+                {embed && (
+                  <div className="sponsor-video" style={{ marginTop: 8 }}>
+                    <iframe src={embed} title="Aperçu vidéo" allowFullScreen loading="lazy" />
+                  </div>
+                )}
+
+                <label style={{ marginTop: 16 }}>Photos ({data.photos.length}/6)</label>
+                <div className="sponsor-photo-grid">
+                  {data.photos.map((p) => (
+                    <div key={p.id} className="sponsor-photo">
+                      <img src={`${API_BASE}/api/public/media/${p.id}/file`} alt="" loading="lazy" />
+                      <button
+                        type="button"
+                        className="sponsor-photo-del"
+                        aria-label="Supprimer la photo"
+                        onClick={() =>
+                          api(`/api/public/sponsor/${token}/media/${p.id}`, { method: "DELETE", auth: false })
+                            .then(load)
+                            .catch((e) => setError(e instanceof Error ? e.message : "Erreur"))
+                        }
+                      >
+                        <Trash2 />
+                      </button>
+                    </div>
+                  ))}
+                  {data.photos.length < 6 && (
+                    <button
+                      type="button"
+                      className="sponsor-photo-add"
+                      disabled={photoUploading}
+                      onClick={() => photoInput.current?.click()}
+                    >
+                      <ImagePlus />
+                      {photoUploading ? "Envoi…" : "Ajouter"}
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={photoInput}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadPhoto(f);
+                  }}
+                />
+              </>
+            )}
+
+            {profileSaved && <div className="alert ok">Vitrine enregistrée ✓</div>}
+            <button type="submit" className="btn-accent" disabled={savingProfile}>
+              {savingProfile ? "Enregistrement…" : "Enregistrer ma vitrine"}
+            </button>
+          </form>
         )}
 
         {sponsor.status === "invited" && (

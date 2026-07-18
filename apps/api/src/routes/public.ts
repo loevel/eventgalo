@@ -40,29 +40,77 @@ pub.get("/events/:slug", async (c) => {
       "SELECT id, content_type FROM media WHERE event_id = ? AND featured = 1 ORDER BY created_at DESC LIMIT 12",
     ).bind(event.id).all(),
     c.env.DB.prepare(
-      `SELECT s.company_name, s.website, s.logo_media_id, t.name AS tier_name, t.rank AS tier_rank
+      `SELECT s.id, s.company_name, s.website, s.logo_media_id, s.description, s.address, s.phone,
+              s.public_email, s.video_url, s.socials,
+              t.name AS tier_name, t.rank AS tier_rank, t.showcase
        FROM sponsors s JOIN sponsor_tiers t ON t.id = s.tier_id
        WHERE s.event_id = ? AND s.status = 'confirmed' AND s.company_name IS NOT NULL
        ORDER BY t.rank, t.price_cents DESC, s.confirmed_at`,
-    ).bind(event.id).all(),
+    ).bind(event.id).all<{ id: string; showcase: string; [k: string]: unknown }>(),
   ]);
+  // Photos de vitrine des sponsors « full » uniquement (le niveau d'affichage dépend du palier).
+  const fullIds = sponsors.results.filter((s) => s.showcase === "full").map((s) => s.id);
+  let sponsorPhotos: Array<{ id: string; sponsor_id: string }> = [];
+  if (fullIds.length) {
+    const placeholders = fullIds.map(() => "?").join(",");
+    const rows = await c.env.DB.prepare(
+      `SELECT id, sponsor_id FROM media WHERE sponsor_id IN (${placeholders}) ORDER BY created_at`,
+    )
+      .bind(...fullIds)
+      .all<{ id: string; sponsor_id: string }>();
+    sponsorPhotos = rows.results;
+  }
   return c.json({
     event,
     categories: categories.results,
     announcements: announcements.results,
     gallery: gallery.results,
-    sponsors: sponsors.results,
+    sponsors: sponsors.results.map(({ id, ...s }) => ({
+      ...s,
+      photos: sponsorPhotos.filter((p) => p.sponsor_id === id).map((p) => p.id),
+    })),
   });
 });
 
 /* ------------------------- Espace sponsor (lien privé) --------------------- */
+
+/** Réseaux sociaux autorisés dans le profil sponsor. */
+const SOCIAL_KEYS = ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"] as const;
+
+function sanitizeSocials(raw: unknown): string | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const out: Record<string, string> = {};
+  for (const key of SOCIAL_KEYS) {
+    const v = (raw as Record<string, unknown>)[key];
+    if (typeof v === "string" && v.trim()) {
+      const url = v.trim().slice(0, 300);
+      if (/^https?:\/\//i.test(url)) out[key] = url;
+    }
+  }
+  return Object.keys(out).length ? JSON.stringify(out) : null;
+}
+
+/** N'accepte que YouTube et Vimeo (embarqués côté web, jamais hébergés chez nous). */
+function sanitizeVideoUrl(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const url = raw.trim().slice(0, 300);
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const allowed = ["youtube.com", "youtu.be", "youtube-nocookie.com", "vimeo.com", "player.vimeo.com"];
+    return allowed.some((d) => host === d || host.endsWith(`.${d}`)) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+const MAX_SPONSOR_PHOTOS = 6;
 
 pub.get("/sponsor/:token", async (c) => {
   const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE token = ?")
     .bind(c.req.param("token"))
     .first<{ id: string; event_id: string; tier_id: string | null; status: string }>();
   if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
-  const [event, tiers, taken] = await Promise.all([
+  const [event, tiers, taken, photos] = await Promise.all([
     c.env.DB.prepare(
       `SELECT id, title, description, starts_at, venue, address, public_slug, cover_media_id, logo_media_id
        FROM events WHERE id = ? AND status != 'archived'`,
@@ -73,6 +121,7 @@ pub.get("/sponsor/:token", async (c) => {
       `SELECT tier_id, COUNT(*) AS n FROM sponsors
        WHERE event_id = ? AND status IN ('pending','confirmed') AND tier_id IS NOT NULL GROUP BY tier_id`,
     ).bind(sponsor.event_id).all<{ tier_id: string; n: number }>(),
+    c.env.DB.prepare("SELECT id FROM media WHERE sponsor_id = ? ORDER BY created_at").bind(sponsor.id).all(),
   ]);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const { token: _token, ...safeSponsor } = sponsor as Record<string, unknown>;
@@ -81,8 +130,83 @@ pub.get("/sponsor/:token", async (c) => {
     event,
     tiers: tiers.results,
     taken: taken.results,
+    photos: photos.results,
     stripe_enabled: Boolean(c.env.STRIPE_SECRET_KEY),
   });
+});
+
+/** Vitrine du sponsor : description, contacts, vidéo, réseaux sociaux. */
+pub.patch("/sponsor/:token/profile", async (c) => {
+  const sponsor = await c.env.DB.prepare("SELECT id, status FROM sponsors WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ id: string; status: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (!["pending", "confirmed"].includes(sponsor.status)) {
+    return c.json({ error: "Engagez-vous d'abord sur un palier" }, 409);
+  }
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const clamp = (v: unknown, max: number) =>
+    typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+  const videoUrl = sanitizeVideoUrl(b.video_url);
+  if (b.video_url && typeof b.video_url === "string" && b.video_url.trim() && !videoUrl) {
+    return c.json({ error: "Vidéo : seuls les liens YouTube et Vimeo sont acceptés" }, 400);
+  }
+  await c.env.DB.prepare(
+    `UPDATE sponsors SET description = ?, address = ?, phone = ?, public_email = ?, website = ?,
+       video_url = ?, socials = ? WHERE id = ?`,
+  )
+    .bind(
+      clamp(b.description, 1200), clamp(b.address, 300), clamp(b.phone, 40),
+      clamp(b.public_email, 120), clamp(b.website, 300),
+      videoUrl, sanitizeSocials(b.socials), sponsor.id,
+    )
+    .run();
+  return c.json({ ok: true });
+});
+
+/** Photos de la vitrine (max 6 par sponsor). */
+pub.post("/sponsor/:token/media", async (c) => {
+  const sponsor = await c.env.DB.prepare("SELECT id, event_id, status FROM sponsors WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ id: string; event_id: string; status: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (!["pending", "confirmed"].includes(sponsor.status)) {
+    return c.json({ error: "Engagez-vous d'abord sur un palier" }, 409);
+  }
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) return c.json({ error: "Fichier manquant" }, 400);
+  const invalid = validateMediaFile(file);
+  if (invalid) return c.json({ error: invalid }, 400);
+  const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM media WHERE sponsor_id = ?")
+    .bind(sponsor.id)
+    .first<{ n: number }>();
+  if ((count?.n ?? 0) >= MAX_SPONSOR_PHOTOS) {
+    return c.json({ error: `Maximum ${MAX_SPONSOR_PHOTOS} photos — supprimez-en une d'abord` }, 409);
+  }
+  const id = uuid();
+  const key = `events/${sponsor.event_id}/${id}`;
+  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  await c.env.DB.prepare(
+    "INSERT INTO media (id, event_id, guest_id, sponsor_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?, ?)",
+  )
+    .bind(id, sponsor.event_id, sponsor.id, key, file.type)
+    .run();
+  return c.json({ media_id: id }, 201);
+});
+
+pub.delete("/sponsor/:token/media/:mid", async (c) => {
+  const sponsor = await c.env.DB.prepare("SELECT id FROM sponsors WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ id: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  const media = await c.env.DB.prepare("SELECT id, r2_key FROM media WHERE id = ? AND sponsor_id = ?")
+    .bind(c.req.param("mid"), sponsor.id)
+    .first<{ id: string; r2_key: string }>();
+  if (!media) return c.json({ error: "Photo introuvable" }, 404);
+  await c.env.MEDIA.delete(media.r2_key);
+  await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id).run();
+  return c.json({ ok: true });
 });
 
 /** Engagement de l'entreprise : choix du palier + informations société. */

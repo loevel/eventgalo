@@ -585,6 +585,104 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 }
 .sponsor-tier-group.top-tier .sponsor-name-fallback { width: 120px; height: 120px; font-size: 30px; }
 
+/* Vitrine complète (spotlight) */
+.sponsor-spotlight {
+  text-align: left; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 18px; padding: 24px; margin: 0 auto 16px; max-width: 720px;
+  box-shadow: 0 16px 40px -24px rgba(28,26,23,0.3);
+  position: relative; overflow: hidden;
+}
+.sponsor-spotlight::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+}
+.sponsor-spotlight-head { display: flex; align-items: center; gap: 16px; }
+.sponsor-spotlight-logo {
+  width: 84px; height: 84px; object-fit: contain; flex: none;
+  border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 8px;
+}
+.sponsor-spotlight-head h4 {
+  font-family: var(--font-display); font-weight: 600; font-size: 21px; margin: 0 0 6px;
+}
+.sponsor-desc { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 14px 0 0; white-space: pre-wrap; }
+.sponsor-desc.clamp {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  margin: 4px 0 8px;
+}
+
+/* Carrousel de photos (défilement horizontal avec accroche) */
+.sponsor-carousel {
+  display: flex; gap: 10px; margin-top: 16px; overflow-x: auto;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+}
+.sponsor-carousel img {
+  height: 190px; width: auto; max-width: 80%; flex: none; border-radius: 12px;
+  border: 1px solid var(--line); object-fit: cover; scroll-snap-align: start;
+}
+
+/* Vidéo intégrée (YouTube/Vimeo) */
+.sponsor-video {
+  position: relative; aspect-ratio: 16 / 9; margin-top: 16px;
+  border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #000;
+}
+.sponsor-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.sponsor-contacts {
+  display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 16px;
+  padding-top: 14px; border-top: 1px dashed var(--line);
+  font-size: 13px; color: var(--muted);
+}
+.sponsor-contacts span { display: inline-flex; align-items: center; gap: 7px; }
+.sponsor-contacts svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
+
+.sponsor-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.sponsor-links a {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 9px;
+  border: 1px solid var(--line); color: var(--muted); background: var(--surface);
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.sponsor-links a:hover { color: var(--accent); border-color: rgba(180,84,10,0.4); transform: translateY(-1px); }
+.sponsor-links svg { width: 15px; height: 15px; }
+
+/* Vitrine intermédiaire */
+.sponsor-mid-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 720px; margin: 0 auto 14px;
+}
+@media (max-width: 680px) { .sponsor-mid-grid { grid-template-columns: 1fr; } }
+.sponsor-mid-card {
+  display: flex; align-items: flex-start; gap: 14px; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+}
+.sponsor-mid-card > img {
+  width: 62px; height: 62px; object-fit: contain; flex: none;
+  border-radius: 12px; border: 1px solid var(--line); background: #fff; padding: 6px;
+}
+.sponsor-mid-card .sponsor-name-fallback { width: 62px; height: 62px; font-size: 20px; flex: none; }
+.sponsor-mid-card h4 { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin: 0 0 2px; }
+
+/* Vitrine du sponsor : gestion des photos dans /sp/<token> */
+.sponsor-photo-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.sponsor-photo { position: relative; }
+.sponsor-photo img {
+  width: 110px; height: 110px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line);
+}
+.sponsor-photo-del {
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; margin: 0; padding: 0;
+  background: rgba(28,26,23,0.7); color: #fff;
+}
+.sponsor-photo-del svg { width: 14px; height: 14px; }
+.sponsor-photo-add {
+  width: 110px; height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; border-radius: 10px; border: 1px dashed var(--line); background: var(--bg);
+  color: var(--muted); font-size: 12px; margin: 0;
+}
+.sponsor-photo-add svg { width: 20px; height: 20px; }
+.sponsor-photo-add:hover { color: var(--accent); border-color: rgba(180,84,10,0.4); box-shadow: none; transform: none; }
+
 /* Hero de l'espace sponsor */
 .sponsor-hero {
   position: relative; width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);

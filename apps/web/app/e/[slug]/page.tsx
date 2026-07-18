@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail } from "lucide-react";
+import { parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
+import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { CheckoutForm } from "@/components/checkout-form";
 import { Reveal } from "@/components/reveal";
 import { Countdown } from "@/components/countdown";
@@ -39,9 +41,41 @@ interface EventPayload {
     company_name: string;
     website: string | null;
     logo_media_id: string | null;
+    description: string | null;
+    address: string | null;
+    phone: string | null;
+    public_email: string | null;
+    video_url: string | null;
+    socials: string | null;
+    photos: string[];
     tier_name: string;
     tier_rank: number;
+    showcase: "logo" | "standard" | "full";
   }>;
+}
+
+/** Rangée d'icônes : site web + réseaux sociaux d'un sponsor. */
+function SponsorLinks({ sponsor }: { sponsor: EventPayload["sponsors"][number] }) {
+  const socials = parseSocials(sponsor.socials);
+  const entries = Object.entries(socials) as Array<[SocialKey, string]>;
+  if (!sponsor.website && entries.length === 0) return null;
+  return (
+    <div className="sponsor-links">
+      {sponsor.website && (
+        <a href={sponsor.website} target="_blank" rel="noopener noreferrer nofollow" aria-label="Site web" title="Site web">
+          <Globe />
+        </a>
+      )}
+      {entries.map(([key, url]) => {
+        const Icon = SOCIAL_ICON_COMPONENTS[key];
+        return (
+          <a key={key} href={url} target="_blank" rel="noopener noreferrer nofollow" aria-label={key} title={key}>
+            <Icon />
+          </a>
+        );
+      })}
+    </div>
+  );
 }
 
 async function getEvent(slug: string): Promise<EventPayload | null> {
@@ -51,6 +85,10 @@ async function getEvent(slug: string): Promise<EventPayload | null> {
   data.gallery ??= [];
   data.sponsors ??= [];
   data.announcements ??= [];
+  for (const s of data.sponsors) {
+    s.photos ??= [];
+    s.showcase ??= "logo";
+  }
   return data;
 }
 
@@ -363,29 +401,93 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
               ).map(([tierName, list], tierIdx) => (
                 <div key={tierName} className={`sponsor-tier-group ${tierIdx === 0 ? "top-tier" : ""}`}>
                   <h3>{tierName}</h3>
-                  <div className="sponsor-logos">
-                    {list.map((s, i) => {
-                      const inner = (
-                        <>
+
+                  {/* Vitrines complètes : carte spotlight pleine largeur */}
+                  {list.filter((s) => s.showcase === "full").map((s, i) => {
+                    const embed = videoEmbedUrl(s.video_url);
+                    return (
+                      <article key={`full-${i}`} className="sponsor-spotlight">
+                        <div className="sponsor-spotlight-head">
+                          {s.logo_media_id ? (
+                            <img className="sponsor-spotlight-logo" src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
+                          ) : (
+                            <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
+                          )}
+                          <div>
+                            <h4>{s.company_name}</h4>
+                            <SponsorLinks sponsor={s} />
+                          </div>
+                        </div>
+                        {s.description && <p className="sponsor-desc">{s.description}</p>}
+                        {s.photos.length > 0 && (
+                          <div className="sponsor-carousel">
+                            {s.photos.map((pid) => (
+                              <img key={pid} src={`${API_BASE}/api/public/media/${pid}/file`} alt="" loading="lazy" />
+                            ))}
+                          </div>
+                        )}
+                        {embed && (
+                          <div className="sponsor-video">
+                            <iframe src={embed} title={`Vidéo — ${s.company_name}`} allowFullScreen loading="lazy" />
+                          </div>
+                        )}
+                        {(s.address || s.phone || s.public_email) && (
+                          <div className="sponsor-contacts">
+                            {s.address && <span><MapPin /> {s.address}</span>}
+                            {s.phone && <span><Phone /> {s.phone}</span>}
+                            {s.public_email && <span><Mail /> <a href={`mailto:${s.public_email}`}>{s.public_email}</a></span>}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+
+                  {/* Vitrines intermédiaires : logo + présentation + liens */}
+                  {list.filter((s) => s.showcase === "standard").length > 0 && (
+                    <div className="sponsor-mid-grid">
+                      {list.filter((s) => s.showcase === "standard").map((s, i) => (
+                        <div key={`std-${i}`} className="sponsor-mid-card">
                           {s.logo_media_id ? (
                             <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
                           ) : (
                             <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
                           )}
-                          <span className="sponsor-name">{s.company_name}</span>
-                        </>
-                      );
-                      return s.website ? (
-                        <a key={i} className="sponsor-card" href={s.website} target="_blank" rel="noopener noreferrer nofollow">
-                          {inner}
-                        </a>
-                      ) : (
-                        <div key={i} className="sponsor-card">
-                          {inner}
+                          <div>
+                            <h4>{s.company_name}</h4>
+                            {s.description && <p className="sponsor-desc clamp">{s.description}</p>}
+                            <SponsorLinks sponsor={s} />
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Logo seul */}
+                  {list.filter((s) => s.showcase === "logo").length > 0 && (
+                    <div className="sponsor-logos">
+                      {list.filter((s) => s.showcase === "logo").map((s, i) => {
+                        const inner = (
+                          <>
+                            {s.logo_media_id ? (
+                              <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
+                            ) : (
+                              <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
+                            )}
+                            <span className="sponsor-name">{s.company_name}</span>
+                          </>
+                        );
+                        return s.website ? (
+                          <a key={i} className="sponsor-card" href={s.website} target="_blank" rel="noopener noreferrer nofollow">
+                            {inner}
+                          </a>
+                        ) : (
+                          <div key={i} className="sponsor-card">
+                            {inner}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </section>

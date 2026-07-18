@@ -1357,7 +1357,7 @@ function SponsorsTab({
   sponsors: Array<Record<string, any>>;
   act: (fn: () => Promise<unknown>, ok?: string) => void;
 }) {
-  const [tierForm, setTierForm] = useState({ name: "", price: "", quantity: "1", description: "", perks: "", rank: "0" });
+  const [tierForm, setTierForm] = useState({ name: "", price: "", quantity: "1", description: "", perks: "", rank: "0", showcase: "logo" });
   const [editingTier, setEditingTier] = useState<Record<string, string> | null>(null);
   const [invite, setInvite] = useState({ email: "", company: "", contact: "" });
 
@@ -1375,7 +1375,22 @@ function SponsorsTab({
     quantity: Math.max(1, Number(f.quantity || 1)),
     perks: f.perks.split("\n").map((p) => p.trim()).filter(Boolean),
     rank: Math.max(0, Number(f.rank || 0)),
+    showcase: f.showcase,
   });
+
+  const SHOWCASE_LABEL: Record<string, string> = {
+    logo: "Logo seul",
+    standard: "Intermédiaire (logo + présentation + liens)",
+    full: "Complète (photos, vidéo, contacts, réseaux)",
+  };
+
+  const showcaseSelect = (value: string, onChange: (v: string) => void) => (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      {Object.entries(SHOWCASE_LABEL).map(([k, lbl]) => (
+        <option key={k} value={k}>{lbl}</option>
+      ))}
+    </select>
+  );
 
   return (
     <>
@@ -1427,6 +1442,8 @@ function SponsorsTab({
                       <td colSpan={5}>
                         <label style={{ marginTop: 0 }}>Description courte</label>
                         <input value={editingTier.description} onChange={(e) => setEditingTier({ ...editingTier, description: e.target.value })} />
+                        <label>Niveau de vitrine sur la page publique</label>
+                        {showcaseSelect(editingTier.showcase, (v) => setEditingTier({ ...editingTier, showcase: v }))}
                         <label>Avantages offerts (un par ligne)</label>
                         <textarea rows={4} value={editingTier.perks} onChange={(e) => setEditingTier({ ...editingTier, perks: e.target.value })} />
                       </td>
@@ -1457,6 +1474,7 @@ function SponsorsTab({
                             rank: String(t.rank),
                             description: t.description ?? "",
                             perks: parsePerks(t.perks).join("\n"),
+                            showcase: t.showcase ?? "logo",
                           })
                         }
                       >
@@ -1502,6 +1520,12 @@ function SponsorsTab({
         </div>
         <label>Description courte (optionnel)</label>
         <input value={tierForm.description} onChange={(e) => setTierForm({ ...tierForm, description: e.target.value })} placeholder="Visibilité maximale avant, pendant et après le gala" />
+        <label>Niveau de vitrine sur la page publique</label>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Ce que le sponsor pourra afficher sur la page de l&apos;événement : un simple logo, une présentation avec
+          liens, ou une vitrine complète avec photos et vidéo — un vrai argument de vente pour vos gros paliers.
+        </p>
+        {showcaseSelect(tierForm.showcase, (v) => setTierForm({ ...tierForm, showcase: v }))}
         <label>Avantages offerts (un par ligne)</label>
         <textarea
           rows={4}
@@ -1514,7 +1538,7 @@ function SponsorsTab({
           disabled={!tierForm.name}
           onClick={() => {
             act(() => api(`/api/events/${ev.id}/sponsor-tiers`, { method: "POST", body: tierPayload(tierForm) }), "Palier créé");
-            setTierForm({ name: "", price: "", quantity: "1", description: "", perks: "", rank: "0" });
+            setTierForm({ name: "", price: "", quantity: "1", description: "", perks: "", rank: "0", showcase: "logo" });
           }}
         >
           Créer le palier
