@@ -5,6 +5,8 @@ import { buildTicketPayload, nowIso, uuid, verifyTicketPayload } from "../lib/cr
 import { layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
+import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import { buildIcsEvent, icsResponse } from "../lib/ics";
 
 const pub = new Hono<AppContext>();
 
@@ -38,6 +40,29 @@ pub.get("/events/:slug", async (c) => {
   return c.json({ event, categories: categories.results, announcements: announcements.results });
 });
 
+pub.get("/events/:slug/ics", async (c) => {
+  const event = await c.env.DB.prepare(
+    `SELECT id, title, description, starts_at, ends_at, venue, address, public_slug
+     FROM events WHERE public_slug = ? AND status = 'published'`,
+  )
+    .bind(c.req.param("slug"))
+    .first<{
+      id: string; title: string; description: string | null; starts_at: string; ends_at: string | null;
+      venue: string | null; address: string | null; public_slug: string;
+    }>();
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const ics = buildIcsEvent({
+    uid: event.id,
+    title: event.title,
+    description: event.description,
+    location: [event.venue, event.address].filter(Boolean).join(", ") || null,
+    startsAt: event.starts_at,
+    endsAt: event.ends_at,
+    url: `https://eventgalo.com/e/${event.public_slug}`,
+  });
+  return icsResponse(ics, event.public_slug);
+});
+
 /* --------------------------- Invitation / RSVP --------------------------- */
 
 pub.get("/invite/:token", async (c) => {
@@ -60,7 +85,69 @@ pub.get("/invite/:token", async (c) => {
   return c.json({ guest, event, announcements: announcements.results });
 });
 
+pub.get("/invite/:token/ics", async (c) => {
+  const guest = await c.env.DB.prepare("SELECT event_id FROM guests WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ event_id: string }>();
+  if (!guest) return c.json({ error: "Invitation introuvable" }, 404);
+  const event = await c.env.DB.prepare(
+    `SELECT id, title, description, starts_at, ends_at, venue, address, public_slug
+     FROM events WHERE id = ? AND status != 'archived'`,
+  )
+    .bind(guest.event_id)
+    .first<{
+      id: string; title: string; description: string | null; starts_at: string; ends_at: string | null;
+      venue: string | null; address: string | null; public_slug: string;
+    }>();
+  if (!event) return c.json({ error: "Événement archivé" }, 410);
+  const ics = buildIcsEvent({
+    uid: event.id,
+    title: event.title,
+    description: event.description,
+    location: [event.venue, event.address].filter(Boolean).join(", ") || null,
+    startsAt: event.starts_at,
+    endsAt: event.ends_at,
+    url: `https://eventgalo.com/e/${event.public_slug}`,
+  });
+  return icsResponse(ics, event.public_slug);
+});
+
+// Permet à l'invité de corriger ses propres coordonnées (nom, email, téléphone).
+pub.patch("/invite/:token", async (c) => {
+  if (await isRateLimited(c.env, "invite-edit", clientIp(c), 20, 60)) return tooManyRequests(c);
+  const token = c.req.param("token");
+  const existing = await c.env.DB.prepare("SELECT id FROM guests WHERE token = ?").bind(token).first<{ id: string }>();
+  if (!existing) return c.json({ error: "Invitation introuvable" }, 404);
+
+  const b = await c.req.json<{ name?: string; email?: string | null; phone?: string | null }>().catch(() => ({}) as Record<string, never>);
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (b.name !== undefined) {
+    const name = String(b.name).trim();
+    if (!name) return c.json({ error: "Le nom ne peut pas être vide" }, 400);
+    sets.push("name = ?");
+    values.push(name);
+  }
+  if (b.email !== undefined) {
+    const email = b.email ? String(b.email).trim().toLowerCase() : "";
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "Adresse email invalide" }, 400);
+    sets.push("email = ?");
+    values.push(email || null);
+  }
+  if (b.phone !== undefined) {
+    sets.push("phone = ?");
+    values.push(b.phone ? String(b.phone).trim() : null);
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  values.push(token);
+  await c.env.DB.prepare(`UPDATE guests SET ${sets.join(", ")} WHERE token = ?`).bind(...values).run();
+  const guest = await c.env.DB.prepare("SELECT * FROM guests WHERE token = ?").bind(token).first();
+  return c.json({ guest });
+});
+
 pub.post("/invite/:token/rsvp", async (c) => {
+  // 20 requêtes / min par IP : un lien peut être partagé en famille, on reste généreux.
+  if (await isRateLimited(c.env, "rsvp", clientIp(c), 20, 60)) return tooManyRequests(c);
   const b = await c.req.json<{ status?: string; consent?: boolean; note?: string }>().catch(() => ({}) as Record<string, never>);
   if (b.status !== "yes" && b.status !== "no") return c.json({ error: "Statut invalide" }, 400);
   const note = typeof b.note === "string" ? b.note.trim().slice(0, 500) : undefined;
@@ -205,6 +292,8 @@ pub.get("/seller/:code/stats", async (c) => {
 /* -------------------------------- Checkout -------------------------------- */
 
 pub.post("/checkout", async (c) => {
+  // 10 requêtes / min par IP : limite les tentatives d'épuisement de quota ou de fraude.
+  if (await isRateLimited(c.env, "checkout", clientIp(c), 10, 60)) return tooManyRequests(c);
   const b = await c.req
     .json<{
       slug?: string; category_id?: string; quantity?: number;
@@ -349,6 +438,29 @@ pub.get("/tickets/:serial", async (c) => {
   const qr_payload = await buildTicketPayload(c.env.TICKET_SIGNING_KEY, ticket.id);
   const { id: _id, ...safe } = ticket;
   return c.json({ ticket: safe, qr_payload });
+});
+
+pub.get("/tickets/:serial/ics", async (c) => {
+  const ticket = await c.env.DB.prepare(
+    `SELECT e.id AS event_id, e.title, e.description, e.starts_at, e.ends_at, e.venue, e.address, e.public_slug
+     FROM tickets t JOIN events e ON e.id = t.event_id WHERE t.serial = ?`,
+  )
+    .bind(c.req.param("serial").toUpperCase())
+    .first<{
+      event_id: string; title: string; description: string | null; starts_at: string; ends_at: string | null;
+      venue: string | null; address: string | null; public_slug: string;
+    }>();
+  if (!ticket) return c.json({ error: "Billet introuvable" }, 404);
+  const ics = buildIcsEvent({
+    uid: ticket.event_id,
+    title: ticket.title,
+    description: ticket.description,
+    location: [ticket.venue, ticket.address].filter(Boolean).join(", ") || null,
+    startsAt: ticket.starts_at,
+    endsAt: ticket.ends_at,
+    url: `https://eventgalo.com/e/${ticket.public_slug}`,
+  });
+  return icsResponse(ics, ticket.public_slug);
 });
 
 function parseRefundPolicy(raw: unknown): { kind?: string; days_before?: number; percent?: number } | null {

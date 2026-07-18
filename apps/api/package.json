@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "tsc --noEmit",
+    "test": "vitest run",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply eventgalo-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply eventgalo-db --remote"
@@ -16,8 +17,10 @@
     "stripe": "^22.3.2"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.6",
     "@cloudflare/workers-types": "^5.20260716.1",
     "typescript": "^5.8.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.111.0"
   }
 }

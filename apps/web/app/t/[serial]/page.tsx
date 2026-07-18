@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
-import { api, formatDate, formatPrice } from "@/lib/api";
+import { API_BASE, api, formatDate, formatPrice } from "@/lib/api";
 
 export default function TicketPage() {
   const { serial } = useParams<{ serial: string }>();
@@ -47,7 +47,10 @@ export default function TicketPage() {
         </p>
         <button className="btn-ghost no-print" onClick={() => window.print()}>
           🖨️ Imprimer / Enregistrer en PDF
-        </button>
+        </button>{" "}
+        <a className="btn-ghost btn-sm no-print" href={`${API_BASE}/api/public/tickets/${serial}/ics`}>
+          📅 Agenda
+        </a>
       </div>
 
       {t.status === "valid" && (

@@ -115,6 +115,11 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
         {ev.venue ? <><br />📍 {ev.venue}{ev.address ? `, ${ev.address}` : ""}</> : null}
         {ev.dress_code ? <><br />👗 Dress code : {ev.dress_code}</> : null}
       </p>
+      <p>
+        <a className="btn-ghost btn-sm" href={`${API_BASE}/api/public/events/${slug}/ics`}>
+          📅 Ajouter à mon agenda
+        </a>
+      </p>
       {ev.description && (
         <div className="card">
           <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{ev.description}</p>

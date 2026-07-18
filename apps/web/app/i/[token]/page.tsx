@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { api, formatDate } from "@/lib/api";
+import { API_BASE, api, formatDate } from "@/lib/api";
 import { MediaGallery, type MediaItem } from "@/components/media-gallery";
 
 export default function InvitePage() {
@@ -11,12 +11,40 @@ export default function InvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [editingContact, setEditingContact] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [contactError, setContactError] = useState<string | null>(null);
 
   useEffect(() => {
     api(`/api/public/invite/${token}`, { auth: false })
-      .then(setData)
+      .then((d: any) => {
+        setData(d);
+        setEditName(d.guest.name ?? "");
+        setEditEmail(d.guest.email ?? "");
+        setEditPhone(d.guest.phone ?? "");
+      })
       .catch((e) => setError(e.message));
   }, [token]);
+
+  async function saveContact() {
+    setBusy(true);
+    setContactError(null);
+    try {
+      const res = await api<{ guest: Record<string, any> }>(`/api/public/invite/${token}`, {
+        method: "PATCH",
+        auth: false,
+        body: { name: editName, email: editEmail || null, phone: editPhone || null },
+      });
+      setData((d) => (d ? { ...d, guest: res.guest } : d));
+      setEditingContact(false);
+    } catch (e) {
+      setContactError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function rsvp(status: "yes" | "no") {
     setBusy(true);
@@ -63,6 +91,41 @@ export default function InvitePage() {
           {ev.dress_code ? <><br />👗 Dress code : {ev.dress_code}</> : null}
         </p>
         {ev.description && <p style={{ whiteSpace: "pre-wrap" }}>{ev.description}</p>}
+        <a className="btn-ghost btn-sm" href={`${API_BASE}/api/public/invite/${token}/ics`}>
+          📅 Ajouter à mon agenda
+        </a>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Mes coordonnées</h3>
+        {editingContact ? (
+          <>
+            <label htmlFor="edit-name">Nom</label>
+            <input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            <label htmlFor="edit-email">Email</label>
+            <input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+            <label htmlFor="edit-phone">Téléphone</label>
+            <input id="edit-phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+            {contactError && <div className="alert err">{contactError}</div>}
+            <button className="btn-sm btn-accent" disabled={busy} onClick={saveContact}>
+              Enregistrer
+            </button>{" "}
+            <button className="btn-sm btn-ghost" disabled={busy} onClick={() => setEditingContact(false)}>
+              Annuler
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="muted" style={{ margin: "4px 0" }}>
+              {guest.name}
+              {guest.email ? <><br />{guest.email}</> : null}
+              {guest.phone ? <><br />{guest.phone}</> : null}
+            </p>
+            <button className="btn-sm btn-ghost" onClick={() => setEditingContact(true)}>
+              ✏️ Corriger mes coordonnées
+            </button>
+          </>
+        )}
       </div>
 
       <div className="card" style={{ textAlign: "center" }}>

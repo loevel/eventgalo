@@ -3,6 +3,7 @@ import type { AppContext, AuthedUser } from "../types";
 import { nowIso, randomToken, uuid } from "../lib/crypto";
 import { layout, sendEmail } from "../lib/email";
 import { createSession, requireAuth, sessionKey } from "../lib/auth";
+import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 
 const auth = new Hono<AppContext>();
 
@@ -13,6 +14,8 @@ auth.post("/magic-link", async (c) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return c.json({ error: "Adresse email invalide" }, 400);
   }
+  // 5 demandes / 5 min par IP : évite le bombardement de boîtes de réception.
+  if (await isRateLimited(c.env, "magic-link", clientIp(c), 5, 300)) return tooManyRequests(c);
   const token = randomToken(24);
   await c.env.KV.put(
     `magic:${token}`,
