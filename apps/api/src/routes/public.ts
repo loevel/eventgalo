@@ -546,6 +546,66 @@ pub.post("/tickets/:serial/refund-request", async (c) => {
   return c.json({ ok: true, id }, 201);
 });
 
+pub.patch("/tickets/:serial/transfer", async (c) => {
+  // 10 requêtes / min par IP : dissuade les tentatives de deviner l'email de l'acheteur.
+  if (await isRateLimited(c.env, "ticket-transfer", clientIp(c), 10, 60)) return tooManyRequests(c);
+  const b = await c.req
+    .json<{ email?: string; new_name?: string; new_email?: string }>()
+    .catch(() => ({}) as Record<string, never>);
+  const newName = String(b.new_name ?? "").trim();
+  const newEmail = String(b.new_email ?? "").trim().toLowerCase();
+  if (!newName || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)) {
+    return c.json({ error: "Nom et email du nouveau titulaire requis" }, 400);
+  }
+
+  const ticket = await c.env.DB.prepare(
+    `SELECT t.id, t.buyer_name, t.buyer_email, t.status, e.title AS event_title, e.public_slug
+     FROM tickets t JOIN events e ON e.id = t.event_id
+     WHERE t.serial = ?`,
+  )
+    .bind(c.req.param("serial").toUpperCase())
+    .first<{ id: string; buyer_name: string; buyer_email: string; status: string; event_title: string; public_slug: string }>();
+  if (!ticket) return c.json({ error: "Billet introuvable" }, 404);
+  if (ticket.status !== "valid") return c.json({ error: "Ce billet ne peut plus être transféré" }, 409);
+  if ((b.email ?? "").trim().toLowerCase() !== ticket.buyer_email) {
+    return c.json({ error: "L'email ne correspond pas à l'acheteur du billet" }, 403);
+  }
+  if (newEmail === ticket.buyer_email) {
+    return c.json({ error: "Ce billet vous appartient déjà" }, 400);
+  }
+
+  await c.env.DB.prepare("UPDATE tickets SET buyer_name = ?, buyer_email = ? WHERE id = ?")
+    .bind(newName, newEmail, ticket.id)
+    .run();
+
+  const url = `${c.env.WEB_BASE_URL}/t/${c.req.param("serial").toUpperCase()}`;
+  c.executionCtx.waitUntil(
+    Promise.all([
+      sendEmail(
+        c.env,
+        newEmail,
+        `Un billet vous a été transféré — ${ticket.event_title}`,
+        layout(
+          `${ticket.buyer_name} vous a transféré un billet !`,
+          `<p>Vous êtes maintenant titulaire d'un billet pour <strong>${ticket.event_title}</strong>.</p>
+           <p><a href="${url}">Voir mon billet</a></p>`,
+        ),
+        url,
+      ),
+      sendEmail(
+        c.env,
+        ticket.buyer_email,
+        `Transfert confirmé — ${ticket.event_title}`,
+        layout(
+          "Transfert confirmé",
+          `<p>Votre billet pour <strong>${ticket.event_title}</strong> a bien été transféré à ${newName} (${newEmail}).</p>`,
+        ),
+      ),
+    ]),
+  );
+  return c.json({ ok: true });
+});
+
 /* ---------------------------------- Scan ---------------------------------- */
 
 pub.post("/scan", async (c) => {

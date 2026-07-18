@@ -11,6 +11,7 @@ export default function TicketPage() {
   const [qr, setQr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refund, setRefund] = useState({ open: false, email: "", reason: "", done: false, err: "" });
+  const [transfer, setTransfer] = useState({ open: false, email: "", newName: "", newEmail: "", done: false, err: "", busy: false });
 
   useEffect(() => {
     api(`/api/public/tickets/${serial}`, { auth: false })
@@ -52,6 +53,45 @@ export default function TicketPage() {
           📅 Agenda
         </a>
       </div>
+
+      {t.status === "valid" && (
+        <div className="card no-print">
+          {!transfer.open ? (
+            <button className="btn-ghost btn-sm" onClick={() => setTransfer({ ...transfer, open: true })}>
+              Transférer ce billet
+            </button>
+          ) : transfer.done ? (
+            <div className="alert ok">Billet transféré. Le nouveau titulaire a reçu un email.</div>
+          ) : (
+            <>
+              <h3 style={{ marginTop: 0 }}>Transférer ce billet</h3>
+              <label>Votre email (utilisé lors de l&apos;achat)</label>
+              <input type="email" value={transfer.email} onChange={(e) => setTransfer({ ...transfer, email: e.target.value })} />
+              <label>Nom du nouveau titulaire</label>
+              <input value={transfer.newName} onChange={(e) => setTransfer({ ...transfer, newName: e.target.value })} />
+              <label>Email du nouveau titulaire</label>
+              <input type="email" value={transfer.newEmail} onChange={(e) => setTransfer({ ...transfer, newEmail: e.target.value })} />
+              {transfer.err && <div className="alert err">{transfer.err}</div>}
+              <button
+                className="btn-accent"
+                disabled={transfer.busy}
+                onClick={() => {
+                  setTransfer({ ...transfer, busy: true, err: "" });
+                  api(`/api/public/tickets/${serial}/transfer`, {
+                    method: "PATCH",
+                    auth: false,
+                    body: { email: transfer.email, new_name: transfer.newName, new_email: transfer.newEmail },
+                  })
+                    .then(() => setTransfer({ ...transfer, done: true, busy: false }))
+                    .catch((e) => setTransfer({ ...transfer, err: e.message, busy: false }));
+                }}
+              >
+                {transfer.busy ? "Transfert…" : "Confirmer le transfert"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {t.status === "valid" && (
         <div className="card no-print">

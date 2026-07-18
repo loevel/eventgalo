@@ -14,6 +14,7 @@ interface EventListItem {
   guest_count: number;
   yes_count: number;
   tickets_sold: number;
+  is_owner: number;
 }
 
 const FILTERS = [
@@ -157,6 +158,11 @@ export default function Dashboard() {
                 <strong style={{ fontSize: 17 }}>
                   {e.type === "ticketed" ? "🎟️ " : "🎂 "}
                   {e.title}
+                  {!e.is_owner && (
+                    <span className="badge mut" style={{ marginLeft: 8, fontWeight: 400 }}>
+                      Co-organisé
+                    </span>
+                  )}
                 </strong>
                 <div className="muted">{relativeDate(e.starts_at)} · {formatDate(e.starts_at)}</div>
               </div>

@@ -84,6 +84,31 @@ export async function seedCategory(
   return { id };
 }
 
+export async function seedTicket(
+  eventId: string,
+  categoryId: string,
+  overrides: Partial<{ buyerName: string; buyerEmail: string; status: "valid" | "used" | "refunded" | "void"; serial: string }> = {},
+): Promise<{ id: string; serial: string }> {
+  const txId = crypto.randomUUID();
+  const buyerName = overrides.buyerName ?? "Acheteur Test";
+  const buyerEmail = overrides.buyerEmail ?? "acheteur@example.com";
+  await env.DB.prepare(
+    `INSERT INTO transactions (id, event_id, category_id, buyer_name, buyer_email, quantity, amount_cents, status)
+     VALUES (?, ?, ?, ?, ?, 1, 0, 'paid')`,
+  )
+    .bind(txId, eventId, categoryId, buyerName, buyerEmail)
+    .run();
+  const id = crypto.randomUUID();
+  const serial = overrides.serial ?? `TEST${id.slice(0, 8).toUpperCase()}`;
+  await env.DB.prepare(
+    `INSERT INTO tickets (id, event_id, category_id, transaction_id, buyer_name, buyer_email, serial, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, eventId, categoryId, txId, buyerName, buyerEmail, serial, overrides.status ?? "valid")
+    .run();
+  return { id, serial };
+}
+
 export function jsonInit(method: string, body?: unknown, headers: Record<string, string> = {}): RequestInit {
   return {
     method,

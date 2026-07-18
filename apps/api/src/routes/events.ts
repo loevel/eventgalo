@@ -24,9 +24,15 @@ interface EventRow {
   [k: string]: unknown;
 }
 
+/** Un événement est accessible à son organisateur ET à ses co-organisateurs. */
 async function getOwnedEvent(env: Env, eventId: string, userId: string): Promise<EventRow | null> {
-  return env.DB.prepare("SELECT * FROM events WHERE id = ? AND organizer_id = ?")
-    .bind(eventId, userId)
+  return env.DB.prepare(
+    `SELECT e.* FROM events e
+     WHERE e.id = ? AND (e.organizer_id = ? OR EXISTS (
+       SELECT 1 FROM event_collaborators c WHERE c.event_id = e.id AND c.user_id = ?
+     ))`,
+  )
+    .bind(eventId, userId, userId)
     .first<EventRow>();
 }
 
@@ -77,13 +83,17 @@ events.post("/", async (c) => {
 events.get("/", async (c) => {
   const user = c.get("user");
   const rows = await c.env.DB.prepare(
-    `SELECT e.*,
+    `SELECT e.*, (e.organizer_id = ?) AS is_owner,
        (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id) AS guest_count,
        (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id AND g.rsvp_status = 'yes') AS yes_count,
        (SELECT COUNT(*) FROM tickets t WHERE t.event_id = e.id AND t.status IN ('valid','used')) AS tickets_sold
-     FROM events e WHERE e.organizer_id = ? ORDER BY e.starts_at DESC`,
+     FROM events e
+     WHERE e.organizer_id = ? OR EXISTS (
+       SELECT 1 FROM event_collaborators c WHERE c.event_id = e.id AND c.user_id = ?
+     )
+     ORDER BY e.starts_at DESC`,
   )
-    .bind(user.id)
+    .bind(user.id, user.id, user.id)
     .all();
   return c.json({ events: rows.results });
 });
@@ -92,7 +102,7 @@ events.get("/:id", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist] = await Promise.all([
+  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators] = await Promise.all([
     c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ? ORDER BY price_cents").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
@@ -115,9 +125,15 @@ events.get("/:id", async (c) => {
        GROUP BY t.seller_id, t.category_id`,
     ).bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM waitlist WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
+    c.env.DB.prepare(
+      `SELECT c.id, c.user_id, u.email, u.name, c.created_at
+       FROM event_collaborators c JOIN users u ON u.id = c.user_id
+       WHERE c.event_id = ? ORDER BY c.created_at`,
+    ).bind(event.id).all(),
   ]);
   return c.json({
     event,
+    is_owner: event.organizer_id === user.id,
     guests: guests.results,
     categories: categories.results,
     sellers: sellers.results,
@@ -126,6 +142,7 @@ events.get("/:id", async (c) => {
     refund_requests: refunds.results,
     sales: sales.results,
     waitlist: waitlist.results,
+    collaborators: collaborators.results,
   });
 });
 
@@ -175,6 +192,69 @@ events.patch("/:id", async (c) => {
   values.push(nowIso(), event.id);
   await c.env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
   return c.json({ event: await getOwnedEvent(c.env, event.id, user.id) });
+});
+
+/* --------------------------- Co-organisateurs ----------------------------- */
+
+events.post("/:id/collaborators", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  if (event.organizer_id !== user.id) {
+    return c.json({ error: "Seul l'organisateur principal peut ajouter des co-organisateurs" }, 403);
+  }
+  const b = await c.req.json<{ email?: string }>().catch(() => ({}) as Record<string, never>);
+  const email = String(b.email ?? "").trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return c.json({ error: "Adresse email invalide" }, 400);
+  if (email === user.email.toLowerCase()) return c.json({ error: "Vous êtes déjà organisateur de cet événement" }, 400);
+
+  let collaborator = await c.env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?")
+    .bind(email)
+    .first<{ id: string; email: string; name: string | null }>();
+  if (!collaborator) {
+    const id = uuid();
+    await c.env.DB.prepare("INSERT INTO users (id, email, name, created_at) VALUES (?, ?, ?, ?)")
+      .bind(id, email, null, nowIso())
+      .run();
+    collaborator = { id, email, name: null };
+  }
+
+  const existing = await c.env.DB.prepare(
+    "SELECT id FROM event_collaborators WHERE event_id = ? AND user_id = ?",
+  ).bind(event.id, collaborator.id).first();
+  if (existing) return c.json({ error: "Cette personne est déjà co-organisatrice" }, 409);
+
+  const collaboratorRowId = uuid();
+  await c.env.DB.prepare("INSERT INTO event_collaborators (id, event_id, user_id) VALUES (?, ?, ?)")
+    .bind(collaboratorRowId, event.id, collaborator.id)
+    .run();
+
+  c.executionCtx.waitUntil(
+    sendEmail(
+      c.env,
+      email,
+      `Vous co-organisez maintenant : ${event.title}`,
+      layout(
+        "Vous êtes co-organisateur·rice",
+        `<p>${user.name ?? user.email} vous a ajouté·e comme co-organisateur·rice de <strong>${event.title}</strong>.</p>
+         <p>Connectez-vous sur EventGalo avec cette adresse (${email}) pour y accéder.</p>`,
+      ),
+    ),
+  );
+  return c.json({ id: collaboratorRowId, user_id: collaborator.id, email: collaborator.email, name: collaborator.name }, 201);
+});
+
+events.delete("/:id/collaborators/:cid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  if (event.organizer_id !== user.id) {
+    return c.json({ error: "Seul l'organisateur principal peut retirer des co-organisateurs" }, 403);
+  }
+  await c.env.DB.prepare("DELETE FROM event_collaborators WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("cid"), event.id)
+    .run();
+  return c.json({ ok: true });
 });
 
 events.post("/:id/duplicate", async (c) => {

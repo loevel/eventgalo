@@ -9,6 +9,7 @@ import { TicketPreview } from "@/components/ticket-preview";
 
 interface Detail {
   event: Record<string, any>;
+  is_owner: boolean;
   guests: Array<Record<string, any>>;
   categories: Array<Record<string, any>>;
   sellers: Array<Record<string, any>>;
@@ -17,6 +18,7 @@ interface Detail {
   refund_requests: Array<Record<string, any>>;
   sales: Array<Record<string, any>>;
   waitlist: Array<Record<string, any>>;
+  collaborators: Array<Record<string, any>>;
 }
 
 const WEB = typeof window !== "undefined" ? window.location.origin : "";
@@ -36,6 +38,62 @@ function CopyField({ value }: { value: string }) {
       >
         {copied ? "✓" : "Copier"}
       </button>
+    </div>
+  );
+}
+
+function CollaboratorsCard({
+  ev, isOwner, collaborators, act,
+}: {
+  ev: Record<string, any>;
+  isOwner: boolean;
+  collaborators: Array<Record<string, any>>;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Organisateurs</h3>
+      <p className="muted">Les co-organisateurs ont un accès complet à cet événement (invités, billetterie, annonces…).</p>
+      {collaborators.length > 0 && (
+        <ul style={{ paddingLeft: 20 }}>
+          {collaborators.map((cb) => (
+            <li key={cb.id} style={{ marginBottom: 4 }}>
+              {cb.name || cb.email}{" "}
+              {isOwner && (
+                <button
+                  className="btn-sm btn-ghost"
+                  onClick={() => act(() => api(`/api/events/${ev.id}/collaborators/${cb.id}`, { method: "DELETE" }), "Co-organisateur retiré")}
+                >
+                  Retirer
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {isOwner ? (
+        <div className="copy-row">
+          <input
+            type="email"
+            placeholder="email@exemple.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <button
+            className="btn-sm btn-accent"
+            disabled={!email}
+            onClick={() => {
+              act(() => api(`/api/events/${ev.id}/collaborators`, { method: "POST", body: { email } }), "Co-organisateur ajouté");
+              setEmail("");
+            }}
+          >
+            Ajouter
+          </button>
+        </div>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>Seul l&apos;organisateur principal peut gérer les co-organisateurs.</p>
+      )}
     </div>
   );
 }
@@ -82,7 +140,7 @@ export default function EventAdmin() {
     );
   }
 
-  const { event: ev, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales, waitlist } = data;
+  const { event: ev, is_owner, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales, waitlist, collaborators } = data;
   const opened = guests.filter((g) => g.opened_at).length;
   const yes = guests.filter((g) => g.rsvp_status === "yes").length;
   const no = guests.filter((g) => g.rsvp_status === "no").length;
@@ -241,6 +299,7 @@ export default function EventAdmin() {
               ⬇ Exporter les données (JSON)
             </a>
           </div>
+          <CollaboratorsCard ev={ev} isOwner={is_owner} collaborators={collaborators} act={act} />
         </>
       )}
 
