@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout-form";
 import { Reveal } from "@/components/reveal";
 import { Countdown } from "@/components/countdown";
@@ -128,24 +129,43 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
         )}
         <div className="hero-overlay" />
         <div className="hero-content">
-          <span className="hero-badge">{ev.type === "ticketed" ? "🎟️ Billetterie" : "🎂 Invitation"}</span>
+          <span className="hero-badge glass glass-chip">
+            {ev.type === "ticketed" ? <Ticket /> : <PartyPopper />}
+            {ev.type === "ticketed" ? "Billetterie" : "Invitation"}
+          </span>
           <h1>{ev.title}</h1>
-          <div className="hero-meta">
-            <span>📅 {formatDate(ev.starts_at)}</span>
-            {ev.venue && <span>📍 {ev.venue}{ev.address ? `, ${ev.address}` : ""}</span>}
-            {ev.dress_code && <span>👗 {ev.dress_code}</span>}
-          </div>
           <div className="hero-cta-row">
-            <a className="btn cta-glass" href={`${API_BASE}/api/public/events/${slug}/ics`}>
-              📅 Ajouter à mon agenda
+            <a className="btn glass glass-btn" href={`${API_BASE}/api/public/events/${slug}/ics`}>
+              <CalendarPlus /> Ajouter à mon agenda
             </a>
             <ShareButton title={ev.title} url={pageUrl} />
             {ev.type === "ticketed" && (
               <a className="btn btn-accent" href="#billets">
-                Voir les billets
+                Voir les billets <ArrowRight />
               </a>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="event-info-wrap">
+        <div className="event-info-bar glass">
+          <div className="event-info-item">
+            <CalendarDays />
+            <span>{formatDate(ev.starts_at)}</span>
+          </div>
+          {ev.venue && (
+            <div className="event-info-item">
+              <MapPin />
+              <span>{ev.venue}{ev.address ? `, ${ev.address}` : ""}</span>
+            </div>
+          )}
+          {ev.dress_code && (
+            <div className="event-info-item">
+              <Shirt />
+              <span>{ev.dress_code}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -163,7 +183,9 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             {data.announcements.length > 0 && (
               <Reveal delay={80}>
                 <div className="card">
-                  <h3 style={{ marginTop: 0 }}>Dernières annonces</h3>
+                  <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <Megaphone size={17} /> Dernières annonces
+                  </h3>
                   {data.announcements.map((a, i) => (
                     <div key={i} className="timeline-item">
                       <p style={{ margin: 0 }}>{a.body}</p>
@@ -177,7 +199,9 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             {ev.type === "ticketed" && (
               <Reveal delay={140}>
                 <div className="card" id="billets">
-                  <h2 style={{ marginTop: 0 }}>🎟️ Billets</h2>
+                  <h2 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                    <Ticket size={20} /> Billets
+                  </h2>
                   <CheckoutForm slug={slug} categories={data.categories} />
                 </div>
               </Reveal>
@@ -188,7 +212,9 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             {ev.starts_at && (
               <Reveal>
                 <div className="card" style={{ margin: 0 }}>
-                  <h3 style={{ marginTop: 0, fontSize: 14 }}>⏳ Compte à rebours</h3>
+                  <h3 style={{ marginTop: 0, fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
+                    <Hourglass size={15} /> Compte à rebours
+                  </h3>
                   <Countdown startsAt={ev.starts_at} />
                 </div>
               </Reveal>

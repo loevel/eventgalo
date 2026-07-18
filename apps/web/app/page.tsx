@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
 
@@ -11,20 +12,26 @@ const ParticleHero = dynamic(() => import("@/components/particle-hero").then((m)
 
 const FEATURES = [
   {
-    icon: "✉️",
+    icon: Mail,
     title: "Invitations personnalisées",
     text: "Chaque invité reçoit son propre lien : programme, lieu, dress code. Vous voyez qui a ouvert et qui a confirmé, sans relancer personne.",
   },
   {
-    icon: "🎟️",
+    icon: Ticket,
     title: "Billetterie sécurisée",
     text: "Catégories Standard, VIP, VIP+ avec paiement en ligne. QR codes signés à usage unique, impossibles à dupliquer.",
   },
   {
-    icon: "📊",
+    icon: BarChart3,
     title: "Suivi par vendeur",
     text: "Attribuez des quotas à vos vendeurs et suivez leurs ventes en temps réel. Le jour J, scannez les billets à l'entrée depuis votre téléphone.",
   },
+];
+
+const STATS = [
+  { icon: PartyPopper, num: "100%", label: "sans carte bancaire pour démarrer" },
+  { icon: ShieldCheck, num: "0", label: "billet dupliqué — QR signés" },
+  { icon: Sparkles, num: "3 min", label: "pour publier un événement" },
 ];
 
 const STEPS = [
@@ -86,25 +93,41 @@ export default function Home() {
           </p>
           <div className="cta-row">
             <a href="#login" className="btn btn-gold">
-              Commencer gratuitement
+              Commencer gratuitement <ArrowRight />
             </a>
-            <a href="#how" className="btn btn-outline-light">
+            <a href="#how" className="btn btn-outline-light glass glass-btn">
               Comment ça marche ?
             </a>
           </div>
         </div>
         <div className="hero-scroll-cue">
           <span>Découvrir</span>
-          <span className="line" />
+          <ChevronDown className="scroll-chevron" />
+        </div>
+      </div>
+
+      <div className="hero-stats-wrap">
+        <div className="hero-stats-bar">
+          {STATS.map((s) => (
+            <div className="hero-stat glass" key={s.label}>
+              <s.icon />
+              <div>
+                <span className="hero-stat-num">{s.num}</span>
+                <span className="hero-stat-lbl">{s.label}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
       <main className="container landing">
-        <div className="grid3">
+        <div className="grid3 features-grid">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={i * 90}>
               <div className="card feature">
-                <div className="feature-icon">{f.icon}</div>
+                <div className="glass-icon feature-icon">
+                  <f.icon />
+                </div>
                 <h3>{f.title}</h3>
                 <p className="muted">{f.text}</p>
               </div>
@@ -133,8 +156,13 @@ export default function Home() {
 
         <div className="grid2 usecases">
           <Reveal>
-            <div className="card">
-              <h3 style={{ marginTop: 0 }}>🎂 Événements privés</h3>
+            <div className="card usecase">
+              <div className="usecase-head">
+                <div className="glass-icon">
+                  <PartyPopper />
+                </div>
+                <h3 style={{ margin: 0 }}>Événements privés</h3>
+              </div>
               <p className="muted">
                 Lieu, plan de table, dress code : tout dans un lien. Chaque invité a le sien — vous voyez qui a
                 ouvert, qui a confirmé.
@@ -142,8 +170,13 @@ export default function Home() {
             </div>
           </Reveal>
           <Reveal delay={90}>
-            <div className="card">
-              <h3 style={{ marginTop: 0 }}>🎟️ Galas &amp; billetterie</h3>
+            <div className="card usecase">
+              <div className="usecase-head">
+                <div className="glass-icon">
+                  <Ticket />
+                </div>
+                <h3 style={{ margin: 0 }}>Galas &amp; billetterie</h3>
+              </div>
               <p className="muted">
                 Catégories Standard / VIP / VIP+, quotas par vendeur, paiement en ligne, QR codes signés à usage
                 unique et scan à l&apos;entrée.

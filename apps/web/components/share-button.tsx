@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Share2 } from "lucide-react";
 
 export function ShareButton({ title, url }: { title: string; url: string }) {
   const [copied, setCopied] = useState(false);
@@ -20,8 +21,9 @@ export function ShareButton({ title, url }: { title: string; url: string }) {
   }
 
   return (
-    <button type="button" className="btn btn-ghost cta-glass" onClick={share}>
-      {copied ? "✓ Lien copié" : "↗ Partager"}
+    <button type="button" className="btn glass glass-btn" onClick={share}>
+      {copied ? <Check /> : <Share2 />}
+      {copied ? "Lien copié" : "Partager"}
     </button>
   );
 }
