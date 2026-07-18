@@ -6,6 +6,7 @@ import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import { sanitizeSocials } from "../lib/profile";
 import { buildIcsEvent, icsResponse } from "../lib/ics";
 
 const pub = new Hono<AppContext>();
@@ -73,22 +74,6 @@ pub.get("/events/:slug", async (c) => {
 });
 
 /* ------------------------- Espace sponsor (lien privé) --------------------- */
-
-/** Réseaux sociaux autorisés dans le profil sponsor. */
-const SOCIAL_KEYS = ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"] as const;
-
-function sanitizeSocials(raw: unknown): string | null {
-  if (typeof raw !== "object" || raw === null) return null;
-  const out: Record<string, string> = {};
-  for (const key of SOCIAL_KEYS) {
-    const v = (raw as Record<string, unknown>)[key];
-    if (typeof v === "string" && v.trim()) {
-      const url = v.trim().slice(0, 300);
-      if (/^https?:\/\//i.test(url)) out[key] = url;
-    }
-  }
-  return Object.keys(out).length ? JSON.stringify(out) : null;
-}
 
 /** N'accepte que YouTube et Vimeo (embarqués côté web, jamais hébergés chez nous). */
 function sanitizeVideoUrl(raw: unknown): string | null {

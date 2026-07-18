@@ -543,6 +543,21 @@ export default function SponsorPage() {
           </form>
         )}
 
+        {(sponsor.status === "pending" || sponsor.status === "confirmed") && (
+          <div className="card directory-cta" style={{ marginTop: 24 }}>
+            <div>
+              <h3 style={{ margin: "0 0 4px" }}>Recevez d&apos;autres opportunités de sponsoring</h3>
+              <p className="muted" style={{ margin: 0 }}>
+                Créez gratuitement le profil de votre entreprise dans l&apos;annuaire EventGalo : les associations
+                qui organisent des événements pourront vous découvrir et vous inviter.
+              </p>
+            </div>
+            <a className="btn btn-ghost" href="/entreprise" style={{ marginTop: 0, whiteSpace: "nowrap" }}>
+              Créer mon profil
+            </a>
+          </div>
+        )}
+
         {sponsor.status === "declined" && (
           <div className="alert info">Cette invitation de sponsoring a été close par l&apos;organisation.</div>
         )}

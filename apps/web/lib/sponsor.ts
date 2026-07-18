@@ -1,3 +1,18 @@
+/** Secteurs proposés dans l'annuaire des sponsors. */
+export const COMPANY_SECTORS = [
+  "Restauration & traiteur",
+  "Finance & assurance",
+  "Commerce de détail",
+  "Technologie",
+  "Santé & bien-être",
+  "Immobilier & construction",
+  "Médias & marketing",
+  "Transport",
+  "Éducation",
+  "Boissons & vignobles",
+  "Autre",
+] as const;
+
 /** Clés de réseaux sociaux supportées dans le profil sponsor. */
 export const SOCIAL_KEYS = ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"] as const;
 export type SocialKey = (typeof SOCIAL_KEYS)[number];

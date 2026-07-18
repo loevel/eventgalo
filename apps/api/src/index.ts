@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth";
 import eventRoutes from "./routes/events";
 import publicRoutes from "./routes/public";
 import webhookRoutes from "./routes/stripe-webhook";
+import { companyRoutes, companyDirectoryRoutes } from "./routes/companies";
 import { nowIso } from "./lib/crypto";
 import { eventLogoUrl, layout, sendEmail } from "./lib/email";
 
@@ -22,6 +23,8 @@ app.get("/", (c) => c.json({ name: "eventgalo-api", status: "ok", time: nowIso()
 app.route("/api/auth", authRoutes);
 app.route("/api/events", eventRoutes);
 app.route("/api/public", publicRoutes);
+app.route("/api/public/companies", companyDirectoryRoutes);
+app.route("/api/company", companyRoutes);
 app.route("/api/webhooks", webhookRoutes);
 
 app.onError((err, c) => {

@@ -1551,6 +1551,15 @@ function SponsorsTab({
           L&apos;entreprise reçoit un lien privé où elle découvre vos paliers, choisit son offre, renseigne ses
           informations et téléverse son logo. Vous confirmez ensuite son sponsoring une fois le paiement reçu.
         </p>
+        <DirectoryPicker
+          onPick={(co) =>
+            setInvite({
+              email: co.public_email ?? "",
+              company: co.name,
+              contact: "",
+            })
+          }
+        />
         <div className="grid2">
           <div>
             <label>Email du contact *</label>
@@ -1675,5 +1684,107 @@ function SponsorsTab({
         </div>
       )}
     </>
+  );
+}
+
+/** Recherche dans l'annuaire public des sponsors pour préremplir une invitation. */
+function DirectoryPicker({
+  onPick,
+}: {
+  onPick: (co: { name: string; public_email: string | null }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<Array<Record<string, any>> | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  async function search() {
+    setSearching(true);
+    try {
+      const r = await api<{ companies: Array<Record<string, any>> }>(
+        `/api/public/companies?q=${encodeURIComponent(q)}`,
+        { auth: false },
+      );
+      setResults(r.companies);
+    } catch {
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <p style={{ margin: "0 0 14px" }}>
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          onClick={() => {
+            setOpen(true);
+            search();
+          }}
+        >
+          🔎 Inviter depuis l&apos;annuaire des sponsors
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+      <div className="copy-row">
+        <input
+          placeholder="Rechercher une entreprise…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              search();
+            }
+          }}
+        />
+        <button type="button" className="btn-sm btn-accent" disabled={searching} onClick={search}>
+          {searching ? "…" : "Chercher"}
+        </button>
+        <button type="button" className="btn-sm btn-ghost" onClick={() => setOpen(false)}>
+          Fermer
+        </button>
+      </div>
+      {results !== null && results.length === 0 && (
+        <p className="muted" style={{ margin: "10px 0 0" }}>
+          Aucune entreprise trouvée dans l&apos;annuaire.{" "}
+          <a href="/sponsors" target="_blank" rel="noreferrer">Voir l&apos;annuaire</a>
+        </p>
+      )}
+      {results !== null && results.length > 0 && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+          {results.slice(0, 8).map((co) => (
+            <div
+              key={co.id}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8 }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <strong>{co.name}</strong>
+                <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                  {[co.sector, co.city].filter(Boolean).join(" · ") || "—"}
+                  {co.sponsorships > 0 ? ` · ${co.sponsorships} sponsoring${co.sponsorships > 1 ? "s" : ""}` : ""}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-sm btn-ghost"
+                onClick={() => {
+                  onPick({ name: co.name, public_email: co.public_email ?? null });
+                  setOpen(false);
+                }}
+              >
+                Choisir
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -683,6 +683,30 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 .sponsor-photo-add svg { width: 20px; height: 20px; }
 .sponsor-photo-add:hover { color: var(--accent); border-color: rgba(180,84,10,0.4); box-shadow: none; transform: none; }
 
+/* Annuaire des sponsors */
+.directory-hero { margin: 16px 0 8px; }
+.directory-filters { max-width: 620px; margin: 18px auto; }
+.directory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin-top: 20px; }
+.directory-card { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.directory-card-head { display: flex; align-items: center; gap: 12px; }
+.directory-card-head img {
+  width: 58px; height: 58px; object-fit: contain; flex: none;
+  border-radius: 12px; border: 1px solid var(--line); background: #fff; padding: 5px;
+}
+.directory-card-head .sponsor-name-fallback { width: 58px; height: 58px; font-size: 20px; flex: none; }
+.directory-card-head h3 { margin: 0 0 2px; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+.directory-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; margin: 0; }
+.directory-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.directory-card .sponsor-desc { margin: 0; }
+.directory-badge { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; }
+.directory-cta {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-top: 32px; border-color: rgba(180,84,10,0.25);
+  background: linear-gradient(160deg, #fdf6ec, #fff);
+}
+.directory-cta svg:first-child { flex: none; }
+.directory-cta > div { flex: 1; min-width: 240px; }
+
 /* Hero de l'espace sponsor */
 .sponsor-hero {
   position: relative; width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
