@@ -76,14 +76,20 @@ pub.get("/sponsor/:token", async (c) => {
   ]);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const { token: _token, ...safeSponsor } = sponsor as Record<string, unknown>;
-  return c.json({ sponsor: safeSponsor, event, tiers: tiers.results, taken: taken.results });
+  return c.json({
+    sponsor: safeSponsor,
+    event,
+    tiers: tiers.results,
+    taken: taken.results,
+    stripe_enabled: Boolean(c.env.STRIPE_SECRET_KEY),
+  });
 });
 
 /** Engagement de l'entreprise : choix du palier + informations société. */
 pub.post("/sponsor/:token", async (c) => {
   const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE token = ?")
     .bind(c.req.param("token"))
-    .first<{ id: string; event_id: string; status: string }>();
+    .first<{ id: string; event_id: string; status: string; contact_email: string }>();
   if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
   if (sponsor.status === "confirmed") return c.json({ error: "Sponsoring déjà confirmé" }, 409);
   const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
@@ -111,7 +117,85 @@ pub.post("/sponsor/:token", async (c) => {
       (b.message as string) || null, tier.price_cents, nowIso(), sponsor.id,
     )
     .run();
+
+  // Récapitulatif à l'organisateur : nouvel engagement à examiner.
+  c.executionCtx.waitUntil(
+    (async () => {
+      const org = await c.env.DB.prepare(
+        `SELECT u.email, e.title, e.id AS event_id FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?`,
+      )
+        .bind(sponsor.event_id)
+        .first<{ email: string; title: string; event_id: string }>();
+      if (!org) return;
+      const amount = (tier.price_cents / 100).toFixed(2);
+      await sendEmail(
+        c.env,
+        org.email,
+        `Nouvel engagement sponsor — ${org.title}`,
+        layout(
+          `${companyName} veut sponsoriser ${org.title} !`,
+          `<p><strong>${companyName}</strong> vient de s'engager sur le palier
+             <strong>${tier.name}</strong> (${amount}&nbsp;$).</p>
+           <ul style="color:#444;padding-left:18px">
+             <li>Contact : ${(b.contact_name as string) || "—"} · ${sponsor.contact_email}</li>
+             ${b.website ? `<li>Site web : ${b.website}</li>` : ""}
+             ${b.message ? `<li>Message : « ${b.message} »</li>` : ""}
+           </ul>
+           <p>Le sponsor peut payer en ligne, ou vous pouvez confirmer manuellement après réception du
+              paiement (virement/facture) depuis l'onglet Sponsors de votre tableau de bord.</p>
+           <p><a href="${c.env.WEB_BASE_URL}/dashboard/e/${org.event_id}">Ouvrir le tableau de bord</a></p>`,
+          { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: org.title },
+        ),
+      );
+    })(),
+  );
   return c.json({ ok: true, status: "pending", tier_name: tier.name, amount_cents: tier.price_cents });
+});
+
+/** Paiement en ligne du sponsoring (Stripe Checkout). */
+pub.post("/sponsor/:token/checkout", async (c) => {
+  const sponsor = await c.env.DB.prepare(
+    `SELECT s.*, t.name AS tier_name, t.currency, e.title AS event_title
+     FROM sponsors s JOIN sponsor_tiers t ON t.id = s.tier_id JOIN events e ON e.id = s.event_id
+     WHERE s.token = ?`,
+  )
+    .bind(c.req.param("token"))
+    .first<{
+      id: string; event_id: string; status: string; amount_cents: number | null; paid_at: string | null;
+      contact_email: string; company_name: string | null; tier_name: string; currency: string; event_title: string;
+    }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (sponsor.status !== "pending") return c.json({ error: "Engagement requis avant le paiement" }, 409);
+  if (sponsor.paid_at) return c.json({ error: "Sponsoring déjà payé" }, 409);
+  if (!sponsor.amount_cents || sponsor.amount_cents <= 0) return c.json({ error: "Montant invalide" }, 400);
+  if (!c.env.STRIPE_SECRET_KEY) return c.json({ error: "Paiement en ligne indisponible" }, 501);
+
+  const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { httpClient: Stripe.createFetchHttpClient() });
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: sponsor.contact_email,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: sponsor.currency.toLowerCase(),
+          unit_amount: sponsor.amount_cents,
+          product_data: {
+            name: `Sponsoring ${sponsor.tier_name} — ${sponsor.event_title}`,
+            ...(sponsor.company_name ? { description: `Au nom de ${sponsor.company_name}` } : {}),
+          },
+        },
+      },
+    ],
+    metadata: { sponsor_id: sponsor.id, event_id: sponsor.event_id },
+    success_url: `${c.env.WEB_BASE_URL}/sp/${c.req.param("token")}?paid=1`,
+    cancel_url: `${c.env.WEB_BASE_URL}/sp/${c.req.param("token")}?canceled=1`,
+    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+  });
+  await c.env.DB.prepare("UPDATE sponsors SET stripe_session_id = ? WHERE id = ?")
+    .bind(session.id, sponsor.id)
+    .run();
+  return c.json({ checkout_url: session.url });
 });
 
 /** Upload du logo de l'entreprise sponsor. */

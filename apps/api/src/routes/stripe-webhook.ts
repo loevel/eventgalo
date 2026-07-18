@@ -1,8 +1,66 @@
 import { Hono } from "hono";
 import Stripe from "stripe";
-import type { AppContext } from "../types";
+import type { AppContext, Env } from "../types";
 import { callEventDO } from "../do/event-do";
+import { eventLogoUrl, layout, sendEmail } from "../lib/email";
+import { nowIso } from "../lib/crypto";
 import { sendTicketsEmail } from "./public";
+
+/** Paiement de sponsoring reçu : confirmation automatique + emails aux deux parties. */
+async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: string): Promise<void> {
+  const sponsor = await env.DB.prepare(
+    `SELECT s.id, s.status, s.paid_at, s.company_name, s.contact_email, s.amount_cents,
+            t.name AS tier_name, e.title AS event_title, u.email AS organizer_email
+     FROM sponsors s
+     LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
+     JOIN events e ON e.id = s.event_id
+     JOIN users u ON u.id = e.organizer_id
+     WHERE s.id = ?`,
+  )
+    .bind(sponsorId)
+    .first<{
+      id: string; status: string; paid_at: string | null; company_name: string | null; contact_email: string;
+      amount_cents: number | null; tier_name: string | null; event_title: string; organizer_email: string;
+    }>();
+  if (!sponsor || sponsor.paid_at) return; // déjà traité (webhook rejoué)
+
+  const now = nowIso();
+  await env.DB.prepare("UPDATE sponsors SET status = 'confirmed', paid_at = ?, confirmed_at = ? WHERE id = ?")
+    .bind(now, now, sponsor.id)
+    .run();
+
+  const brand = { logoUrl: await eventLogoUrl(env, eventId), eventTitle: sponsor.event_title };
+  const amount = sponsor.amount_cents != null ? `${(sponsor.amount_cents / 100).toFixed(2)} $` : "";
+  const company = sponsor.company_name ?? "Votre entreprise";
+  await Promise.all([
+    sendEmail(
+      env,
+      sponsor.contact_email,
+      `Paiement reçu — sponsoring confirmé pour ${sponsor.event_title}`,
+      layout(
+        "Merci pour votre soutien !",
+        `<p>Votre paiement de <strong>${amount}</strong> pour le palier
+           <strong>${sponsor.tier_name ?? ""}</strong> a bien été reçu.</p>
+         <p><strong>${company}</strong> figure désormais parmi les sponsors de
+           <strong>${sponsor.event_title}</strong> : votre logo apparaît sur la page publique de l'événement.</p>`,
+        brand,
+      ),
+    ),
+    sendEmail(
+      env,
+      sponsor.organizer_email,
+      `Sponsoring payé en ligne — ${sponsor.event_title}`,
+      layout(
+        `${company} a payé son sponsoring !`,
+        `<p><strong>${company}</strong> a réglé <strong>${amount}</strong> en ligne pour le palier
+           <strong>${sponsor.tier_name ?? ""}</strong>. Le sponsoring a été confirmé automatiquement
+           et son logo apparaît sur la page publique.</p>
+         <p><a href="${env.WEB_BASE_URL}/dashboard/e/${eventId}">Ouvrir le tableau de bord</a></p>`,
+        brand,
+      ),
+    ),
+  ]);
+}
 
 const webhook = new Hono<AppContext>();
 
@@ -29,9 +87,12 @@ webhook.post("/stripe", async (c) => {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
+    const sponsorId = session.metadata?.sponsor_id;
     const txId = session.metadata?.transaction_id;
     const eventId = session.metadata?.event_id;
-    if (txId && eventId) {
+    if (sponsorId && eventId) {
+      await finalizeSponsorPayment(c.env, sponsorId, eventId);
+    } else if (txId && eventId) {
       const result = await callEventDO<{ tickets: Array<{ id: string; serial: string }> }>(c.env, eventId, {
         action: "finalize",
         transaction_id: txId,

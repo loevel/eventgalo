@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { BadgeCheck, Building2, Check, Handshake, Hourglass, Upload } from "lucide-react";
+import { BadgeCheck, Building2, Check, CreditCard, Handshake, Hourglass, Upload } from "lucide-react";
 import { API_BASE, api, formatDate, formatPrice } from "@/lib/api";
 import { parsePerks } from "@/lib/perks";
 
@@ -17,6 +17,7 @@ interface SponsorPayload {
     message: string | null;
     status: "invited" | "pending" | "confirmed" | "declined";
     amount_cents: number | null;
+    paid_at: string | null;
   };
   event: {
     title: string;
@@ -37,11 +38,18 @@ interface SponsorPayload {
     rank: number;
   }>;
   taken: Array<{ tier_id: string; n: number }>;
+  stripe_enabled: boolean;
 }
 
 export default function SponsorPage() {
   const { token } = useParams<{ token: string }>();
+  const [justPaid, setJustPaid] = useState(false);
   const [data, setData] = useState<SponsorPayload | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  useEffect(() => {
+    setJustPaid(new URLSearchParams(window.location.search).get("paid") === "1");
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [tierId, setTierId] = useState("");
   const [company, setCompany] = useState("");
@@ -68,6 +76,33 @@ export default function SponsorPage() {
   }, [token]);
 
   useEffect(load, [load]);
+
+  // Retour de Stripe : le webhook confirme en arrière-plan, on re-vérifie quelques secondes.
+  useEffect(() => {
+    if (!justPaid || !data || data.sponsor.status !== "pending") return;
+    const id = setInterval(load, 3000);
+    const stop = setTimeout(() => clearInterval(id), 30_000);
+    return () => {
+      clearInterval(id);
+      clearTimeout(stop);
+    };
+  }, [justPaid, data, load]);
+
+  async function payOnline() {
+    setPaying(true);
+    setError(null);
+    try {
+      const res = await api<{ checkout_url: string }>(`/api/public/sponsor/${token}/checkout`, {
+        method: "POST",
+        auth: false,
+        body: {},
+      });
+      window.location.href = res.checkout_url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+      setPaying(false);
+    }
+  }
 
   async function uploadLogo(file: File) {
     setUploading(true);
@@ -138,8 +173,9 @@ export default function SponsorPage() {
             <BadgeCheck size={40} style={{ color: "var(--ok)" }} />
             <h2 style={{ margin: "8px 0 6px" }}>Merci pour votre soutien !</h2>
             <p className="muted">
-              Le sponsoring de <strong>{sponsor.company_name}</strong> est confirmé. Votre logo apparaît sur la
-              page publique de l&apos;événement.
+              Le sponsoring de <strong>{sponsor.company_name}</strong> est confirmé
+              {sponsor.paid_at ? " et payé en ligne" : ""}. Votre logo apparaît sur la page publique de
+              l&apos;événement.
             </p>
             <a className="btn btn-accent" href={`/e/${ev.public_slug}`}>
               Voir la page de l&apos;événement
@@ -152,13 +188,44 @@ export default function SponsorPage() {
             <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
               <Hourglass size={17} /> Engagement enregistré
             </h3>
+            {justPaid && (
+              <div className="alert info">
+                Paiement en cours de confirmation… Cette page se mettra à jour automatiquement dans quelques
+                secondes.
+              </div>
+            )}
             <p className="muted">
               Merci ! Votre engagement de{" "}
               <strong>{sponsor.amount_cents != null ? formatPrice(sponsor.amount_cents, tiers[0]?.currency ?? "CAD") : "—"}</strong>{" "}
-              au nom de <strong>{sponsor.company_name}</strong> a été transmis à l&apos;organisation, qui vous
-              contactera pour finaliser le paiement (virement ou facture). Votre logo apparaîtra sur la page de
-              l&apos;événement dès confirmation.
+              au nom de <strong>{sponsor.company_name}</strong> a été transmis à l&apos;organisation.
             </p>
+            {data.stripe_enabled && (sponsor.amount_cents ?? 0) > 0 && !justPaid ? (
+              <>
+                <button
+                  className="btn-accent"
+                  disabled={paying}
+                  onClick={payOnline}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
+                  <CreditCard size={16} />
+                  {paying
+                    ? "Redirection…"
+                    : `Payer ${formatPrice(sponsor.amount_cents ?? 0, tiers[0]?.currency ?? "CAD")} en ligne`}
+                </button>
+                <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
+                  Paiement sécurisé par carte via Stripe — votre sponsoring est confirmé immédiatement. Vous
+                  préférez un virement ou une facture&nbsp;? L&apos;organisation vous contactera et confirmera
+                  manuellement.
+                </p>
+              </>
+            ) : (
+              !justPaid && (
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  L&apos;organisation vous contactera pour finaliser le paiement (virement ou facture). Votre logo
+                  apparaîtra sur la page de l&apos;événement dès confirmation.
+                </p>
+              )
+            )}
           </div>
         )}
 
