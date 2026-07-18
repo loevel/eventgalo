@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck } from "lucide-react";
+import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store } from "lucide-react";
 import { api } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
 
@@ -184,6 +184,55 @@ export default function Home() {
             </div>
           </Reveal>
         </div>
+
+        <section className="section">
+          <Reveal>
+            <span className="section-kicker">Place de marché</span>
+            <h2 className="section-title">Le sponsoring, simplifié</h2>
+            <p className="section-sub">
+              Les associations trouvent des sponsors, les entreprises gagnent en visibilité — tout se passe sur
+              EventGalo, de la mise en relation au paiement.
+            </p>
+          </Reveal>
+          <div className="grid2">
+            <Reveal>
+              <div className="card usecase">
+                <div className="usecase-head">
+                  <div className="glass-icon">
+                    <Handshake />
+                  </div>
+                  <h3 style={{ margin: 0 }}>Organisateurs : trouvez des sponsors</h3>
+                </div>
+                <p className="muted">
+                  Créez vos paliers (Officiel, Or, Argent…) avec avantages et niveaux de visibilité, invitez des
+                  entreprises depuis l&apos;annuaire en un clic, encaissez en ligne. Leurs vitrines s&apos;affichent
+                  automatiquement sur votre page.
+                </p>
+                <a href="/sponsors" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
+                  Parcourir l&apos;annuaire des sponsors
+                </a>
+              </div>
+            </Reveal>
+            <Reveal delay={90}>
+              <div className="card usecase">
+                <div className="usecase-head">
+                  <div className="glass-icon">
+                    <Store />
+                  </div>
+                  <h3 style={{ margin: 0 }}>Entreprises : gagnez en visibilité</h3>
+                </div>
+                <p className="muted">
+                  Créez votre profil gratuit, apparaissez dans l&apos;annuaire, recevez des propositions — ou
+                  choisissez vous-même les événements à sponsoriser. Votre vitrine (logo, photos, vidéo, liens)
+                  vous met en valeur auprès du public.
+                </p>
+                <a href="/opportunites" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
+                  Voir les événements à sponsoriser
+                </a>
+              </div>
+            </Reveal>
+          </div>
+        </section>
 
         <section id="login" className="section login-section">
           <Reveal>

@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="container narrow">
       <h1>Politique de confidentialité</h1>
-      <p className="muted">Dernière mise à jour : 17 juillet 2026</p>
+      <p className="muted">Dernière mise à jour : 18 juillet 2026</p>
 
       <div className="alert info">
         Ce document est un modèle générique fourni à titre indicatif. Il ne constitue pas un avis juridique et
@@ -21,8 +21,9 @@ export default function PrivacyPage() {
         <h2 style={{ marginTop: 0 }}>1. Qui sommes-nous</h2>
         <p>
           EventGalo (« nous ») exploite le service accessible à eventgalo.com, permettant de créer des
-          événements, gérer des invitations avec confirmation de présence, et vendre des billets. Pour toute
-          question relative à vos données personnelles :{" "}
+          événements, gérer des invitations avec confirmation de présence, vendre des billets, gérer le
+          sponsoring d&apos;événements et mettre en relation organisateurs et entreprises via un annuaire de
+          sponsors. Pour toute question relative à vos données personnelles :{" "}
           <a href="mailto:billetterie@eventgalo.com">billetterie@eventgalo.com</a>.
         </p>
       </div>
@@ -39,7 +40,16 @@ export default function PrivacyPage() {
             (numéro de carte, etc.) sont saisies directement chez Stripe et ne transitent jamais par nos
             serveurs.</li>
           <li><strong>Photos</strong> : les invités peuvent partager des photos liées à un événement, visibles
-            par les autres invités de ce même événement.</li>
+            par les autres invités de ce même événement. L&apos;organisateur peut rendre certaines photos
+            visibles sur la page publique de l&apos;événement.</li>
+          <li><strong>Sponsors et entreprises</strong> : courriel de contact, nom de l&apos;entreprise et de la
+            personne contact, et les informations de vitrine ou de profil d&apos;annuaire que l&apos;entreprise
+            choisit de publier (description, adresse, téléphone, courriel public, site web, réseaux sociaux,
+            logo, photos, lien vidéo). <strong>Ces informations de vitrine et d&apos;annuaire sont publiques par
+            nature</strong> : elles sont affichées sur la page de l&apos;événement sponsorisé (une fois le
+            sponsoring confirmé) ou dans l&apos;annuaire (si l&apos;entreprise a coché l&apos;option). Le retrait
+            de l&apos;annuaire est possible à tout moment en décochant l&apos;option dans l&apos;espace
+            entreprise.</li>
           <li><strong>Données techniques</strong> : horodatage d&apos;ouverture d&apos;un lien d&apos;invitation, à
             des fins de suivi par l&apos;organisateur.</li>
         </ul>
@@ -51,7 +61,12 @@ export default function PrivacyPage() {
           <li>Permettre à l&apos;organisateur de créer et gérer son événement ;</li>
           <li>Envoyer les invitations et billets, et permettre la confirmation de présence ;</li>
           <li>Valider les billets à l&apos;entrée par lecture du QR code ;</li>
-          <li>Traiter les paiements et remboursements de billetterie (via Stripe) ;</li>
+          <li>Traiter les paiements et remboursements de billetterie et de sponsoring (via Stripe) ;</li>
+          <li>Gérer les invitations, engagements et confirmations de sponsoring, et afficher les vitrines des
+            sponsors confirmés ;</li>
+          <li>Mettre en relation organisateurs et entreprises : lorsqu&apos;un organisateur envoie une demande de
+            sponsoring depuis l&apos;annuaire, <strong>le courriel de l&apos;entreprise ne lui est pas
+            communiqué</strong> — c&apos;est EventGalo qui transmet la demande ;</li>
           <li>Vous authentifier via le lien de connexion envoyé par courriel.</li>
         </ul>
         <p>
@@ -63,9 +78,15 @@ export default function PrivacyPage() {
       <div className="card">
         <h2 style={{ marginTop: 0 }}>4. Durée de conservation</h2>
         <p>
-          Les données d&apos;un événement (invités, billets, transactions, photos) sont <strong>automatiquement
-          supprimées ou anonymisées 30 jours après la date de l&apos;événement</strong>. Ce nettoyage est effectué
-          par une tâche automatisée quotidienne, sans intervention manuelle nécessaire.
+          Les données d&apos;un événement (invités, billets, transactions, photos, sponsorings liés) sont
+          <strong> automatiquement supprimées ou anonymisées 30 jours après la date de
+          l&apos;événement</strong>. Ce nettoyage est effectué par une tâche automatisée quotidienne, sans
+          intervention manuelle nécessaire.
+        </p>
+        <p>
+          Les <strong>profils d&apos;entreprise</strong> de l&apos;annuaire sont conservés tant que le compte est
+          actif : ils sont gérés par l&apos;entreprise elle-même, qui peut les modifier, les retirer de
+          l&apos;annuaire ou en demander la suppression à tout moment.
         </p>
       </div>
 
@@ -75,7 +96,14 @@ export default function PrivacyPage() {
         <ul>
           <li><strong>Stripe</strong> (traitement des paiements par carte) ;</li>
           <li><strong>Cloudflare</strong> (hébergement de l&apos;application, base de données, stockage des
-            photos, envoi des courriels transactionnels).</li>
+            photos et logos, envoi des courriels transactionnels).</li>
+          <li><strong>Google Maps</strong> : la carte du lieu affichée sur les pages d&apos;événements est une
+            intégration Google Maps, chargée depuis les serveurs de Google lors de la consultation de la page
+            (la politique de confidentialité de Google s&apos;applique alors).</li>
+          <li><strong>YouTube / Vimeo</strong> : les vidéos de présentation des sponsors sont des intégrations
+            chargées depuis ces plateformes lors de la consultation (nous utilisons le domaine
+            « youtube-nocookie » pour limiter le dépôt de témoins). Aucune vidéo n&apos;est hébergée par
+            EventGalo.</li>
         </ul>
         <p>Nous ne vendons ni ne louons vos données personnelles à des tiers à des fins publicitaires.</p>
       </div>
