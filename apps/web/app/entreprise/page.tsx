@@ -368,6 +368,18 @@ export default function CompanyPage() {
         </div>
       )}
 
+      <div className="card directory-cta">
+        <div>
+          <h3 style={{ margin: "0 0 4px" }}>Trouvez vos prochains sponsorings</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Parcourez les événements qui cherchent des sponsors et proposez votre entreprise directement.
+          </p>
+        </div>
+        <a className="btn btn-accent" href="/opportunites" style={{ marginTop: 0, whiteSpace: "nowrap" }}>
+          Voir les opportunités
+        </a>
+      </div>
+
       <p className="muted" style={{ textAlign: "center" }}>
         <Store size={14} style={{ verticalAlign: -2 }} />{" "}
         <a href="/sponsors">Voir l&apos;annuaire public des sponsors</a>
