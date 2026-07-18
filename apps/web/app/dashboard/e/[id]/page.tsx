@@ -383,6 +383,11 @@ export default function EventAdmin() {
                         {r.stripe_refund_id ? ` · Stripe ${r.stripe_refund_id}` : ""}
                       </p>
                     )}
+                    {r.status === "approved" && r.stripe_error && (
+                      <p className="muted" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--err, #c0392b)" }}>
+                        Billet remboursé, mais le remboursement Stripe a échoué : {r.stripe_error}. À traiter manuellement.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

@@ -682,13 +682,24 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
   }
 
   // 1. Le billet retourne au pool + compteurs vendeur décrémentés (via DO, atomique)
+  let resumedAfterPriorFailure = false;
   try {
     await callEventDO(c.env, event.id, { action: "refund_ticket", ticket_id: request.ticket_id });
   } catch (e) {
-    if (e instanceof DOError) return c.json({ error: e.message }, 409);
-    throw e;
+    if (!(e instanceof DOError)) throw e;
+    // Le billet peut déjà être 'refunded' suite à une tentative précédente qui a
+    // échoué après cette étape (ex. erreur Stripe non catchée) : la demande était
+    // restée 'pending' alors que le billet, lui, était déjà remboursé côté billetterie.
+    // On reprend le traitement au lieu de renvoyer une 409 définitive à chaque clic.
+    const ticket = await c.env.DB.prepare("SELECT status FROM tickets WHERE id = ?")
+      .bind(request.ticket_id)
+      .first<{ status: string }>();
+    if (ticket?.status !== "refunded") return c.json({ error: e.message }, 409);
+    resumedAfterPriorFailure = true;
   }
-  c.executionCtx.waitUntil(notifyWaitlist(c.env, request.category_id, 1));
+  if (!resumedAfterPriorFailure) {
+    c.executionCtx.waitUntil(notifyWaitlist(c.env, request.category_id, 1));
+  }
 
   // 2. Refund Stripe (part du billet dans la transaction, pondérée par la politique)
   let policy: { kind?: string; percent?: number } | null = null;
@@ -705,20 +716,41 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
       ? Math.floor((unitAmount * Math.min(100, Math.max(0, Number(policy.percent ?? 100)))) / 100)
       : unitAmount;
   let stripeRefundId: string | null = null;
-  if (request.stripe_payment_intent && c.env.STRIPE_SECRET_KEY && refundAmount > 0) {
+  let stripeError: string | null = null;
+  if (resumedAfterPriorFailure) {
+    // On ne sait pas si la tentative précédente a atteint Stripe avant d'échouer :
+    // ne jamais redéclencher un remboursement automatique ici (risque de rembourser
+    // deux fois le même client). Un humain doit vérifier le paiement dans Stripe.
+    stripeError =
+      "Reprise après échec précédent : remboursement Stripe non redéclenché automatiquement " +
+      `(vérifier manuellement le paiement ${request.stripe_payment_intent ?? "inconnu"} dans Stripe).`;
+  } else if (request.stripe_payment_intent && c.env.STRIPE_SECRET_KEY && refundAmount > 0) {
     const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { httpClient: Stripe.createFetchHttpClient() });
-    const refund = await stripe.refunds.create({
-      payment_intent: request.stripe_payment_intent,
-      amount: refundAmount,
-    });
-    stripeRefundId = refund.id;
+    try {
+      const refund = await stripe.refunds.create({
+        payment_intent: request.stripe_payment_intent,
+        amount: refundAmount,
+      });
+      stripeRefundId = refund.id;
+    } catch (e) {
+      // Le billet est déjà marqué remboursé côté billetterie (étape 1, irréversible) :
+      // on consigne l'échec Stripe dans la demande plutôt que de la laisser 'pending'
+      // avec un bouton "Approuver" qui échouerait en 409 à chaque nouvelle tentative.
+      stripeError = e instanceof Error ? e.message : "Erreur lors du remboursement Stripe";
+    }
   }
 
   await c.env.DB.prepare(
-    "UPDATE refund_requests SET status = 'approved', decided_at = ?, stripe_refund_id = ?, refund_amount_cents = ? WHERE id = ?",
+    "UPDATE refund_requests SET status = 'approved', decided_at = ?, stripe_refund_id = ?, refund_amount_cents = ?, stripe_error = ? WHERE id = ?",
   )
-    .bind(nowIso(), stripeRefundId, refundAmount, request.id)
+    .bind(nowIso(), stripeRefundId, refundAmount, stripeError, request.id)
     .run();
+  if (stripeError) {
+    return c.json(
+      { ok: true, status: "approved", stripe_refund_id: null, refund_amount_cents: refundAmount, stripe_error: stripeError },
+      200,
+    );
+  }
   return c.json({ ok: true, status: "approved", stripe_refund_id: stripeRefundId, refund_amount_cents: refundAmount });
 });
 
