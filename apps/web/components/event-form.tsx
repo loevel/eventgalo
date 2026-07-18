@@ -5,10 +5,13 @@ import { useState } from "react";
 export interface EventFormPayload {
   title: string;
   starts_at: string;
+  ends_at: string | null;
   venue: string | null;
   address: string | null;
   description: string | null;
   dress_code: string | null;
+  rsvp_question: string | null;
+  seating_plan: string | null;
   capacity: number;
   type?: string;
   status?: string;
@@ -47,10 +50,13 @@ export function EventForm({
   const [form, setForm] = useState({
     title: initial?.title ?? "",
     starts_at: initial?.starts_at ? toLocalInput(initial.starts_at) : "",
+    ends_at: initial?.ends_at ? toLocalInput(initial.ends_at) : "",
     venue: initial?.venue ?? "",
     address: initial?.address ?? "",
     description: initial?.description ?? "",
     dress_code: initial?.dress_code ?? "",
+    rsvp_question: initial?.rsvp_question ?? "",
+    seating_plan: initial?.seating_plan ?? "",
     capacity: String(initial?.capacity ?? "100"),
     type: initial?.type ?? "private",
     draft: false,
@@ -68,13 +74,19 @@ export function EventForm({
     setBusy(true);
     setError(null);
     try {
+      if (form.ends_at && new Date(form.ends_at) <= new Date(form.starts_at)) {
+        throw new Error("La date de fin doit être après la date de début.");
+      }
       const payload: EventFormPayload = {
         title: form.title,
         starts_at: new Date(form.starts_at).toISOString(),
+        ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
         venue: form.venue || null,
         address: form.address || null,
         description: form.description || null,
         dress_code: form.dress_code || null,
+        rsvp_question: form.type === "private" ? form.rsvp_question || null : null,
+        seating_plan: form.seating_plan || null,
         capacity: Number(form.capacity),
         refund_policy:
           form.type === "ticketed"
@@ -101,8 +113,16 @@ export function EventForm({
       <label>Titre *</label>
       <input required value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Gala annuel 2026" />
 
-      <label>Date et heure *</label>
-      <input required type="datetime-local" value={form.starts_at} onChange={(e) => set("starts_at", e.target.value)} />
+      <div className="grid2">
+        <div>
+          <label>Début (date et heure) *</label>
+          <input required type="datetime-local" value={form.starts_at} onChange={(e) => set("starts_at", e.target.value)} />
+        </div>
+        <div>
+          <label>Fin (optionnel)</label>
+          <input type="datetime-local" min={form.starts_at || undefined} value={form.ends_at} onChange={(e) => set("ends_at", e.target.value)} />
+        </div>
+      </div>
 
       <div className="grid2">
         <div>
@@ -128,6 +148,31 @@ export function EventForm({
           <input required type="number" min={1} value={form.capacity} onChange={(e) => set("capacity", e.target.value)} />
         </div>
       </div>
+
+      {form.type === "private" && (
+        <>
+          <label>Question RSVP (optionnel)</label>
+          <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+            Affichée aux invités au moment de confirmer leur présence — allergies, transport, etc.
+          </p>
+          <input
+            value={form.rsvp_question}
+            onChange={(e) => set("rsvp_question", e.target.value)}
+            placeholder="Allergies alimentaires ou informations utiles ?"
+          />
+        </>
+      )}
+
+      <label>Plan de table / notes logistiques (optionnel)</label>
+      <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+        Visible par vos invités sur leur page d&apos;invitation — tables, vestiaire, stationnement…
+      </p>
+      <textarea
+        rows={3}
+        value={form.seating_plan}
+        onChange={(e) => set("seating_plan", e.target.value)}
+        placeholder={"Table 1 : famille proche\nTable 2 : collègues\nStationnement gratuit derrière la salle"}
+      />
 
       {isEdit ? (
         <p className="muted">

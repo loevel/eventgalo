@@ -86,11 +86,17 @@ export default function InvitePage() {
       <div className="card">
         <p>
           📅 <strong>{formatDate(ev.starts_at)}</strong>
+          {ev.ends_at ? <><br />🕗 Jusqu&apos;à {formatDate(ev.ends_at)}</> : null}
           {ev.venue ? <><br />📍 {ev.venue}{ev.address ? `, ${ev.address}` : ""}</> : null}
           {guest.table_name ? <><br />🪑 Votre table : <strong>{guest.table_name}</strong></> : null}
           {ev.dress_code ? <><br />👗 Dress code : {ev.dress_code}</> : null}
         </p>
         {ev.description && <p style={{ whiteSpace: "pre-wrap" }}>{ev.description}</p>}
+        {ev.seating_plan && (
+          <p className="muted" style={{ whiteSpace: "pre-wrap", fontSize: 13, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+            ℹ️ {ev.seating_plan}
+          </p>
+        )}
         <a className="btn-ghost btn-sm" href={`${API_BASE}/api/public/invite/${token}/ics`}>
           📅 Ajouter à mon agenda
         </a>

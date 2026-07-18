@@ -42,6 +42,7 @@ export default function NewEvent() {
   const [type, setType] = useState<"private" | "ticketed">("private");
   const [occasion, setOccasion] = useState<"generic" | "kids">("generic");
   const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
   const [venue, setVenue] = useState("");
   const [address, setAddress] = useState("");
   const [capacity, setCapacity] = useState("100");
@@ -57,6 +58,7 @@ export default function NewEvent() {
   // Étape 3 — récapitulatif
   const [description, setDescription] = useState("");
   const [dressCode, setDressCode] = useState("");
+  const [seatingPlan, setSeatingPlan] = useState("");
   const [rsvpQuestion, setRsvpQuestion] = useState("");
   const [refundKind, setRefundKind] = useState("full");
   const [refundDays, setRefundDays] = useState("7");
@@ -82,9 +84,13 @@ export default function NewEvent() {
     setBusy(true);
     setError(null);
     try {
+      if (endsAt && new Date(endsAt) <= new Date(startsAt)) {
+        throw new Error("La date de fin doit être après la date de début.");
+      }
       const payload = {
         title,
         starts_at: new Date(startsAt).toISOString(),
+        ends_at: endsAt ? new Date(endsAt).toISOString() : null,
         venue: venue || null,
         address: address || null,
         capacity: Number(capacity),
@@ -147,6 +153,7 @@ export default function NewEvent() {
         body: {
           description: description || null,
           dress_code: dressCode || null,
+          seating_plan: seatingPlan || null,
           rsvp_question: type === "private" ? rsvpQuestion || null : null,
           status: publish ? "published" : "draft",
           refund_policy:
@@ -219,8 +226,16 @@ export default function NewEvent() {
             </>
           )}
 
-          <label>Date et heure *</label>
-          <input required type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+          <div className="grid2">
+            <div>
+              <label>Début (date et heure) *</label>
+              <input required type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+            </div>
+            <div>
+              <label>Fin (optionnel)</label>
+              <input type="datetime-local" min={startsAt || undefined} value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+            </div>
+          </div>
 
           <div className="grid2">
             <div>
@@ -332,6 +347,17 @@ export default function NewEvent() {
             <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
             <label>Dress code</label>
             <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />
+
+            <label>Plan de table / notes logistiques (optionnel)</label>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Visible par vos invités sur leur page d&apos;invitation — tables, vestiaire, stationnement…
+            </p>
+            <textarea
+              rows={3}
+              value={seatingPlan}
+              onChange={(e) => setSeatingPlan(e.target.value)}
+              placeholder={"Table 1 : famille proche\nTable 2 : collègues\nStationnement gratuit derrière la salle"}
+            />
 
             {type === "private" && (
               <>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout-form";
 import { Reveal } from "@/components/reveal";
 import { Countdown } from "@/components/countdown";
@@ -43,6 +43,29 @@ async function getEvent(slug: string): Promise<EventPayload | null> {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("fr-CA", { dateStyle: "full", timeStyle: "short" }).format(new Date(iso));
+}
+
+function formatTime(iso: string): string {
+  return new Intl.DateTimeFormat("fr-CA", { timeStyle: "short" }).format(new Date(iso));
+}
+
+function sameDay(a: string, b: string): boolean {
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+/** "2 h 30" à partir d'un intervalle début/fin. */
+function formatDuration(startsAt: string, endsAt: string): string | null {
+  const ms = new Date(endsAt).getTime() - new Date(startsAt).getTime();
+  if (ms <= 0) return null;
+  const totalMinutes = Math.round(ms / 60_000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days} j${hours > 0 ? ` ${hours} h` : ""}`;
+  if (hours > 0) return `${hours} h${minutes > 0 ? ` ${String(minutes).padStart(2, "0")}` : ""}`;
+  return `${minutes} min`;
 }
 
 function truncate(text: string, max = 160): string {
@@ -114,6 +137,20 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
   const pageUrl = `https://eventgalo.com/e/${slug}`;
   const coverUrl = ev.cover_media_id ? `${API_BASE}/api/public/media/${ev.cover_media_id}/file` : null;
 
+  const duration = ev.starts_at && ev.ends_at ? formatDuration(ev.starts_at, ev.ends_at) : null;
+  const endLabel =
+    ev.starts_at && ev.ends_at && duration
+      ? sameDay(ev.starts_at, ev.ends_at)
+        ? `Jusqu'à ${formatTime(ev.ends_at)} (${duration})`
+        : `Jusqu'au ${formatDate(ev.ends_at)} (${duration})`
+      : null;
+
+  const mapQuery = [ev.venue, ev.address].filter(Boolean).join(", ");
+  const mapEmbedUrl = mapQuery ? `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&output=embed` : null;
+  const mapDirectionsUrl = mapQuery
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapQuery)}`
+    : null;
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -154,6 +191,12 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             <CalendarDays />
             <span>{formatDate(ev.starts_at)}</span>
           </div>
+          {endLabel && (
+            <div className="event-info-item">
+              <Clock />
+              <span>{endLabel}</span>
+            </div>
+          )}
           {ev.venue && (
             <div className="event-info-item">
               <MapPin />
@@ -216,6 +259,39 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                     <Hourglass size={15} /> Compte à rebours
                   </h3>
                   <Countdown startsAt={ev.starts_at} />
+                </div>
+              </Reveal>
+            )}
+            {mapEmbedUrl && (
+              <Reveal delay={60}>
+                <div className="card map-card" style={{ margin: 0 }}>
+                  <h3 style={{ marginTop: 0, fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
+                    <MapPin size={15} /> S&apos;y rendre
+                  </h3>
+                  <div className="map-frame">
+                    <iframe
+                      src={mapEmbedUrl}
+                      title={`Carte : ${mapQuery}`}
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                  <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
+                    {ev.venue && <strong style={{ color: "var(--ink)" }}>{ev.venue}</strong>}
+                    {ev.venue && ev.address && <br />}
+                    {ev.address}
+                  </p>
+                  {mapDirectionsUrl && (
+                    <a
+                      className="btn btn-ghost btn-sm map-directions"
+                      href={mapDirectionsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Navigation size={14} /> Itinéraire
+                    </a>
+                  )}
                 </div>
               </Reveal>
             )}
