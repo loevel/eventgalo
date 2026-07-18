@@ -767,7 +767,29 @@ events.delete("/:id/media/:mid", async (c) => {
     .first<{ id: string; r2_key: string }>();
   if (!media) return c.json({ error: "Photo introuvable" }, 404);
   await c.env.MEDIA.delete(media.r2_key);
-  await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE events SET cover_media_id = NULL WHERE id = ? AND cover_media_id = ?").bind(event.id, media.id),
+    c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id),
+  ]);
+  return c.json({ ok: true });
+});
+
+/* --------------------------- Image de couverture --------------------------- */
+
+events.patch("/:id/cover", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ media_id?: string | null }>().catch(() => ({}) as Record<string, never>);
+  if (b.media_id) {
+    const media = await c.env.DB.prepare("SELECT id FROM media WHERE id = ? AND event_id = ?")
+      .bind(b.media_id, event.id)
+      .first();
+    if (!media) return c.json({ error: "Photo introuvable" }, 404);
+  }
+  await c.env.DB.prepare("UPDATE events SET cover_media_id = ? WHERE id = ?")
+    .bind(b.media_id || null, event.id)
+    .run();
   return c.json({ ok: true });
 });
 

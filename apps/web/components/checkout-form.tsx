@@ -117,14 +117,36 @@ export function CheckoutForm({
   return (
     <form onSubmit={soldOut ? joinWaitlist : submit}>
       <label>Catégorie</label>
-      <select value={catId} onChange={(e) => setCatId(e.target.value)}>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name} — {formatPrice(c.price_cents, c.currency)}
-            {c.quantity - c.sold <= 0 ? " (épuisé)" : ` (${c.quantity - c.sold} restants)`}
-          </option>
-        ))}
-      </select>
+      {categories.map((c) => {
+        const catRemaining = c.quantity - c.sold;
+        const isSoldOut = catRemaining <= 0;
+        const isLow = !isSoldOut && catRemaining <= 5;
+        return (
+          <div
+            key={c.id}
+            className={`cat-card ${catId === c.id ? "selected" : ""} ${isSoldOut ? "disabled" : ""}`}
+            onClick={() => setCatId(c.id)}
+            role="radio"
+            aria-checked={catId === c.id}
+            tabIndex={0}
+          >
+            <div>
+              <div className="cat-name">{c.name}</div>
+              <div className={`cat-remaining ${isLow ? "low" : ""}`}>
+                {isSoldOut ? "Épuisé" : isLow ? (
+                  <>
+                    <span className="pulse-dot" style={{ marginRight: 5 }} />
+                    Plus que {catRemaining} place{catRemaining > 1 ? "s" : ""} !
+                  </>
+                ) : (
+                  `${catRemaining} places disponibles`
+                )}
+              </div>
+            </div>
+            <div className="cat-price">{formatPrice(c.price_cents, c.currency)}</div>
+          </div>
+        );
+      })}
       {soldOut ? (
         <p className="muted">
           Cette catégorie est épuisée. Inscrivez-vous sur la liste d&apos;attente pour être prévenu·e si une place se

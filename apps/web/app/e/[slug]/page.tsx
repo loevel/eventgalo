@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CheckoutForm } from "@/components/checkout-form";
+import { Reveal } from "@/components/reveal";
+import { Countdown } from "@/components/countdown";
+import { ShareButton } from "@/components/share-button";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -14,6 +17,7 @@ interface PublicEvent {
   dress_code: string | null;
   type: string;
   public_slug: string;
+  cover_media_id: string | null;
 }
 
 interface EventPayload {
@@ -106,43 +110,102 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
       : {}),
   };
 
+  const pageUrl = `https://eventgalo.com/e/${slug}`;
+  const coverUrl = ev.cover_media_id ? `${API_BASE}/api/public/media/${ev.cover_media_id}/file` : null;
+
   return (
-    <main className="container narrow">
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <h1>{ev.title}</h1>
-      <p className="muted">
-        📅 {formatDate(ev.starts_at)}
-        {ev.venue ? <><br />📍 {ev.venue}{ev.address ? `, ${ev.address}` : ""}</> : null}
-        {ev.dress_code ? <><br />👗 Dress code : {ev.dress_code}</> : null}
-      </p>
-      <p>
-        <a className="btn-ghost btn-sm" href={`${API_BASE}/api/public/events/${slug}/ics`}>
-          📅 Ajouter à mon agenda
-        </a>
-      </p>
-      {ev.description && (
-        <div className="card">
-          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{ev.description}</p>
-        </div>
-      )}
 
-      {data.announcements.length > 0 && (
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Dernières annonces</h3>
-          {data.announcements.map((a, i) => (
-            <p key={i} style={{ borderBottom: "1px solid var(--line)", paddingBottom: 8 }}>
-              {a.body} <span className="muted">— {formatDate(a.created_at)}</span>
-            </p>
-          ))}
+      <div className={`event-hero ${coverUrl ? "has-image" : ""}`}>
+        {coverUrl ? (
+          <img className="hero-bg" src={coverUrl} alt="" />
+        ) : (
+          <div className="hero-gradient-bg">
+            <div className="hero-blob b1" />
+            <div className="hero-blob b2" />
+          </div>
+        )}
+        <div className="hero-overlay" />
+        <div className="hero-content">
+          <span className="hero-badge">{ev.type === "ticketed" ? "🎟️ Billetterie" : "🎂 Invitation"}</span>
+          <h1>{ev.title}</h1>
+          <div className="hero-meta">
+            <span>📅 {formatDate(ev.starts_at)}</span>
+            {ev.venue && <span>📍 {ev.venue}{ev.address ? `, ${ev.address}` : ""}</span>}
+            {ev.dress_code && <span>👗 {ev.dress_code}</span>}
+          </div>
+          <div className="hero-cta-row">
+            <a className="btn cta-glass" href={`${API_BASE}/api/public/events/${slug}/ics`}>
+              📅 Ajouter à mon agenda
+            </a>
+            <ShareButton title={ev.title} url={pageUrl} />
+            {ev.type === "ticketed" && (
+              <a className="btn btn-accent" href="#billets">
+                Voir les billets
+              </a>
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
-      {ev.type === "ticketed" && (
-        <div className="card">
-          <h2 style={{ marginTop: 0 }}>🎟️ Billets</h2>
-          <CheckoutForm slug={slug} categories={data.categories} />
+      <main className="container">
+        <div className="event-layout">
+          <div className="event-main">
+            {ev.description && (
+              <Reveal>
+                <div className="card">
+                  <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{ev.description}</p>
+                </div>
+              </Reveal>
+            )}
+
+            {data.announcements.length > 0 && (
+              <Reveal delay={80}>
+                <div className="card">
+                  <h3 style={{ marginTop: 0 }}>Dernières annonces</h3>
+                  {data.announcements.map((a, i) => (
+                    <div key={i} className="timeline-item">
+                      <p style={{ margin: 0 }}>{a.body}</p>
+                      <span className="muted" style={{ fontSize: 12 }}>{formatDate(a.created_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+
+            {ev.type === "ticketed" && (
+              <Reveal delay={140}>
+                <div className="card" id="billets">
+                  <h2 style={{ marginTop: 0 }}>🎟️ Billets</h2>
+                  <CheckoutForm slug={slug} categories={data.categories} />
+                </div>
+              </Reveal>
+            )}
+          </div>
+
+          <aside className="event-sidebar">
+            {ev.starts_at && (
+              <Reveal>
+                <div className="card" style={{ margin: 0 }}>
+                  <h3 style={{ marginTop: 0, fontSize: 14 }}>⏳ Compte à rebours</h3>
+                  <Countdown startsAt={ev.starts_at} />
+                </div>
+              </Reveal>
+            )}
+            {ev.type === "private" && (
+              <Reveal delay={80}>
+                <div className="card" style={{ margin: 0 }}>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Cet événement est sur invitation. Utilisez le lien personnel reçu par email pour confirmer
+                    votre présence.
+                  </p>
+                </div>
+              </Reveal>
+            )}
+          </aside>
         </div>
-      )}
-    </main>
+      </main>
+    </>
   );
 }

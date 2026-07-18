@@ -317,7 +317,7 @@ export default function EventAdmin() {
         </>
       )}
 
-      {tab === "photos" && <MediaTab eventId={ev.id} act={act} />}
+      {tab === "photos" && <MediaTab eventId={ev.id} coverId={ev.cover_media_id} act={act} />}
 
       {tab === "billets" && <CategoriesTab ev={ev} categories={categories} waitlist={waitlist} act={act} />}
 
@@ -551,7 +551,13 @@ function GuestsTab({
   );
 }
 
-function MediaTab({ eventId, act }: { eventId: string; act: (fn: () => Promise<unknown>, ok?: string) => void }) {
+function MediaTab({
+  eventId, coverId, act,
+}: {
+  eventId: string;
+  coverId: string | null;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
   const [media, setMedia] = useState<MediaItem[] | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -599,6 +605,9 @@ function MediaTab({ eventId, act }: { eventId: string; act: (fn: () => Promise<u
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Galerie</h3>
+        <p className="muted">
+          La photo de couverture s&apos;affiche en grand sur la page publique de l&apos;événement.
+        </p>
         {media === null ? (
           <p className="muted">Chargement…</p>
         ) : (
@@ -609,6 +618,13 @@ function MediaTab({ eventId, act }: { eventId: string; act: (fn: () => Promise<u
               act(() => api(`/api/events/${eventId}/media/${m.id}`, { method: "DELETE" }), "Photo supprimée");
               setMedia((list) => list?.filter((x) => x.id !== m.id) ?? null);
             }}
+            coverId={coverId}
+            onSetCover={(m) =>
+              act(
+                () => api(`/api/events/${eventId}/cover`, { method: "PATCH", body: { media_id: m?.id ?? null } }),
+                m ? "Image de couverture définie" : "Image de couverture retirée",
+              )
+            }
           />
         )}
       </div>

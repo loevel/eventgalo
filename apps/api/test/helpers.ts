@@ -109,6 +109,19 @@ export async function seedTicket(
   return { id, serial };
 }
 
+export async function seedMedia(
+  eventId: string,
+  overrides: Partial<{ guestId: string | null; r2Key: string; contentType: string }> = {},
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(id, eventId, overrides.guestId ?? null, overrides.r2Key ?? `events/${eventId}/${id}`, overrides.contentType ?? "image/jpeg")
+    .run();
+  return { id };
+}
+
 export function jsonInit(method: string, body?: unknown, headers: Record<string, string> = {}): RequestInit {
   return {
     method,
