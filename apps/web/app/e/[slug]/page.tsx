@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout-form";
 import { Reveal } from "@/components/reveal";
 import { Countdown } from "@/components/countdown";
@@ -19,6 +19,7 @@ interface PublicEvent {
   type: string;
   public_slug: string;
   cover_media_id: string | null;
+  logo_media_id: string | null;
 }
 
 interface EventPayload {
@@ -26,18 +27,31 @@ interface EventPayload {
   categories: Array<{
     id: string;
     name: string;
+    perks: string | null;
     price_cents: number;
     currency: string;
     quantity: number;
     sold: number;
   }>;
   announcements: Array<{ body: string; created_at: string }>;
+  gallery: Array<{ id: string; content_type: string }>;
+  sponsors: Array<{
+    company_name: string;
+    website: string | null;
+    logo_media_id: string | null;
+    tier_name: string;
+    tier_rank: number;
+  }>;
 }
 
 async function getEvent(slug: string): Promise<EventPayload | null> {
   const res = await fetch(`${API_BASE}/api/public/events/${slug}`, { cache: "no-store" });
   if (!res.ok) return null;
-  return res.json();
+  const data = (await res.json()) as EventPayload;
+  data.gallery ??= [];
+  data.sponsors ??= [];
+  data.announcements ??= [];
+  return data;
 }
 
 function formatDate(iso: string | null | undefined): string {
@@ -166,6 +180,13 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
         )}
         <div className="hero-overlay" />
         <div className="hero-content">
+          {ev.logo_media_id && (
+            <img
+              className="event-logo"
+              src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+              alt={`Logo — ${ev.title}`}
+            />
+          )}
           <span className="hero-badge glass glass-chip">
             {ev.type === "ticketed" ? <Ticket /> : <PartyPopper />}
             {ev.type === "ticketed" ? "Billetterie" : "Invitation"}
@@ -219,6 +240,26 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
               <Reveal>
                 <div className="card">
                   <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{ev.description}</p>
+                </div>
+              </Reveal>
+            )}
+
+            {data.gallery.length > 0 && (
+              <Reveal delay={60}>
+                <div className="card">
+                  <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <Camera size={17} /> En images
+                  </h3>
+                  <div className="event-gallery">
+                    {data.gallery.map((m) => (
+                      <img
+                        key={m.id}
+                        src={`${API_BASE}/api/public/media/${m.id}/file`}
+                        alt=""
+                        loading="lazy"
+                      />
+                    ))}
+                  </div>
                 </div>
               </Reveal>
             )}
@@ -307,6 +348,49 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             )}
           </aside>
         </div>
+
+        {data.sponsors.length > 0 && (
+          <Reveal delay={60}>
+            <section className="sponsors-section">
+              <h2 className="sponsors-title">
+                <Handshake /> Ils soutiennent l&apos;événement
+              </h2>
+              {Object.entries(
+                data.sponsors.reduce<Record<string, typeof data.sponsors>>((acc, s) => {
+                  (acc[s.tier_name] ??= []).push(s);
+                  return acc;
+                }, {}),
+              ).map(([tierName, list], tierIdx) => (
+                <div key={tierName} className={`sponsor-tier-group ${tierIdx === 0 ? "top-tier" : ""}`}>
+                  <h3>{tierName}</h3>
+                  <div className="sponsor-logos">
+                    {list.map((s, i) => {
+                      const inner = (
+                        <>
+                          {s.logo_media_id ? (
+                            <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
+                          ) : (
+                            <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
+                          )}
+                          <span className="sponsor-name">{s.company_name}</span>
+                        </>
+                      );
+                      return s.website ? (
+                        <a key={i} className="sponsor-card" href={s.website} target="_blank" rel="noopener noreferrer nofollow">
+                          {inner}
+                        </a>
+                      ) : (
+                        <div key={i} className="sponsor-card">
+                          {inner}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </section>
+          </Reveal>
+        )}
       </main>
     </>
   );

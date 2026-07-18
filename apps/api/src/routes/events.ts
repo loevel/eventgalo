@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import type { AppContext, Env } from "../types";
 import { nowIso, randomToken, slugify, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
-import { layout, sendEmail } from "../lib/email";
+import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { notifyWaitlist } from "../lib/waitlist";
@@ -102,7 +102,7 @@ events.get("/:id", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators] = await Promise.all([
+  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators, sponsorTiers, sponsors] = await Promise.all([
     c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ? ORDER BY price_cents").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
@@ -130,6 +130,12 @@ events.get("/:id", async (c) => {
        FROM event_collaborators c JOIN users u ON u.id = c.user_id
        WHERE c.event_id = ? ORDER BY c.created_at`,
     ).bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE event_id = ? ORDER BY rank, price_cents DESC").bind(event.id).all(),
+    c.env.DB.prepare(
+      `SELECT s.*, t.name AS tier_name FROM sponsors s
+       LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
+       WHERE s.event_id = ? ORDER BY s.created_at DESC`,
+    ).bind(event.id).all(),
   ]);
   return c.json({
     event,
@@ -142,6 +148,8 @@ events.get("/:id", async (c) => {
     refund_requests: refunds.results,
     sales: sales.results,
     waitlist: waitlist.results,
+    sponsor_tiers: sponsorTiers.results,
+    sponsors: sponsors.results,
     collaborators: collaborators.results,
   });
 });
@@ -345,6 +353,7 @@ events.post("/:id/guests", async (c) => {
               `<p>Voici votre lien d'invitation personnel :</p>
                <p><a href="${url}">${url}</a></p>
                <p>Vous y trouverez tous les détails et pourrez confirmer votre présence en un clic.</p>`,
+              { logoUrl: await eventLogoUrl(c.env, event.id), eventTitle: String(event.title) },
             ),
             url,
           );
@@ -388,15 +397,22 @@ events.post("/:id/announcements", async (c) => {
   // Notification email aux invités ayant une adresse
   c.executionCtx.waitUntil(
     (async () => {
-      const guests = await c.env.DB.prepare(
-        "SELECT name, email, token FROM guests WHERE event_id = ? AND email IS NOT NULL",
-      ).bind(event.id).all<{ name: string; email: string; token: string }>();
+      const [guests, logoUrl] = await Promise.all([
+        c.env.DB.prepare(
+          "SELECT name, email, token FROM guests WHERE event_id = ? AND email IS NOT NULL",
+        ).bind(event.id).all<{ name: string; email: string; token: string }>(),
+        eventLogoUrl(c.env, event.id),
+      ]);
       for (const g of guests.results) {
         await sendEmail(
           c.env,
           g.email,
           `Mise à jour : ${event.title}`,
-          layout(`Mise à jour — ${event.title}`, `<p>${text}</p><p><a href="${c.env.WEB_BASE_URL}/i/${g.token}">Voir l'invitation</a></p>`),
+          layout(
+            `Mise à jour — ${event.title}`,
+            `<p>${text}</p><p><a href="${c.env.WEB_BASE_URL}/i/${g.token}">Voir l'invitation</a></p>`,
+            { logoUrl, eventTitle: String(event.title) },
+          ),
         );
       }
     })(),
@@ -816,8 +832,23 @@ events.delete("/:id/media/:mid", async (c) => {
   await c.env.MEDIA.delete(media.r2_key);
   await c.env.DB.batch([
     c.env.DB.prepare("UPDATE events SET cover_media_id = NULL WHERE id = ? AND cover_media_id = ?").bind(event.id, media.id),
+    c.env.DB.prepare("UPDATE events SET logo_media_id = NULL WHERE id = ? AND logo_media_id = ?").bind(event.id, media.id),
+    c.env.DB.prepare("UPDATE sponsors SET logo_media_id = NULL WHERE event_id = ? AND logo_media_id = ?").bind(event.id, media.id),
     c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id),
   ]);
+  return c.json({ ok: true });
+});
+
+/** Marque/démarque une photo comme visible dans la galerie publique. */
+events.patch("/:id/media/:mid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ featured?: boolean }>().catch(() => ({}) as Record<string, never>);
+  const res = await c.env.DB.prepare("UPDATE media SET featured = ? WHERE id = ? AND event_id = ?")
+    .bind(b.featured ? 1 : 0, c.req.param("mid"), event.id)
+    .run();
+  if (!res.meta.changes) return c.json({ error: "Photo introuvable" }, 404);
   return c.json({ ok: true });
 });
 
@@ -837,6 +868,178 @@ events.patch("/:id/cover", async (c) => {
   await c.env.DB.prepare("UPDATE events SET cover_media_id = ? WHERE id = ?")
     .bind(b.media_id || null, event.id)
     .run();
+  return c.json({ ok: true });
+});
+
+/* ------------------------ Logo de l'association ---------------------------- */
+
+events.patch("/:id/logo", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ media_id?: string | null }>().catch(() => ({}) as Record<string, never>);
+  if (b.media_id) {
+    const media = await c.env.DB.prepare("SELECT id FROM media WHERE id = ? AND event_id = ?")
+      .bind(b.media_id, event.id)
+      .first();
+    if (!media) return c.json({ error: "Photo introuvable" }, 404);
+  }
+  await c.env.DB.prepare("UPDATE events SET logo_media_id = ? WHERE id = ?")
+    .bind(b.media_id || null, event.id)
+    .run();
+  return c.json({ ok: true });
+});
+
+/* -------------------------------- Sponsoring ------------------------------- */
+
+events.post("/:id/sponsor-tiers", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const name = String(b.name ?? "").trim();
+  const quantity = Math.max(1, Number(b.quantity ?? 1) | 0);
+  if (!name) return c.json({ error: "Nom du palier requis" }, 400);
+  const id = uuid();
+  await c.env.DB.prepare(
+    `INSERT INTO sponsor_tiers (id, event_id, name, description, price_cents, currency, quantity, perks, rank)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id, event.id, name, (b.description as string) || null,
+      Math.max(0, Number(b.price_cents ?? 0) | 0), String(b.currency ?? "CAD"),
+      quantity, sanitizePerks(b.perks), Math.max(0, Number(b.rank ?? 0) | 0),
+    )
+    .run();
+  return c.json({ id }, 201);
+});
+
+events.patch("/:id/sponsor-tiers/:tid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const tier = await c.env.DB.prepare("SELECT id FROM sponsor_tiers WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("tid"), event.id)
+    .first();
+  if (!tier) return c.json({ error: "Palier introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  for (const key of ["name", "description", "price_cents", "currency", "quantity", "rank"] as const) {
+    if (b[key] !== undefined) {
+      sets.push(`${key} = ?`);
+      values.push(b[key]);
+    }
+  }
+  if (b.perks !== undefined) {
+    sets.push("perks = ?");
+    values.push(sanitizePerks(b.perks));
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  values.push(c.req.param("tid"));
+  await c.env.DB.prepare(`UPDATE sponsor_tiers SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+  return c.json({ ok: true });
+});
+
+events.delete("/:id/sponsor-tiers/:tid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const used = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM sponsors WHERE tier_id = ? AND status IN ('pending','confirmed')",
+  )
+    .bind(c.req.param("tid"))
+    .first<{ n: number }>();
+  if ((used?.n ?? 0) > 0) {
+    return c.json({ error: "Des sponsors sont engagés sur ce palier — impossible de le supprimer" }, 409);
+  }
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE sponsors SET tier_id = NULL WHERE tier_id = ?").bind(c.req.param("tid")),
+    c.env.DB.prepare("DELETE FROM sponsor_tiers WHERE id = ? AND event_id = ?").bind(c.req.param("tid"), event.id),
+  ]);
+  return c.json({ ok: true });
+});
+
+/** Invite une entreprise : crée le sponsor avec un lien privé et envoie l'email. */
+events.post("/:id/sponsors", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const email = String(b.contact_email ?? "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return c.json({ error: "Email de contact requis" }, 400);
+  const id = uuid();
+  const token = randomToken(16);
+  await c.env.DB.prepare(
+    `INSERT INTO sponsors (id, event_id, contact_email, contact_name, company_name, token)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, event.id, email, (b.contact_name as string) || null, (b.company_name as string) || null, token)
+    .run();
+
+  const url = `${c.env.WEB_BASE_URL}/sp/${token}`;
+  const logoUrl = await eventLogoUrl(c.env, event.id);
+  const result = await sendEmail(
+    c.env,
+    email,
+    `Devenez sponsor — ${event.title}`,
+    layout(
+      `Invitation à sponsoriser ${event.title}`,
+      `<p>Bonjour${b.contact_name ? ` ${b.contact_name}` : ""},</p>
+       <p>L'organisation de <strong>${event.title}</strong> vous invite à devenir sponsor de l'événement.
+       Découvrez les paliers de sponsoring et leurs avantages, puis confirmez votre engagement en ligne :</p>
+       <p><a href="${url}">Voir les offres de sponsoring</a></p>`,
+      { logoUrl, eventTitle: String(event.title) },
+    ),
+    url,
+  );
+  return c.json({ id, token, url, email_sent: result.sent, debug_url: result.debug_url }, 201);
+});
+
+/** Décision de l'organisateur : confirmer, refuser, ou repasser en attente. */
+events.patch("/:id/sponsors/:sid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("sid"), event.id)
+    .first<{ id: string; contact_email: string; company_name: string | null; status: string }>();
+  if (!sponsor) return c.json({ error: "Sponsor introuvable" }, 404);
+  const b = await c.req.json<{ status?: string }>().catch(() => ({}) as Record<string, never>);
+  if (!b.status || !["pending", "confirmed", "declined"].includes(b.status)) {
+    return c.json({ error: "Statut invalide" }, 400);
+  }
+  await c.env.DB.prepare("UPDATE sponsors SET status = ?, confirmed_at = ? WHERE id = ?")
+    .bind(b.status, b.status === "confirmed" ? nowIso() : null, sponsor.id)
+    .run();
+  if (b.status === "confirmed") {
+    const logoUrl = await eventLogoUrl(c.env, event.id);
+    c.executionCtx.waitUntil(
+      sendEmail(
+        c.env,
+        sponsor.contact_email,
+        `Sponsoring confirmé — ${event.title}`,
+        layout(
+          "Votre sponsoring est confirmé !",
+          `<p>Merci ! ${sponsor.company_name ? `<strong>${sponsor.company_name}</strong> figure` : "Vous figurez"}
+           désormais parmi les sponsors de <strong>${event.title}</strong>.
+           Votre logo apparaît sur la page publique de l'événement.</p>`,
+          { logoUrl, eventTitle: String(event.title) },
+        ),
+      ).then(() => undefined),
+    );
+  }
+  return c.json({ ok: true });
+});
+
+events.delete("/:id/sponsors/:sid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const res = await c.env.DB.prepare("DELETE FROM sponsors WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("sid"), event.id)
+    .run();
+  if (!res.meta.changes) return c.json({ error: "Sponsor introuvable" }, 404);
   return c.json({ ok: true });
 });
 

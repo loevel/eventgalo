@@ -33,9 +33,17 @@ export default function TicketPage() {
     <main className="container narrow">
       <div className="ticket-shell">
         <div className="ticket-head">
-          <span className="ticket-brand">
-            Event<em>Galo</em>
-          </span>
+          {t.logo_media_id ? (
+            <img
+              className="ticket-logo"
+              src={`${API_BASE}/api/public/media/${t.logo_media_id}/file`}
+              alt={`Logo — ${t.event_title}`}
+            />
+          ) : (
+            <span className="ticket-brand">
+              Event<em>Galo</em>
+            </span>
+          )}
           <h2 className="ticket-title">{t.event_title}</h2>
           <div className="ticket-meta">
             <span>

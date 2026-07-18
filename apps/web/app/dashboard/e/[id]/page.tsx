@@ -20,6 +20,8 @@ interface Detail {
   sales: Array<Record<string, any>>;
   waitlist: Array<Record<string, any>>;
   collaborators: Array<Record<string, any>>;
+  sponsor_tiers: Array<Record<string, any>>;
+  sponsors: Array<Record<string, any>>;
 }
 
 const WEB = typeof window !== "undefined" ? window.location.origin : "";
@@ -141,7 +143,7 @@ export default function EventAdmin() {
     );
   }
 
-  const { event: ev, is_owner, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales, waitlist, collaborators } = data;
+  const { event: ev, is_owner, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales, waitlist, collaborators, sponsor_tiers, sponsors } = data;
   const opened = guests.filter((g) => g.opened_at).length;
   const yes = guests.filter((g) => g.rsvp_status === "yes").length;
   const no = guests.filter((g) => g.rsvp_status === "no").length;
@@ -198,6 +200,7 @@ export default function EventAdmin() {
           ["invites", `Invités (${guests.length})`],
           ["annonces", "Annonces"],
           ["photos", "Photos"],
+          ["sponsors", `Sponsors (${sponsors.filter((s) => s.status === "pending").length ? `${sponsors.filter((s) => s.status === "pending").length} à traiter` : sponsors.length})`],
           ...(ev.type === "ticketed"
             ? ([
                 ["billets", "Billetterie"],
@@ -318,7 +321,9 @@ export default function EventAdmin() {
         </>
       )}
 
-      {tab === "photos" && <MediaTab eventId={ev.id} coverId={ev.cover_media_id} act={act} />}
+      {tab === "photos" && <MediaTab eventId={ev.id} coverId={ev.cover_media_id} logoId={ev.logo_media_id} act={act} />}
+
+      {tab === "sponsors" && <SponsorsTab ev={ev} tiers={sponsor_tiers} sponsors={sponsors} act={act} />}
 
       {tab === "billets" && <CategoriesTab ev={ev} categories={categories} waitlist={waitlist} act={act} />}
 
@@ -558,10 +563,11 @@ function GuestsTab({
 }
 
 function MediaTab({
-  eventId, coverId, act,
+  eventId, coverId, logoId, act,
 }: {
   eventId: string;
   coverId: string | null;
+  logoId: string | null;
   act: (fn: () => Promise<unknown>, ok?: string) => void;
 }) {
   const [media, setMedia] = useState<MediaItem[] | null>(null);
@@ -612,7 +618,9 @@ function MediaTab({
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Galerie</h3>
         <p className="muted">
-          La photo de couverture s&apos;affiche en grand sur la page publique de l&apos;événement.
+          La <strong>couverture</strong> s&apos;affiche en grand sur la page publique. Le <strong>logo</strong> de
+          votre association apparaît sur la page, les billets, les invitations et dans tous les emails. Les photos
+          marquées <strong>page publique</strong> forment la galerie « En images » visible par les acheteurs.
         </p>
         {media === null ? (
           <p className="muted">Chargement…</p>
@@ -631,6 +639,20 @@ function MediaTab({
                 m ? "Image de couverture définie" : "Image de couverture retirée",
               )
             }
+            logoId={logoId}
+            onSetLogo={(m) =>
+              act(
+                () => api(`/api/events/${eventId}/logo`, { method: "PATCH", body: { media_id: m?.id ?? null } }),
+                m ? "Logo défini" : "Logo retiré",
+              )
+            }
+            onToggleFeatured={(m, featured) => {
+              act(
+                () => api(`/api/events/${eventId}/media/${m.id}`, { method: "PATCH", body: { featured } }),
+                featured ? "Photo ajoutée à la page publique" : "Photo masquée de la page publique",
+              );
+              setMedia((list) => list?.map((x) => (x.id === m.id ? { ...x, featured: featured ? 1 : 0 } : x)) ?? null);
+            }}
           />
         )}
       </div>
@@ -1324,5 +1346,310 @@ function SellerCard({
       <label>Lien de vente</label>
       <CopyField value={`${WEB}/s/${seller.code}`} />
     </div>
+  );
+}
+
+function SponsorsTab({
+  ev, tiers, sponsors, act,
+}: {
+  ev: Record<string, any>;
+  tiers: Array<Record<string, any>>;
+  sponsors: Array<Record<string, any>>;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
+  const [tierForm, setTierForm] = useState({ name: "", price: "", quantity: "1", description: "", perks: "", rank: "0" });
+  const [editingTier, setEditingTier] = useState<Record<string, string> | null>(null);
+  const [invite, setInvite] = useState({ email: "", company: "", contact: "" });
+
+  const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+    invited: { label: "Invité", cls: "mut" },
+    pending: { label: "Engagé — à confirmer", cls: "warn" },
+    confirmed: { label: "Confirmé", cls: "ok" },
+    declined: { label: "Refusé", cls: "err" },
+  };
+
+  const tierPayload = (f: Record<string, string>) => ({
+    name: f.name,
+    description: f.description || null,
+    price_cents: Math.round(Number(f.price || 0) * 100),
+    quantity: Math.max(1, Number(f.quantity || 1)),
+    perks: f.perks.split("\n").map((p) => p.trim()).filter(Boolean),
+    rank: Math.max(0, Number(f.rank || 0)),
+  });
+
+  return (
+    <>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Paliers de sponsoring</h3>
+        <p className="muted">
+          Définissez vos offres (ex. Sponsor officiel, Or, Argent) : montant, nombre de places et avantages offerts
+          (logo sur scène, kakémono, billets VIP inclus, mention au micro…). Le rang 0 est le palier le plus
+          prestigieux, affiché en premier et en plus grand sur la page publique.
+        </p>
+        {tiers.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Palier</th>
+                <th>Montant</th>
+                <th>Places</th>
+                <th>Rang</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tiers.map((t) => {
+                const engaged = sponsors.filter((s) => s.tier_id === t.id && ["pending", "confirmed"].includes(s.status)).length;
+                return editingTier && editingTier.id === t.id ? (
+                  <React.Fragment key={t.id}>
+                    <tr>
+                      <td><input value={editingTier.name} onChange={(e) => setEditingTier({ ...editingTier, name: e.target.value })} /></td>
+                      <td><input type="number" min={0} step="0.01" value={editingTier.price} onChange={(e) => setEditingTier({ ...editingTier, price: e.target.value })} /></td>
+                      <td><input type="number" min={1} style={{ width: 70 }} value={editingTier.quantity} onChange={(e) => setEditingTier({ ...editingTier, quantity: e.target.value })} /></td>
+                      <td><input type="number" min={0} style={{ width: 60 }} value={editingTier.rank} onChange={(e) => setEditingTier({ ...editingTier, rank: e.target.value })} /></td>
+                      <td>
+                        <button
+                          className="btn-sm btn-accent"
+                          onClick={() => {
+                            act(
+                              () => api(`/api/events/${ev.id}/sponsor-tiers/${t.id}`, { method: "PATCH", body: tierPayload(editingTier) }),
+                              "Palier modifié",
+                            );
+                            setEditingTier(null);
+                          }}
+                        >
+                          Enregistrer
+                        </button>{" "}
+                        <button className="btn-sm btn-ghost" onClick={() => setEditingTier(null)}>Annuler</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5}>
+                        <label style={{ marginTop: 0 }}>Description courte</label>
+                        <input value={editingTier.description} onChange={(e) => setEditingTier({ ...editingTier, description: e.target.value })} />
+                        <label>Avantages offerts (un par ligne)</label>
+                        <textarea rows={4} value={editingTier.perks} onChange={(e) => setEditingTier({ ...editingTier, perks: e.target.value })} />
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ) : (
+                  <tr key={t.id}>
+                    <td>
+                      {t.name}
+                      {parsePerks(t.perks).length > 0 && (
+                        <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                          {parsePerks(t.perks).length} avantage{parsePerks(t.perks).length > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </td>
+                    <td>{formatPrice(t.price_cents, t.currency)}</td>
+                    <td>{engaged}/{t.quantity}</td>
+                    <td>{t.rank}</td>
+                    <td>
+                      <button
+                        className="btn-sm btn-ghost"
+                        onClick={() =>
+                          setEditingTier({
+                            id: t.id,
+                            name: t.name,
+                            price: String(t.price_cents / 100),
+                            quantity: String(t.quantity),
+                            rank: String(t.rank),
+                            description: t.description ?? "",
+                            perks: parsePerks(t.perks).join("\n"),
+                          })
+                        }
+                      >
+                        Modifier
+                      </button>{" "}
+                      <button
+                        className="btn-sm btn-ghost"
+                        onClick={() => {
+                          if (confirm(`Supprimer le palier « ${t.name} » ?`)) {
+                            act(() => api(`/api/events/${ev.id}/sponsor-tiers/${t.id}`, { method: "DELETE" }), "Palier supprimé");
+                          }
+                        }}
+                      >
+                        Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        <h4 style={{ marginBottom: 4 }}>Ajouter un palier</h4>
+        <div className="grid2">
+          <div>
+            <label>Nom</label>
+            <input value={tierForm.name} onChange={(e) => setTierForm({ ...tierForm, name: e.target.value })} placeholder="Sponsor officiel" />
+          </div>
+          <div>
+            <label>Montant (CAD)</label>
+            <input type="number" min={0} step="0.01" value={tierForm.price} onChange={(e) => setTierForm({ ...tierForm, price: e.target.value })} />
+          </div>
+        </div>
+        <div className="grid2">
+          <div>
+            <label>Nombre de places</label>
+            <input type="number" min={1} value={tierForm.quantity} onChange={(e) => setTierForm({ ...tierForm, quantity: e.target.value })} />
+          </div>
+          <div>
+            <label>Rang d&apos;affichage (0 = principal)</label>
+            <input type="number" min={0} value={tierForm.rank} onChange={(e) => setTierForm({ ...tierForm, rank: e.target.value })} />
+          </div>
+        </div>
+        <label>Description courte (optionnel)</label>
+        <input value={tierForm.description} onChange={(e) => setTierForm({ ...tierForm, description: e.target.value })} placeholder="Visibilité maximale avant, pendant et après le gala" />
+        <label>Avantages offerts (un par ligne)</label>
+        <textarea
+          rows={4}
+          value={tierForm.perks}
+          onChange={(e) => setTierForm({ ...tierForm, perks: e.target.value })}
+          placeholder={"Logo en grand sur la scène et la page de l'événement\n4 billets VIP offerts\nMention au micro pendant la soirée"}
+        />
+        <button
+          className="btn-accent"
+          disabled={!tierForm.name}
+          onClick={() => {
+            act(() => api(`/api/events/${ev.id}/sponsor-tiers`, { method: "POST", body: tierPayload(tierForm) }), "Palier créé");
+            setTierForm({ name: "", price: "", quantity: "1", description: "", perks: "", rank: "0" });
+          }}
+        >
+          Créer le palier
+        </button>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Inviter un sponsor</h3>
+        <p className="muted">
+          L&apos;entreprise reçoit un lien privé où elle découvre vos paliers, choisit son offre, renseigne ses
+          informations et téléverse son logo. Vous confirmez ensuite son sponsoring une fois le paiement reçu.
+        </p>
+        <div className="grid2">
+          <div>
+            <label>Email du contact *</label>
+            <input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} placeholder="direction@entreprise.com" />
+          </div>
+          <div>
+            <label>Entreprise (optionnel)</label>
+            <input value={invite.company} onChange={(e) => setInvite({ ...invite, company: e.target.value })} />
+          </div>
+        </div>
+        <label>Nom du contact (optionnel)</label>
+        <input value={invite.contact} onChange={(e) => setInvite({ ...invite, contact: e.target.value })} />
+        <button
+          className="btn-accent"
+          disabled={!invite.email}
+          onClick={() => {
+            act(
+              () =>
+                api(`/api/events/${ev.id}/sponsors`, {
+                  method: "POST",
+                  body: { contact_email: invite.email, company_name: invite.company || null, contact_name: invite.contact || null },
+                }),
+              "Invitation sponsor envoyée",
+            );
+            setInvite({ email: "", company: "", contact: "" });
+          }}
+        >
+          Envoyer l&apos;invitation
+        </button>
+      </div>
+
+      {sponsors.length > 0 && (
+        <div className="card" style={{ overflowX: "auto" }}>
+          <h3 style={{ marginTop: 0 }}>Sponsors</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Entreprise</th>
+                <th>Palier</th>
+                <th>Montant</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sponsors.map((s) => {
+                const st = STATUS_LABEL[s.status] ?? STATUS_LABEL.invited;
+                return (
+                  <React.Fragment key={s.id}>
+                    <tr>
+                      <td>
+                        {s.company_name ?? <span className="muted">—</span>}
+                        <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                          {s.contact_name ? `${s.contact_name} · ` : ""}{s.contact_email}
+                        </span>
+                      </td>
+                      <td>{s.tier_name ?? <span className="muted">à choisir</span>}</td>
+                      <td>{s.amount_cents != null ? formatPrice(s.amount_cents, "CAD") : "—"}</td>
+                      <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
+                      <td>
+                        {s.status === "pending" && (
+                          <>
+                            <button
+                              className="btn-sm btn-accent"
+                              onClick={() =>
+                                act(
+                                  () => api(`/api/events/${ev.id}/sponsors/${s.id}`, { method: "PATCH", body: { status: "confirmed" } }),
+                                  "Sponsor confirmé",
+                                )
+                              }
+                            >
+                              Confirmer
+                            </button>{" "}
+                            <button
+                              className="btn-sm btn-ghost"
+                              onClick={() =>
+                                act(
+                                  () => api(`/api/events/${ev.id}/sponsors/${s.id}`, { method: "PATCH", body: { status: "declined" } }),
+                                  "Sponsor refusé",
+                                )
+                              }
+                            >
+                              Refuser
+                            </button>
+                          </>
+                        )}
+                        {s.status === "confirmed" && (
+                          <button
+                            className="btn-sm btn-ghost"
+                            onClick={() =>
+                              act(
+                                () => api(`/api/events/${ev.id}/sponsors/${s.id}`, { method: "PATCH", body: { status: "pending" } }),
+                                "Repassé en attente",
+                              )
+                            }
+                          >
+                            Repasser en attente
+                          </button>
+                        )}{" "}
+                        <button
+                          className="btn-sm btn-ghost"
+                          onClick={() => {
+                            if (confirm("Supprimer ce sponsor et son lien d'invitation ?")) {
+                              act(() => api(`/api/events/${ev.id}/sponsors/${s.id}`, { method: "DELETE" }), "Sponsor supprimé");
+                            }
+                          }}
+                        >
+                          Supprimer
+                        </button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5} style={{ paddingTop: 0 }}>
+                        <CopyField value={`${WEB}/sp/${s.token}`} />
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

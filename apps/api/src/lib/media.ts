@@ -4,7 +4,7 @@ export const MAX_MEDIA_PER_GUEST = 20;
 export const MAX_MEDIA_PER_EVENT = 500;
 
 export const MEDIA_LIST_QUERY = `
-  SELECT m.id, m.guest_id, m.content_type, m.created_at, g.name AS guest_name
+  SELECT m.id, m.guest_id, m.content_type, m.created_at, m.featured, g.name AS guest_name
   FROM media m LEFT JOIN guests g ON g.id = m.guest_id
   WHERE m.event_id = ? ORDER BY m.created_at DESC`;
 

@@ -5,6 +5,8 @@ export interface Env {
   EVENT_DO: DurableObjectNamespace;
   EMAIL: SendEmail;
   WEB_BASE_URL: string;
+  /** URL publique de cette API (pour les images dans les emails). */
+  API_BASE_URL?: string;
   ENVIRONMENT: string;
   /** Secret : signature HMAC des QR codes de billets */
   TICKET_SIGNING_KEY: string;

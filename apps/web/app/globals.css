@@ -337,6 +337,13 @@ tr:last-child td { border-bottom: none; }
   animation: ticketRise 0.6s ease 0.15s both;
 }
 .ticket-brand em { font-style: italic; color: var(--gold); text-transform: none; letter-spacing: 0.04em; }
+.ticket-logo {
+  display: block; width: 64px; height: 64px; object-fit: contain; margin: 0 auto 12px;
+  border-radius: 14px; background: rgba(255,255,255,0.94); padding: 7px;
+  border: 1px solid rgba(242,192,120,0.4);
+  box-shadow: 0 8px 22px -10px rgba(0,0,0,0.6);
+  animation: ticketRise 0.6s ease 0.1s both;
+}
 .ticket-title {
   font-family: var(--font-display); font-weight: 560; font-size: 27px; line-height: 1.15;
   letter-spacing: -0.01em; color: #fff; margin: 0 0 12px;
@@ -524,6 +531,76 @@ video.scanner { width: 100%; max-height: 60vh; border-radius: var(--radius); bac
 /* Réapparition douce au scroll */
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
 .reveal-visible { opacity: 1; transform: translateY(0); }
+
+/* Logo de l'association dans le hero */
+.event-logo {
+  display: block; width: 76px; height: 76px; object-fit: contain;
+  border-radius: 16px; background: rgba(255,255,255,0.92); padding: 8px;
+  border: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 12px 30px -12px rgba(0,0,0,0.5);
+  margin-bottom: 14px;
+}
+
+/* Galerie publique */
+.event-gallery {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+@media (max-width: 560px) { .event-gallery { grid-template-columns: repeat(2, 1fr); } }
+.event-gallery img {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px;
+  border: 1px solid var(--line);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.event-gallery img:hover { transform: scale(1.025); box-shadow: 0 10px 24px -12px rgba(28,26,23,0.4); }
+
+/* Section sponsors */
+.sponsors-section { margin-top: 48px; padding-top: 8px; }
+.sponsors-title {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--font-display); font-weight: 600; font-size: 26px; text-align: center; margin-bottom: 6px;
+}
+.sponsors-title svg { width: 22px; height: 22px; color: var(--accent); }
+.sponsor-tier-group { margin-top: 22px; text-align: center; }
+.sponsor-tier-group h3 {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 12px;
+}
+.sponsor-tier-group.top-tier h3 { color: var(--accent); }
+.sponsor-logos { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+.sponsor-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 16px 20px; border-radius: 14px; background: var(--surface);
+  border: 1px solid var(--line); min-width: 130px; text-decoration: none; color: inherit;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16px rgba(28,26,23,0.3); border-color: rgba(180,84,10,0.3); text-decoration: none; }
+.sponsor-card img { width: 84px; height: 84px; object-fit: contain; }
+.sponsor-tier-group.top-tier .sponsor-card { padding: 22px 30px; min-width: 170px; }
+.sponsor-tier-group.top-tier .sponsor-card img { width: 120px; height: 120px; }
+.sponsor-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.sponsor-name-fallback {
+  display: flex; align-items: center; justify-content: center; width: 84px; height: 84px;
+  font-family: var(--font-display); font-size: 22px; font-weight: 600; color: var(--accent);
+  background: linear-gradient(135deg, #fdf0e3, #fbe0c2); border-radius: 12px;
+}
+.sponsor-tier-group.top-tier .sponsor-name-fallback { width: 120px; height: 120px; font-size: 30px; }
+
+/* Hero de l'espace sponsor */
+.sponsor-hero {
+  position: relative; width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+  padding: 52px 20px 44px; text-align: center; color: #f6ede1; overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(242,192,120,0.18), transparent 60%),
+    linear-gradient(180deg, var(--gala-ink) 0%, var(--gala-ink-2) 100%);
+}
+.sponsor-hero-content { max-width: 640px; margin: 0 auto; animation: heroContentIn 0.8s ease both; }
+.sponsor-hero h1 {
+  font-family: var(--font-display); font-weight: 520; font-size: 34px; color: #fff;
+  margin: 12px 0 6px; letter-spacing: -0.01em;
+}
+.sponsor-hero p { color: rgba(246,237,225,0.72); margin: 0; font-size: 15px; }
+.sponsor-hero .hero-badge { text-transform: uppercase; color: #fff; }
+.sponsor-hero .hero-badge svg { width: 13px; height: 13px; }
 
 /* Carte du lieu */
 .map-frame {

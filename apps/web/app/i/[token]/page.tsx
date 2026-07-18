@@ -69,6 +69,16 @@ export default function InvitePage() {
   return (
     <main className="container narrow">
       <div className="hero" style={{ paddingBottom: 8 }}>
+        {ev.logo_media_id && (
+          <img
+            src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+            alt={`Logo — ${ev.title}`}
+            style={{
+              width: 72, height: 72, objectFit: "contain", borderRadius: 14,
+              border: "1px solid var(--line)", background: "#fff", padding: 6, marginBottom: 10,
+            }}
+          />
+        )}
         <p className="muted" style={{ textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 12 }}>
           Invitation personnelle
         </p>

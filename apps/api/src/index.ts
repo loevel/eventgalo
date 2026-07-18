@@ -6,7 +6,7 @@ import eventRoutes from "./routes/events";
 import publicRoutes from "./routes/public";
 import webhookRoutes from "./routes/stripe-webhook";
 import { nowIso } from "./lib/crypto";
-import { layout, sendEmail } from "./lib/email";
+import { eventLogoUrl, layout, sendEmail } from "./lib/email";
 
 export { EventDO } from "./do/event-do";
 
@@ -93,6 +93,8 @@ async function sendEventReminders(env: Env): Promise<void> {
 
   for (const event of events.results) {
     const where = event.venue ? ` à ${event.venue}` : "";
+    const logoUrl = await eventLogoUrl(env, event.id);
+    const brand = { logoUrl, eventTitle: event.title };
 
     const guests = await env.DB.prepare(
       `SELECT id, name, email, token FROM guests
@@ -110,6 +112,7 @@ async function sendEventReminders(env: Env): Promise<void> {
           `À très bientôt — ${event.title}`,
           `<p>Petit rappel : l'événement <strong>${event.title}</strong> a lieu demain${where}.</p>
            <p><a href="${url}">Voir mon invitation</a></p>`,
+          brand,
         ),
         url,
       );
@@ -132,6 +135,7 @@ async function sendEventReminders(env: Env): Promise<void> {
           `À très bientôt — ${event.title}`,
           `<p>Petit rappel : l'événement <strong>${event.title}</strong> a lieu demain${where}.</p>
            <p><a href="${url}">Voir mon billet</a></p>`,
+          brand,
         ),
         url,
       );

@@ -32,6 +32,7 @@
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
     "WEB_BASE_URL": "https://eventgalo.com",
+    "API_BASE_URL": "https://eventgalo-api.davechendjou.workers.dev",
     "ENVIRONMENT": "production",
     "EMAIL_FROM": "EventGalo <billetterie@eventgalo.com>"
   },
@@ -65,6 +66,7 @@
       "send_email": [{ "name": "EMAIL" }],
       "vars": {
         "WEB_BASE_URL": "https://eventgalo-web-staging.davechendjou.workers.dev",
+        "API_BASE_URL": "https://eventgalo-api-staging.davechendjou.workers.dev",
         "ENVIRONMENT": "staging",
         "EMAIL_FROM": "EventGalo (staging) <billetterie-staging@eventgalo.com>"
       }

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import Stripe from "stripe";
 import type { AppContext } from "../types";
 import { buildTicketPayload, nowIso, uuid, verifyTicketPayload } from "../lib/crypto";
-import { layout, sendEmail } from "../lib/email";
+import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
@@ -11,7 +11,7 @@ import { buildIcsEvent, icsResponse } from "../lib/ics";
 const pub = new Hono<AppContext>();
 
 const PUBLIC_EVENT_FIELDS = `id, title, description, starts_at, ends_at, venue, address,
-  dress_code, capacity, public_slug, type, status, refund_policy, rsvp_question, cover_media_id`;
+  dress_code, capacity, public_slug, type, status, refund_policy, rsvp_question, cover_media_id, logo_media_id`;
 
 /* ---------------------------- Page publique ------------------------------ */
 
@@ -30,14 +30,110 @@ pub.get("/events/:slug", async (c) => {
     .bind(c.req.param("slug"))
     .first();
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [categories, announcements] = await Promise.all([
+  const [categories, announcements, gallery, sponsors] = await Promise.all([
     c.env.DB.prepare(
       "SELECT id, name, description, perks, price_cents, currency, quantity, sold FROM ticket_categories WHERE event_id = ? ORDER BY price_cents",
     ).bind(event.id).all(),
     c.env.DB.prepare("SELECT body, created_at FROM announcements WHERE event_id = ? ORDER BY created_at DESC LIMIT 20")
       .bind(event.id).all(),
+    c.env.DB.prepare(
+      "SELECT id, content_type FROM media WHERE event_id = ? AND featured = 1 ORDER BY created_at DESC LIMIT 12",
+    ).bind(event.id).all(),
+    c.env.DB.prepare(
+      `SELECT s.company_name, s.website, s.logo_media_id, t.name AS tier_name, t.rank AS tier_rank
+       FROM sponsors s JOIN sponsor_tiers t ON t.id = s.tier_id
+       WHERE s.event_id = ? AND s.status = 'confirmed' AND s.company_name IS NOT NULL
+       ORDER BY t.rank, t.price_cents DESC, s.confirmed_at`,
+    ).bind(event.id).all(),
   ]);
-  return c.json({ event, categories: categories.results, announcements: announcements.results });
+  return c.json({
+    event,
+    categories: categories.results,
+    announcements: announcements.results,
+    gallery: gallery.results,
+    sponsors: sponsors.results,
+  });
+});
+
+/* ------------------------- Espace sponsor (lien privé) --------------------- */
+
+pub.get("/sponsor/:token", async (c) => {
+  const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ id: string; event_id: string; tier_id: string | null; status: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  const [event, tiers, taken] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT id, title, description, starts_at, venue, address, public_slug, cover_media_id, logo_media_id
+       FROM events WHERE id = ? AND status != 'archived'`,
+    ).bind(sponsor.event_id).first(),
+    c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE event_id = ? ORDER BY rank, price_cents DESC")
+      .bind(sponsor.event_id).all(),
+    c.env.DB.prepare(
+      `SELECT tier_id, COUNT(*) AS n FROM sponsors
+       WHERE event_id = ? AND status IN ('pending','confirmed') AND tier_id IS NOT NULL GROUP BY tier_id`,
+    ).bind(sponsor.event_id).all<{ tier_id: string; n: number }>(),
+  ]);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const { token: _token, ...safeSponsor } = sponsor as Record<string, unknown>;
+  return c.json({ sponsor: safeSponsor, event, tiers: tiers.results, taken: taken.results });
+});
+
+/** Engagement de l'entreprise : choix du palier + informations société. */
+pub.post("/sponsor/:token", async (c) => {
+  const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ id: string; event_id: string; status: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (sponsor.status === "confirmed") return c.json({ error: "Sponsoring déjà confirmé" }, 409);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const tierId = String(b.tier_id ?? "");
+  const companyName = String(b.company_name ?? "").trim();
+  if (!tierId || !companyName) return c.json({ error: "Palier et nom de l'entreprise requis" }, 400);
+  const tier = await c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE id = ? AND event_id = ?")
+    .bind(tierId, sponsor.event_id)
+    .first<{ id: string; name: string; price_cents: number; quantity: number }>();
+  if (!tier) return c.json({ error: "Palier introuvable" }, 404);
+  const taken = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM sponsors WHERE tier_id = ? AND status IN ('pending','confirmed') AND id != ?",
+  )
+    .bind(tier.id, sponsor.id)
+    .first<{ n: number }>();
+  if ((taken?.n ?? 0) >= tier.quantity) {
+    return c.json({ error: "Ce palier est complet — choisissez-en un autre" }, 409);
+  }
+  await c.env.DB.prepare(
+    `UPDATE sponsors SET tier_id = ?, company_name = ?, website = ?, contact_name = COALESCE(?, contact_name),
+       message = ?, amount_cents = ?, status = 'pending', committed_at = ? WHERE id = ?`,
+  )
+    .bind(
+      tier.id, companyName, (b.website as string) || null, (b.contact_name as string) || null,
+      (b.message as string) || null, tier.price_cents, nowIso(), sponsor.id,
+    )
+    .run();
+  return c.json({ ok: true, status: "pending", tier_name: tier.name, amount_cents: tier.price_cents });
+});
+
+/** Upload du logo de l'entreprise sponsor. */
+pub.post("/sponsor/:token/logo", async (c) => {
+  const sponsor = await c.env.DB.prepare("SELECT id, event_id FROM sponsors WHERE token = ?")
+    .bind(c.req.param("token"))
+    .first<{ id: string; event_id: string }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) return c.json({ error: "Fichier manquant" }, 400);
+  const invalid = validateMediaFile(file);
+  if (invalid) return c.json({ error: invalid }, 400);
+  const id = uuid();
+  const key = `events/${sponsor.event_id}/${id}`;
+  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  await c.env.DB.batch([
+    c.env.DB.prepare("INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)")
+      .bind(id, sponsor.event_id, key, file.type),
+    c.env.DB.prepare("UPDATE sponsors SET logo_media_id = ? WHERE id = ?").bind(id, sponsor.id),
+  ]);
+  return c.json({ media_id: id }, 201);
 });
 
 pub.get("/events/:slug/ics", async (c) => {
@@ -367,7 +463,7 @@ pub.post("/checkout", async (c) => {
     action: "finalize",
     transaction_id: reservation.transaction_id,
   });
-  c.executionCtx.waitUntil(sendTicketsEmail(c.env, buyerEmail, buyerName, event.title, result.tickets));
+  c.executionCtx.waitUntil(sendTicketsEmail(c.env, buyerEmail, buyerName, event.id, event.title, result.tickets));
   return c.json({
     mode: "direct",
     transaction_id: reservation.transaction_id,
@@ -409,12 +505,14 @@ export async function sendTicketsEmail(
   env: AppContext["Bindings"],
   email: string,
   name: string,
+  eventId: string,
   eventTitle: string,
   tickets: Array<{ serial: string }>,
 ) {
   const links = tickets
     .map((t) => `<p><a href="${env.WEB_BASE_URL}/t/${t.serial}">Billet ${t.serial}</a></p>`)
     .join("");
+  const logoUrl = await eventLogoUrl(env, eventId);
   await sendEmail(
     env,
     email,
@@ -422,6 +520,7 @@ export async function sendTicketsEmail(
     layout(
       `Merci ${name} !`,
       `<p>Voici vos billets pour <strong>${eventTitle}</strong>. Présentez le QR code à l'entrée.</p>${links}`,
+      { logoUrl, eventTitle },
     ),
     tickets[0] ? `${env.WEB_BASE_URL}/t/${tickets[0].serial}` : undefined,
   );
@@ -456,7 +555,7 @@ pub.get("/transactions/:id", async (c) => {
 pub.get("/tickets/:serial", async (c) => {
   const ticket = await c.env.DB.prepare(
     `SELECT t.*, tc.name AS category_name, tc.perks AS category_perks, tc.price_cents, tc.currency,
-            e.title AS event_title, e.starts_at, e.ends_at, e.venue, e.address, e.dress_code, e.public_slug, e.refund_policy
+            e.title AS event_title, e.starts_at, e.ends_at, e.venue, e.address, e.dress_code, e.public_slug, e.refund_policy, e.logo_media_id
      FROM tickets t
      JOIN ticket_categories tc ON tc.id = t.category_id
      JOIN events e ON e.id = t.event_id
@@ -559,12 +658,12 @@ pub.patch("/tickets/:serial/transfer", async (c) => {
   }
 
   const ticket = await c.env.DB.prepare(
-    `SELECT t.id, t.buyer_name, t.buyer_email, t.status, e.title AS event_title, e.public_slug
+    `SELECT t.id, t.buyer_name, t.buyer_email, t.status, e.title AS event_title, e.public_slug, e.id AS event_id
      FROM tickets t JOIN events e ON e.id = t.event_id
      WHERE t.serial = ?`,
   )
     .bind(c.req.param("serial").toUpperCase())
-    .first<{ id: string; buyer_name: string; buyer_email: string; status: string; event_title: string; public_slug: string }>();
+    .first<{ id: string; buyer_name: string; buyer_email: string; status: string; event_title: string; public_slug: string; event_id: string }>();
   if (!ticket) return c.json({ error: "Billet introuvable" }, 404);
   if (ticket.status !== "valid") return c.json({ error: "Ce billet ne peut plus être transféré" }, 409);
   if ((b.email ?? "").trim().toLowerCase() !== ticket.buyer_email) {
@@ -580,28 +679,33 @@ pub.patch("/tickets/:serial/transfer", async (c) => {
 
   const url = `${c.env.WEB_BASE_URL}/t/${c.req.param("serial").toUpperCase()}`;
   c.executionCtx.waitUntil(
-    Promise.all([
-      sendEmail(
-        c.env,
-        newEmail,
-        `Un billet vous a été transféré — ${ticket.event_title}`,
-        layout(
-          `${ticket.buyer_name} vous a transféré un billet !`,
-          `<p>Vous êtes maintenant titulaire d'un billet pour <strong>${ticket.event_title}</strong>.</p>
-           <p><a href="${url}">Voir mon billet</a></p>`,
+    (async () => {
+      const brand = { logoUrl: await eventLogoUrl(c.env, ticket.event_id), eventTitle: ticket.event_title };
+      await Promise.all([
+        sendEmail(
+          c.env,
+          newEmail,
+          `Un billet vous a été transféré — ${ticket.event_title}`,
+          layout(
+            `${ticket.buyer_name} vous a transféré un billet !`,
+            `<p>Vous êtes maintenant titulaire d'un billet pour <strong>${ticket.event_title}</strong>.</p>
+             <p><a href="${url}">Voir mon billet</a></p>`,
+            brand,
+          ),
+          url,
         ),
-        url,
-      ),
-      sendEmail(
-        c.env,
-        ticket.buyer_email,
-        `Transfert confirmé — ${ticket.event_title}`,
-        layout(
-          "Transfert confirmé",
-          `<p>Votre billet pour <strong>${ticket.event_title}</strong> a bien été transféré à ${newName} (${newEmail}).</p>`,
+        sendEmail(
+          c.env,
+          ticket.buyer_email,
+          `Transfert confirmé — ${ticket.event_title}`,
+          layout(
+            "Transfert confirmé",
+            `<p>Votre billet pour <strong>${ticket.event_title}</strong> a bien été transféré à ${newName} (${newEmail}).</p>`,
+            brand,
+          ),
         ),
-      ),
-    ]),
+      ]);
+    })(),
   );
   return c.json({ ok: true });
 });

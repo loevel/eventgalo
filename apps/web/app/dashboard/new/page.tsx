@@ -60,6 +60,25 @@ export default function NewEvent() {
   const [dressCode, setDressCode] = useState("");
   const [seatingPlan, setSeatingPlan] = useState("");
   const [rsvpQuestion, setRsvpQuestion] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoDone, setLogoDone] = useState(false);
+
+  async function uploadLogo(file: File) {
+    if (!eventId) return;
+    setLogoUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await api<{ media: { id: string } }>(`/api/events/${eventId}/media`, { method: "POST", body: fd });
+      await api(`/api/events/${eventId}/logo`, { method: "PATCH", body: { media_id: res.media.id } });
+      setLogoDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setLogoUploading(false);
+    }
+  }
   const [refundKind, setRefundKind] = useState("full");
   const [refundDays, setRefundDays] = useState("7");
   const [refundPercent, setRefundPercent] = useState("50");
@@ -352,6 +371,27 @@ export default function NewEvent() {
 
       {step === 3 && (
         <>
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Identité visuelle</h3>
+            <label>Logo de l&apos;association organisatrice (optionnel)</label>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Il apparaîtra sur la page publique, les billets, les invitations et dans tous les emails envoyés à
+              vos invités et acheteurs. PNG carré sur fond clair recommandé.
+            </p>
+            <input
+              type="file"
+              accept="image/*"
+              disabled={logoUploading}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadLogo(f);
+                e.target.value = "";
+              }}
+            />
+            {logoUploading && <p className="muted">Envoi du logo…</p>}
+            {logoDone && <div className="alert ok">Logo enregistré ✓</div>}
+          </div>
+
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Détails complémentaires</h3>
             <label>Description / programme</label>

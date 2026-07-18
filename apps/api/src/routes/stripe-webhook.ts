@@ -45,7 +45,7 @@ webhook.post("/stripe", async (c) => {
         .first<{ title: string }>();
       if (tx && evt) {
         c.executionCtx.waitUntil(
-          sendTicketsEmail(c.env, tx.buyer_email, tx.buyer_name, evt.title, result.tickets),
+          sendTicketsEmail(c.env, tx.buyer_email, tx.buyer_name, eventId, evt.title, result.tickets),
         );
       }
     }
