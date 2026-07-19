@@ -5,6 +5,11 @@ import { requireAuth } from "../lib/auth";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { validateMediaFile } from "../lib/media";
 import { clampText, sanitizeSocials } from "../lib/profile";
+import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import {
+  companyNamesMatch, domainOfEmail, domainOfUrl, findRegistryRecord,
+  isFreeMailDomain, searchBusinessRegistry,
+} from "../lib/verification";
 
 /* ---------------------- Espace entreprise (authentifié) -------------------- */
 
@@ -26,9 +31,9 @@ company.put("/", async (c) => {
   const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
   const name = String(b.name ?? "").trim().slice(0, 120);
   if (!name) return c.json({ error: "Nom de l'entreprise requis" }, 400);
-  const existing = await c.env.DB.prepare("SELECT id FROM companies WHERE owner_user_id = ?")
+  const existing = await c.env.DB.prepare("SELECT id, verified_domain FROM companies WHERE owner_user_id = ?")
     .bind(user.id)
-    .first<{ id: string }>();
+    .first<{ id: string; verified_domain: string | null }>();
   const values = [
     name,
     clampText(b.sector, 80),
@@ -42,11 +47,17 @@ company.put("/", async (c) => {
     nowIso(),
   ];
   if (existing) {
+    // Le badge « domaine vérifié » est lié au domaine du site : s'il change, la vérification tombe.
+    const keepDomainVerif =
+      !existing.verified_domain || domainOfUrl(clampText(b.website, 300)) === existing.verified_domain;
     await c.env.DB.prepare(
       `UPDATE companies SET name = ?, sector = ?, city = ?, description = ?, website = ?,
-         phone = ?, public_email = ?, socials = ?, listed = ?, updated_at = ? WHERE id = ?`,
+         phone = ?, public_email = ?, socials = ?, listed = ?, updated_at = ?,
+         verified_at = CASE WHEN ? THEN verified_at END,
+         verified_domain = CASE WHEN ? THEN verified_domain END
+       WHERE id = ?`,
     )
-      .bind(...values, existing.id)
+      .bind(...values, keepDomainVerif ? 1 : 0, keepDomainVerif ? 1 : 0, existing.id)
       .run();
     return c.json({ id: existing.id });
   }
@@ -246,9 +257,154 @@ company.post("/apply", async (c) => {
   return c.json({ ok: true, token, status: "pending" }, 201);
 });
 
+/* ------------------------- Vérification d'entreprise ------------------------ */
+
+/**
+ * Étape 1 (email de domaine) : envoi d'un lien de vérification à une adresse
+ * au domaine du site web du profil. Cliquer le lien prouve le contrôle du domaine.
+ */
+company.post("/verify/request", async (c) => {
+  const user = c.get("user");
+  const co = await c.env.DB.prepare("SELECT id, name, website FROM companies WHERE owner_user_id = ?")
+    .bind(user.id)
+    .first<{ id: string; name: string; website: string | null }>();
+  if (!co) return c.json({ error: "Créez d'abord votre profil entreprise" }, 409);
+
+  const b = await c.req.json<{ email?: string }>().catch(() => ({}) as Record<string, never>);
+  const email = String(b.email ?? "").trim().toLowerCase().slice(0, 120);
+  const emailDomain = domainOfEmail(email);
+  if (!emailDomain) return c.json({ error: "Adresse email invalide" }, 400);
+  const siteDomain = domainOfUrl(co.website);
+  if (!siteDomain) {
+    return c.json({ error: "Renseignez d'abord le site web de votre entreprise dans votre profil" }, 400);
+  }
+  if (isFreeMailDomain(emailDomain)) {
+    return c.json({ error: "Utilisez une adresse au domaine de votre entreprise, pas un fournisseur grand public" }, 400);
+  }
+  if (emailDomain !== siteDomain) {
+    return c.json({ error: `L'adresse doit être au domaine de votre site web (…@${siteDomain})` }, 400);
+  }
+  if (await isRateLimited(c.env, "coverify", user.id, 3, 900)) return tooManyRequests(c);
+
+  const token = randomToken(24);
+  await c.env.KV.put(
+    `coverify:${token}`,
+    JSON.stringify({ company_id: co.id, domain: siteDomain }),
+    { expirationTtl: 24 * 3600 },
+  );
+  const url = `${c.env.WEB_BASE_URL}/entreprise/verification/${token}`;
+  const result = await sendEmail(
+    c.env,
+    email,
+    "Vérifiez votre entreprise sur EventGalo",
+    layout(
+      `Vérification de ${co.name}`,
+      `<p>Quelqu'un (sans doute vous) demande à faire vérifier l'entreprise <strong>${co.name}</strong>
+         sur EventGalo en prouvant le contrôle du domaine <strong>${siteDomain}</strong>.</p>
+       <p><a href="${url}">Confirmer la vérification</a></p>
+       <p style="color:#777;font-size:13px">Ce lien expire dans 24&nbsp;heures. Si vous n'êtes pas à
+         l'origine de cette demande, ignorez simplement ce message.</p>`,
+    ),
+    url,
+  );
+  return c.json({
+    ok: true,
+    domain: siteDomain,
+    message: result.sent
+      ? `Email envoyé à ${email} — cliquez le lien qu'il contient pour terminer la vérification.`
+      : "Email non configuré : utilisez le lien ci-dessous (mode dev).",
+    ...(result.sent ? {} : { debug_url: result.debug_url }),
+  });
+});
+
+/**
+ * Étape 2 (registre) : recherche dans les Registres d'entreprises du Canada
+ * (API publique MRAS — fédéral + provinces, NEQ inclus) par nom ou numéro.
+ */
+company.get("/verify/registry/search", async (c) => {
+  const user = c.get("user");
+  const q = (c.req.query("q") ?? "").trim().slice(0, 120);
+  if (q.length < 2) return c.json({ records: [] });
+  if (await isRateLimited(c.env, "coreg", user.id, 15, 60)) return tooManyRequests(c);
+  try {
+    return c.json({ records: await searchBusinessRegistry(q) });
+  } catch {
+    return c.json({ error: "Le registre des entreprises est indisponible, réessayez plus tard" }, 502);
+  }
+});
+
+/**
+ * Rattache le profil à l'inscription choisie, après revalidation côté serveur :
+ * l'inscription doit être active et son nom légal concorder avec le nom du profil.
+ */
+company.post("/verify/registry", async (c) => {
+  const user = c.get("user");
+  const co = await c.env.DB.prepare("SELECT id, name FROM companies WHERE owner_user_id = ?")
+    .bind(user.id)
+    .first<{ id: string; name: string }>();
+  if (!co) return c.json({ error: "Créez d'abord votre profil entreprise" }, 409);
+
+  const b = await c.req.json<{ registry_id?: string; jurisdiction?: string }>()
+    .catch(() => ({}) as Record<string, never>);
+  const registryId = String(b.registry_id ?? "").trim().slice(0, 40);
+  const jurisdiction = String(b.jurisdiction ?? "").trim().slice(0, 10);
+  if (!registryId || !jurisdiction) return c.json({ error: "Inscription au registre requise" }, 400);
+  if (await isRateLimited(c.env, "coreg", user.id, 15, 60)) return tooManyRequests(c);
+
+  let record;
+  try {
+    record = await findRegistryRecord(registryId, jurisdiction);
+  } catch {
+    return c.json({ error: "Le registre des entreprises est indisponible, réessayez plus tard" }, 502);
+  }
+  if (!record) return c.json({ error: "Inscription introuvable au registre" }, 404);
+  if (record.status !== "Active") return c.json({ error: "Cette inscription n'est plus active au registre" }, 409);
+  if (!companyNamesMatch(co.name, record.name)) {
+    return c.json(
+      {
+        error: `Le nom de votre profil (« ${co.name} ») ne correspond pas au nom légal au registre
+          (« ${record.name} »). Ajustez le nom de votre profil ou choisissez la bonne inscription.`.replace(/\s+/g, " "),
+      },
+      422,
+    );
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE companies SET registry_id = ?, registry_jurisdiction = ?, registry_name = ?,
+       registry_verified_at = ?, updated_at = ? WHERE id = ?`,
+  )
+    .bind(record.registry_id, record.jurisdiction, record.name, nowIso(), nowIso(), co.id)
+    .run();
+  return c.json({ ok: true, record });
+});
+
 /* ----------------------------- Annuaire public ----------------------------- */
 
 const directory = new Hono<AppContext>();
+
+/**
+ * Confirmation du lien de vérification par email de domaine. Public : le token
+ * (usage unique, 24 h) est la preuve — le clic peut venir d'un autre navigateur
+ * que celui où le compte est connecté.
+ */
+directory.post("/verify/confirm", async (c) => {
+  const b = await c.req.json<{ token?: string }>().catch(() => ({}) as Record<string, never>);
+  const token = String(b.token ?? "").slice(0, 100);
+  if (!token) return c.json({ error: "Jeton manquant" }, 400);
+  const raw = await c.env.KV.get(`coverify:${token}`);
+  if (!raw) return c.json({ error: "Lien invalide ou expiré — redemandez un email de vérification" }, 400);
+  await c.env.KV.delete(`coverify:${token}`);
+  const { company_id, domain } = JSON.parse(raw) as { company_id: string; domain: string };
+  await c.env.DB.prepare(
+    "UPDATE companies SET verified_at = ?, verified_domain = ?, updated_at = ? WHERE id = ?",
+  )
+    .bind(nowIso(), domain, nowIso(), company_id)
+    .run();
+  const co = await c.env.DB.prepare("SELECT name FROM companies WHERE id = ?")
+    .bind(company_id)
+    .first<{ name: string }>();
+  return c.json({ ok: true, company_name: co?.name ?? "", domain });
+});
 
 directory.get("/", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 80);
@@ -271,10 +427,11 @@ directory.get("/", async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT c.id, c.name, c.sector, c.city, c.description, c.website, c.socials, c.public_email,
             (c.logo_key IS NOT NULL) AS has_logo,
+            (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
             (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships
      FROM companies c
      WHERE ${conditions.join(" AND ")}
-     ORDER BY sponsorships DESC, c.updated_at DESC LIMIT 60`,
+     ORDER BY verified DESC, sponsorships DESC, c.updated_at DESC LIMIT 60`,
   )
     .bind(...binds)
     .all();

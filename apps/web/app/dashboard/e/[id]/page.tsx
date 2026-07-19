@@ -1604,6 +1604,11 @@ function SponsorsTab({
                     <tr>
                       <td>
                         {s.company_name ?? <span className="muted">—</span>}
+                        {Boolean(s.company_verified) && (
+                          <span className="badge ok" style={{ marginLeft: 6, fontSize: 11 }} title="Entreprise vérifiée (domaine ou registre)">
+                            ✓ Vérifiée
+                          </span>
+                        )}
                         <span className="muted" style={{ display: "block", fontSize: 12 }}>
                           {s.contact_name ? `${s.contact_name} · ` : ""}{s.contact_email}
                         </span>

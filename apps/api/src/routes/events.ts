@@ -132,8 +132,11 @@ events.get("/:id", async (c) => {
     ).bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE event_id = ? ORDER BY rank, price_cents DESC").bind(event.id).all(),
     c.env.DB.prepare(
-      `SELECT s.*, t.name AS tier_name FROM sponsors s
+      `SELECT s.*, t.name AS tier_name,
+              (co.verified_at IS NOT NULL OR co.registry_verified_at IS NOT NULL) AS company_verified
+       FROM sponsors s
        LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
+       LEFT JOIN companies co ON co.id = s.company_id
        WHERE s.event_id = ? ORDER BY s.created_at DESC`,
     ).bind(event.id).all(),
   ]);

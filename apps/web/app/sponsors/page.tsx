@@ -21,6 +21,7 @@ interface DirectoryCompany {
   website: string | null;
   socials: string | null;
   has_logo: number;
+  verified: number;
   sponsorships: number;
 }
 
@@ -94,7 +95,14 @@ export default async function SponsorDirectoryPage({
                     <span className="sponsor-name-fallback">{co.name.charAt(0).toUpperCase()}</span>
                   )}
                   <div>
-                    <h3>{co.name}</h3>
+                    <h3>
+                      {co.name}
+                      {Boolean(co.verified) && (
+                        <span className="badge ok" style={{ marginLeft: 8, fontSize: 11, verticalAlign: "middle" }} title="Entreprise vérifiée (domaine ou registre des entreprises)">
+                          <BadgeCheck size={11} /> Vérifiée
+                        </span>
+                      )}
+                    </h3>
                     <p className="muted directory-meta">
                       {co.sector && <span>{co.sector}</span>}
                       {co.city && (

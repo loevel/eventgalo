@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, DownloadCloud, Inbox, Store, Upload } from "lucide-react";
 import { API_BASE, api, formatDate, getToken } from "@/lib/api";
 import { COMPANY_SECTORS, SOCIAL_KEYS, SOCIAL_LABELS, parseSocials, type SocialKey } from "@/lib/sponsor";
+import { CompanyVerification } from "@/components/company-verification";
 
 interface SponsorRequest {
   id: string;
@@ -33,7 +34,18 @@ interface Company {
   socials: string | null;
   logo_key: string | null;
   listed: number;
+  verified_at: string | null;
+  verified_domain: string | null;
+  registry_id: string | null;
+  registry_jurisdiction: string | null;
+  registry_name: string | null;
+  registry_verified_at: string | null;
 }
+
+type VerificationState = Pick<
+  Company,
+  "verified_at" | "verified_domain" | "registry_id" | "registry_jurisdiction" | "registry_name" | "registry_verified_at"
+>;
 
 export default function CompanyPage() {
   const router = useRouter();
@@ -45,6 +57,7 @@ export default function CompanyPage() {
     name: "", sector: "", city: "", description: "", website: "", phone: "", public_email: "",
     listed: false, socials: {} as Partial<Record<SocialKey, string>>,
   });
+  const [verif, setVerif] = useState<VerificationState | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -61,6 +74,14 @@ export default function CompanyPage() {
         if (r.company) {
           setCompanyId(r.company.id);
           setHasLogo(Boolean(r.company.logo_key));
+          setVerif({
+            verified_at: r.company.verified_at,
+            verified_domain: r.company.verified_domain,
+            registry_id: r.company.registry_id,
+            registry_jurisdiction: r.company.registry_jurisdiction,
+            registry_name: r.company.registry_name,
+            registry_verified_at: r.company.registry_verified_at,
+          });
           setForm({
             name: r.company.name,
             sector: r.company.sector ?? "",
@@ -328,6 +349,20 @@ export default function CompanyPage() {
           {busy ? "Enregistrement…" : companyId ? "Enregistrer" : "Créer mon profil"}
         </button>
       </form>
+
+      {companyId && verif && (
+        <CompanyVerification
+          companyName={form.name}
+          website={form.website || null}
+          verifiedAt={verif.verified_at}
+          verifiedDomain={verif.verified_domain}
+          registryVerifiedAt={verif.registry_verified_at}
+          registryName={verif.registry_name}
+          registryId={verif.registry_id}
+          registryJurisdiction={verif.registry_jurisdiction}
+          onChanged={load}
+        />
+      )}
 
       {companyId && (
         <div className="card">
