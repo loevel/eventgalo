@@ -404,3 +404,102 @@ export function ConstellationBg() {
 
   return <canvas ref={ref} className="constellation" aria-hidden="true" />;
 }
+
+/**
+ * Frise géométrique inspirée des motifs perlés bamiléké (Ouest-Cameroun) :
+ * chevrons entrelacés formant un lattis de losanges, utilisée comme séparateur
+ * décoratif entre sections. Purement géométrique — aucune figure ni symbole
+ * sacré, pour rester une décoration sans usurper un motif rituel.
+ */
+export function BamilekeDivider() {
+  return (
+    <svg
+      className="bamileke-divider"
+      viewBox="0 0 400 24"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <pattern id="bamileke-tile" width="40" height="24" patternUnits="userSpaceOnUse">
+          <path d="M0,20 L10,4 L20,20 L30,4 L40,20" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M0,4 L10,20 L20,4 L30,20 L40,4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        </pattern>
+      </defs>
+      <rect width="400" height="24" fill="url(#bamileke-tile)" />
+    </svg>
+  );
+}
+
+/**
+ * L'araignée, motif signature de la place de marché : dans la tradition
+ * grassfields du Cameroun (bamiléké, bamoun), la divination par araignée
+ * (« ngam ») symbolise la sagesse du choix — un clin d'œil délibéré au thème
+ * de la section (trouver le bon sponsor). Les pattes se dessinent au scroll,
+ * comme le trait de StepsPath.
+ */
+export function SpiderMark() {
+  const legsRef = useRef<SVGPathElement>(null);
+
+  useEffect(() => {
+    const path = legsRef.current;
+    if (!path) return;
+    const length = path.getTotalLength();
+    if (reduceMotion()) return; // pattes affichées en entier
+
+    path.style.strokeDasharray = `${length}`;
+    path.style.strokeDashoffset = `${length}`;
+    const ctx = gsap.context(() => {
+      gsap.to(path, {
+        strokeDashoffset: 0,
+        duration: 1.1,
+        ease: "power2.out",
+        scrollTrigger: { trigger: path.closest("svg"), start: "top 80%", once: true },
+      });
+    });
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <svg className="spider-mark" viewBox="0 0 100 100" aria-hidden="true">
+      <title>L&apos;araignée : symbole de sagesse (divination « ngam ») dans la tradition grassfields du Cameroun</title>
+      <ellipse cx="50" cy="52" rx="13" ry="9" fill="currentColor" />
+      <circle cx="36" cy="49" r="6" fill="currentColor" />
+      <path
+        ref={legsRef}
+        d="M60,45 Q75,30 85,20 M60,48 Q78,38 92,35 M60,52 Q78,62 92,65 M60,55 Q75,70 85,80 M40,45 Q25,30 15,20 M40,48 Q22,38 8,35 M40,52 Q22,62 8,65 M40,55 Q25,70 15,80"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Rosettes de léopard stylisées (anneaux de petits cercles, jamais de figure
+ * animale dessinée) : chez les chefferies bamiléké et bamoun, le port de la
+ * peau de léopard était réservé aux chefs — un symbole de prestige et de
+ * reconnaissance, discret clin d'œil pour les entreprises « reconnues » dans
+ * l'annuaire.
+ */
+export function LeopardRosettes() {
+  return (
+    <svg className="leopard-rosettes" viewBox="0 0 120 60" aria-hidden="true">
+      <title>Rosettes inspirées du léopard, symbole camerounais de prestige et de reconnaissance</title>
+      <defs>
+        <g id="rosette">
+          <circle cx="0" cy="-8" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="7" cy="-3" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="5" cy="6" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="-5" cy="6" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="-7" cy="-3" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <circle cx="0" cy="0" r="1.6" fill="currentColor" />
+        </g>
+      </defs>
+      <g transform="translate(20,18)"><use href="#rosette" /></g>
+      <g transform="translate(60,42) scale(1.3)"><use href="#rosette" /></g>
+      <g transform="translate(98,15) scale(0.8)"><use href="#rosette" /></g>
+    </svg>
+  );
+}

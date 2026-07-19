@@ -5,7 +5,10 @@ import dynamic from "next/dynamic";
 import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store } from "lucide-react";
 import { api } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
-import { ConstellationBg, GoldDust, HeroFx, SplitTitle, StatNumber, StepsPath, TiltCard } from "@/components/landing-fx";
+import {
+  BamilekeDivider, ConstellationBg, GoldDust, HeroFx, LeopardRosettes, SpiderMark,
+  SplitTitle, StatNumber, StepsPath, TiltCard,
+} from "@/components/landing-fx";
 
 const ParticleHero = dynamic(() => import("@/components/particle-hero").then((m) => m.ParticleHero), {
   ssr: false,
@@ -162,6 +165,10 @@ export default function Home() {
           </div>
         </section>
 
+        <Reveal>
+          <BamilekeDivider />
+        </Reveal>
+
         <div className="grid2 usecases">
           <Reveal>
             <div className="card usecase">
@@ -196,6 +203,7 @@ export default function Home() {
         <section className="section marketplace-section">
           <ConstellationBg />
           <Reveal>
+            <SpiderMark />
             <span className="section-kicker">Place de marché</span>
             <SplitTitle className="section-title">Le sponsoring, simplifié</SplitTitle>
             <p className="section-sub">
@@ -223,7 +231,8 @@ export default function Home() {
               </div>
             </Reveal>
             <Reveal delay={90}>
-              <div className="card usecase">
+              <div className="card usecase" style={{ position: "relative", overflow: "hidden" }}>
+                <LeopardRosettes />
                 <div className="usecase-head">
                   <div className="glass-icon">
                     <Store />

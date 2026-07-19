@@ -939,6 +939,16 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 .marketplace-section > *:not(.constellation) { position: relative; z-index: 1; }
 .constellation { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; opacity: 0.6; }
 
+/* Motifs culturels camerounais (grassfields bamiléké/bamoun) — voir landing-fx.tsx */
+.bamileke-divider {
+  display: block; width: 100%; height: 22px; margin: 56px 0; color: var(--accent); opacity: 0.4;
+}
+.spider-mark { display: block; width: 34px; height: 34px; margin: 0 auto 6px; color: var(--accent); opacity: 0.8; }
+.leopard-rosettes {
+  position: absolute; bottom: -6px; right: -6px; width: 120px; height: 60px;
+  color: var(--accent); opacity: 0.22; pointer-events: none;
+}
+
 /* Lueur dorée de la carte de connexion quand le champ prend le focus. */
 .login-card { transition: box-shadow 0.35s ease, border-color 0.35s ease; }
 .login-card:focus-within {
