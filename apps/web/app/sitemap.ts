@@ -12,6 +12,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly",
       priority: 1,
     },
+    {
+      url: "https://eventgalo.com/sponsors",
+      changeFrequency: "daily",
+      priority: 0.7,
+    },
+    {
+      url: "https://eventgalo.com/opportunites",
+      changeFrequency: "daily",
+      priority: 0.7,
+    },
+    {
+      url: "https://eventgalo.com/cgu",
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
+    {
+      url: "https://eventgalo.com/confidentialite",
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
   ];
 
   try {

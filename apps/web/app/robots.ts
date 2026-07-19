@@ -13,6 +13,8 @@ export default function robots(): MetadataRoute.Robots {
         "/t/", // billets individuels
         "/i/", // invitations personnelles
         "/s/", // liens vendeurs
+        "/sp/", // liens sponsors privés
+        "/entreprise", // espace entreprise authentifié (profil, demandes)
       ],
     },
     sitemap: "https://eventgalo.com/sitemap.xml",
