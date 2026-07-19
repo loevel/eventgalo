@@ -53,6 +53,14 @@ interface EventPayload {
     tier_rank: number;
     showcase: "logo" | "standard" | "full";
   }>;
+  performers: Array<{
+    id: string;
+    name: string;
+    role: string | null;
+    bio: string | null;
+    photo1_media_id: string | null;
+    photo2_media_id: string | null;
+  }>;
 }
 
 /** Rangée d'icônes : site web + réseaux sociaux d'un sponsor. */
@@ -85,6 +93,7 @@ async function getEvent(slug: string): Promise<EventPayload | null> {
   const data = (await res.json()) as EventPayload;
   data.gallery ??= [];
   data.sponsors ??= [];
+  data.performers ??= [];
   data.announcements ??= [];
   for (const s of data.sponsors) {
     s.photos ??= [];
@@ -176,6 +185,9 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
       : {}),
     url: pageUrl,
     organizer: { "@type": "Organization", name: "EventGalo", url: "https://eventgalo.com" },
+    ...(data.performers.length > 0
+      ? { performer: data.performers.map((p) => ({ "@type": "Person", name: p.name })) }
+      : {}),
     ...(ev.type === "ticketed" && data.categories.length > 0
       ? {
           offers: data.categories.map((c) => ({
@@ -389,6 +401,37 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             )}
           </aside>
         </div>
+
+        {data.performers.length > 0 && (
+          <Reveal delay={40}>
+            <section className="sponsors-section">
+              <h2 className="sponsors-title">
+                <PartyPopper /> Artistes & intervenants
+              </h2>
+              <div className="performers-grid">
+                {data.performers.map((p) => {
+                  const photos = [p.photo1_media_id, p.photo2_media_id].filter((id): id is string => Boolean(id));
+                  return (
+                    <div key={p.id} className="performer-card">
+                      <div className={`performer-photos${photos.length <= 1 ? " single" : ""}`}>
+                        {photos.length > 0 ? (
+                          photos.map((id) => (
+                            <img key={id} src={`${API_BASE}/api/public/media/${id}/file`} alt={p.name} loading="lazy" />
+                          ))
+                        ) : (
+                          <span className="sponsor-name-fallback">{p.name.charAt(0).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <h4>{p.name}</h4>
+                      {p.role && <p className="performer-role">{p.role}</p>}
+                      {p.bio && <p className="performer-bio">{p.bio}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </Reveal>
+        )}
 
         {data.sponsors.length > 0 && (
           <Reveal delay={60}>

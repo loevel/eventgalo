@@ -7,6 +7,7 @@ import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { notifyWaitlist } from "../lib/waitlist";
+import { clampText } from "../lib/profile";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
@@ -102,7 +103,7 @@ events.get("/:id", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators, sponsorTiers, sponsors] = await Promise.all([
+  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators, sponsorTiers, sponsors, performers] = await Promise.all([
     c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ? ORDER BY price_cents").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
@@ -142,6 +143,7 @@ events.get("/:id", async (c) => {
        LEFT JOIN companies co ON co.id = s.company_id
        WHERE s.event_id = ? ORDER BY s.created_at DESC`,
     ).bind(event.id).all(),
+    c.env.DB.prepare("SELECT * FROM event_performers WHERE event_id = ? ORDER BY rank, created_at").bind(event.id).all(),
   ]);
   return c.json({
     event,
@@ -156,6 +158,7 @@ events.get("/:id", async (c) => {
     waitlist: waitlist.results,
     sponsor_tiers: sponsorTiers.results,
     sponsors: sponsors.results,
+    performers: performers.results,
     collaborators: collaborators.results,
   });
 });
@@ -1197,6 +1200,158 @@ events.delete("/:id/sponsors/:sid", async (c) => {
     .bind(c.req.param("sid"), event.id)
     .run();
   if (!res.meta.changes) return c.json({ error: "Sponsor introuvable" }, 404);
+  return c.json({ ok: true });
+});
+
+/* --------------------------- Artistes & intervenants ------------------------ */
+
+events.post("/:id/performers", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const name = String(b.name ?? "").trim().slice(0, 120);
+  if (!name) return c.json({ error: "Nom requis" }, 400);
+  const id = uuid();
+  await c.env.DB.prepare(
+    `INSERT INTO event_performers (id, event_id, name, role, bio, rank) VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id, event.id, name, clampText(b.role, 80), clampText(b.bio, 500),
+      Math.max(0, Number(b.rank ?? 0) | 0),
+    )
+    .run();
+  return c.json({ id }, 201);
+});
+
+events.patch("/:id/performers/:pid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const performer = await c.env.DB.prepare("SELECT id FROM event_performers WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("pid"), event.id)
+    .first();
+  if (!performer) return c.json({ error: "Artiste introuvable" }, 404);
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (b.name !== undefined) {
+    const name = String(b.name ?? "").trim().slice(0, 120);
+    if (!name) return c.json({ error: "Nom requis" }, 400);
+    sets.push("name = ?");
+    values.push(name);
+  }
+  if (b.role !== undefined) {
+    sets.push("role = ?");
+    values.push(clampText(b.role, 80));
+  }
+  if (b.bio !== undefined) {
+    sets.push("bio = ?");
+    values.push(clampText(b.bio, 500));
+  }
+  if (b.rank !== undefined) {
+    sets.push("rank = ?");
+    values.push(Math.max(0, Number(b.rank ?? 0) | 0));
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  values.push(c.req.param("pid"));
+  await c.env.DB.prepare(`UPDATE event_performers SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+  return c.json({ ok: true });
+});
+
+events.delete("/:id/performers/:pid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const performer = await c.env.DB.prepare(
+    "SELECT photo1_media_id, photo2_media_id FROM event_performers WHERE id = ? AND event_id = ?",
+  )
+    .bind(c.req.param("pid"), event.id)
+    .first<{ photo1_media_id: string | null; photo2_media_id: string | null }>();
+  if (!performer) return c.json({ error: "Artiste introuvable" }, 404);
+  const photoIds = [performer.photo1_media_id, performer.photo2_media_id].filter((v): v is string => Boolean(v));
+  if (photoIds.length) {
+    const keys = await c.env.DB.prepare(
+      `SELECT r2_key FROM media WHERE id IN (${photoIds.map(() => "?").join(",")})`,
+    )
+      .bind(...photoIds)
+      .all<{ r2_key: string }>();
+    await Promise.all(keys.results.map((m) => c.env.MEDIA.delete(m.r2_key)));
+  }
+  // La ligne event_performers doit disparaître avant les lignes media qu'elle référence.
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM event_performers WHERE id = ? AND event_id = ?").bind(c.req.param("pid"), event.id),
+    ...(photoIds.length
+      ? [c.env.DB.prepare(`DELETE FROM media WHERE id IN (${photoIds.map(() => "?").join(",")})`).bind(...photoIds)]
+      : []),
+  ]);
+  return c.json({ ok: true });
+});
+
+/** Upload d'une des deux photos de l'artiste (?slot=1 ou 2). Remplace la photo existante du slot. */
+events.post("/:id/performers/:pid/photo", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const slot = c.req.query("slot") === "2" ? "2" : "1";
+  const column = slot === "2" ? "photo2_media_id" : "photo1_media_id";
+  const performer = await c.env.DB.prepare(
+    `SELECT id, ${column} AS current_media_id FROM event_performers WHERE id = ? AND event_id = ?`,
+  )
+    .bind(c.req.param("pid"), event.id)
+    .first<{ id: string; current_media_id: string | null }>();
+  if (!performer) return c.json({ error: "Artiste introuvable" }, 404);
+
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) return c.json({ error: "Fichier manquant" }, 400);
+  const invalid = validateMediaFile(file);
+  if (invalid) return c.json({ error: invalid }, 400);
+
+  const id = uuid();
+  const key = `events/${event.id}/${id}`;
+  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  await c.env.DB.prepare(
+    "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)",
+  )
+    .bind(id, event.id, key, file.type)
+    .run();
+  await c.env.DB.prepare(`UPDATE event_performers SET ${column} = ? WHERE id = ?`)
+    .bind(id, performer.id)
+    .run();
+
+  if (performer.current_media_id) {
+    const old = await c.env.DB.prepare("SELECT r2_key FROM media WHERE id = ?")
+      .bind(performer.current_media_id)
+      .first<{ r2_key: string }>();
+    if (old) {
+      await c.env.MEDIA.delete(old.r2_key);
+      await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(performer.current_media_id).run();
+    }
+  }
+  return c.json({ media_id: id }, 201);
+});
+
+events.delete("/:id/performers/:pid/photo", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const slot = c.req.query("slot") === "2" ? "2" : "1";
+  const column = slot === "2" ? "photo2_media_id" : "photo1_media_id";
+  const performer = await c.env.DB.prepare(
+    `SELECT ${column} AS current_media_id FROM event_performers WHERE id = ? AND event_id = ?`,
+  )
+    .bind(c.req.param("pid"), event.id)
+    .first<{ current_media_id: string | null }>();
+  if (!performer?.current_media_id) return c.json({ error: "Aucune photo à supprimer" }, 404);
+  const media = await c.env.DB.prepare("SELECT r2_key FROM media WHERE id = ?")
+    .bind(performer.current_media_id)
+    .first<{ r2_key: string }>();
+  if (media) await c.env.MEDIA.delete(media.r2_key);
+  await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE event_performers SET ${column} = NULL WHERE id = ?`).bind(c.req.param("pid")),
+    c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(performer.current_media_id),
+  ]);
   return c.json({ ok: true });
 });
 

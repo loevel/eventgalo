@@ -13,6 +13,18 @@ export const COMPANY_SECTORS = [
   "Autre",
 ] as const;
 
+/** Suggestions de rôle pour les artistes/intervenants — champ libre, pas une liste fermée. */
+export const PERFORMER_ROLES = [
+  "Musicien / DJ",
+  "Groupe de musique",
+  "Chanteur / Chanteuse",
+  "Animateur / MC",
+  "Humoriste",
+  "Danseur / Danseuse",
+  "Conférencier",
+  "Imprésario",
+] as const;
+
 /** Clés de réseaux sociaux supportées dans le profil sponsor. */
 export const SOCIAL_KEYS = ["facebook", "instagram", "linkedin", "x", "tiktok", "youtube"] as const;
 export type SocialKey = (typeof SOCIAL_KEYS)[number];

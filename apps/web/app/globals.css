@@ -663,6 +663,22 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 .sponsor-mid-card .sponsor-name-fallback { width: 62px; height: 62px; font-size: 20px; flex: none; }
 .sponsor-mid-card h4 { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin: 0 0 2px; }
 
+/* Artistes & intervenants */
+.performers-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px;
+  max-width: 760px; margin: 0 auto;
+}
+.performer-card { text-align: center; }
+.performer-photos { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.performer-photos img, .performer-photos .sponsor-name-fallback {
+  width: 84px; height: 84px; object-fit: cover; border-radius: 50%; border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.performer-photos.single img, .performer-photos.single .sponsor-name-fallback { width: 96px; height: 96px; }
+.performer-card h4 { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin: 0 0 2px; }
+.performer-role { font-size: 12px; color: var(--accent); font-weight: 600; margin: 0 0 4px; }
+.performer-bio { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.5; }
+
 /* Vitrine du sponsor : gestion des photos dans /sp/<token> */
 .sponsor-photo-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .sponsor-photo { position: relative; }

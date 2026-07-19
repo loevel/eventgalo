@@ -32,7 +32,7 @@ pub.get("/events/:slug", async (c) => {
     .bind(c.req.param("slug"))
     .first();
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [categories, announcements, gallery, sponsors] = await Promise.all([
+  const [categories, announcements, gallery, sponsors, performers] = await Promise.all([
     c.env.DB.prepare(
       "SELECT id, name, description, perks, price_cents, currency, quantity, sold FROM ticket_categories WHERE event_id = ? ORDER BY price_cents",
     ).bind(event.id).all(),
@@ -49,6 +49,9 @@ pub.get("/events/:slug", async (c) => {
        WHERE s.event_id = ? AND s.status = 'confirmed' AND s.company_name IS NOT NULL
        ORDER BY t.rank, t.price_cents DESC, s.confirmed_at`,
     ).bind(event.id).all<{ id: string; showcase: string; [k: string]: unknown }>(),
+    c.env.DB.prepare(
+      "SELECT id, name, role, bio, photo1_media_id, photo2_media_id FROM event_performers WHERE event_id = ? ORDER BY rank, created_at",
+    ).bind(event.id).all(),
   ]);
   // Photos de vitrine des sponsors « full » uniquement (le niveau d'affichage dépend du palier).
   const fullIds = sponsors.results.filter((s) => s.showcase === "full").map((s) => s.id);
@@ -71,6 +74,7 @@ pub.get("/events/:slug", async (c) => {
       ...s,
       photos: sponsorPhotos.filter((p) => p.sponsor_id === id).map((p) => p.id),
     })),
+    performers: performers.results,
   });
 });
 
