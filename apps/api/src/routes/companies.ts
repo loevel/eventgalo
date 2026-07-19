@@ -31,11 +31,15 @@ company.put("/", async (c) => {
   const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
   const name = String(b.name ?? "").trim().slice(0, 120);
   if (!name) return c.json({ error: "Nom de l'entreprise requis" }, 400);
-  const existing = await c.env.DB.prepare("SELECT id, verified_domain FROM companies WHERE owner_user_id = ?")
+  const kind = b.kind === "professional" ? "professional" : "company";
+  const existing = await c.env.DB.prepare("SELECT id, kind, verified_domain FROM companies WHERE owner_user_id = ?")
     .bind(user.id)
-    .first<{ id: string; verified_domain: string | null }>();
+    .first<{ id: string; kind: string; verified_domain: string | null }>();
   const values = [
     name,
+    kind,
+    clampText(b.title, 120),
+    clampText(b.affiliation, 120),
     clampText(b.sector, 80),
     clampText(b.city, 80),
     clampText(b.description, 1200),
@@ -47,12 +51,17 @@ company.put("/", async (c) => {
     nowIso(),
   ];
   if (existing) {
-    // Le badge « domaine vérifié » est lié au domaine du site : s'il change, la vérification tombe.
+    // Pour une entreprise, le badge « domaine vérifié » est lié au domaine du site : s'il
+    // change, la vérification tombe. Un pro vérifié par email d'affiliation n'est pas concerné.
+    // Changer de type remet aussi la vérification à zéro (sa signification change).
     const keepDomainVerif =
-      !existing.verified_domain || domainOfUrl(clampText(b.website, 300)) === existing.verified_domain;
+      kind === existing.kind &&
+      (kind === "professional" ||
+        !existing.verified_domain ||
+        domainOfUrl(clampText(b.website, 300)) === existing.verified_domain);
     await c.env.DB.prepare(
-      `UPDATE companies SET name = ?, sector = ?, city = ?, description = ?, website = ?,
-         phone = ?, public_email = ?, socials = ?, listed = ?, updated_at = ?,
+      `UPDATE companies SET name = ?, kind = ?, title = ?, affiliation = ?, sector = ?, city = ?,
+         description = ?, website = ?, phone = ?, public_email = ?, socials = ?, listed = ?, updated_at = ?,
          verified_at = CASE WHEN ? THEN verified_at END,
          verified_domain = CASE WHEN ? THEN verified_domain END
        WHERE id = ?`,
@@ -63,9 +72,9 @@ company.put("/", async (c) => {
   }
   const id = uuid();
   await c.env.DB.prepare(
-    `INSERT INTO companies (id, owner_user_id, name, sector, city, description, website,
-       phone, public_email, socials, listed, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO companies (id, owner_user_id, name, kind, title, affiliation, sector, city,
+       description, website, phone, public_email, socials, listed, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(id, user.id, ...values)
     .run();
@@ -260,36 +269,62 @@ company.post("/apply", async (c) => {
 /* ------------------------- Vérification d'entreprise ------------------------ */
 
 /**
- * Étape 1 (email de domaine) : envoi d'un lien de vérification à une adresse
- * au domaine du site web du profil. Cliquer le lien prouve le contrôle du domaine.
+ * Étape 1 (email de domaine).
+ * - Entreprise : l'adresse doit être au domaine du site web du profil — cliquer le
+ *   lien prouve le contrôle du domaine. Un seul profil entreprise vérifié par domaine.
+ * - Professionnel indépendant : l'adresse professionnelle (ex. email de bannière)
+ *   prouve l'affiliation à ce domaine, sans exiger de site web.
  */
 company.post("/verify/request", async (c) => {
   const user = c.get("user");
-  const co = await c.env.DB.prepare("SELECT id, name, website FROM companies WHERE owner_user_id = ?")
+  const co = await c.env.DB.prepare("SELECT id, name, kind, website FROM companies WHERE owner_user_id = ?")
     .bind(user.id)
-    .first<{ id: string; name: string; website: string | null }>();
+    .first<{ id: string; name: string; kind: string; website: string | null }>();
   if (!co) return c.json({ error: "Créez d'abord votre profil entreprise" }, 409);
 
   const b = await c.req.json<{ email?: string }>().catch(() => ({}) as Record<string, never>);
   const email = String(b.email ?? "").trim().toLowerCase().slice(0, 120);
   const emailDomain = domainOfEmail(email);
   if (!emailDomain) return c.json({ error: "Adresse email invalide" }, 400);
-  const siteDomain = domainOfUrl(co.website);
-  if (!siteDomain) {
-    return c.json({ error: "Renseignez d'abord le site web de votre entreprise dans votre profil" }, 400);
-  }
   if (isFreeMailDomain(emailDomain)) {
-    return c.json({ error: "Utilisez une adresse au domaine de votre entreprise, pas un fournisseur grand public" }, 400);
+    return c.json({ error: "Utilisez une adresse professionnelle, pas un fournisseur grand public" }, 400);
   }
-  if (emailDomain !== siteDomain) {
-    return c.json({ error: `L'adresse doit être au domaine de votre site web (…@${siteDomain})` }, 400);
+
+  let domain: string;
+  if (co.kind === "professional") {
+    domain = emailDomain;
+  } else {
+    const siteDomain = domainOfUrl(co.website);
+    if (!siteDomain) {
+      return c.json({ error: "Renseignez d'abord le site web de votre entreprise dans votre profil" }, 400);
+    }
+    if (emailDomain !== siteDomain) {
+      return c.json({ error: `L'adresse doit être au domaine de votre site web (…@${siteDomain})` }, 400);
+    }
+    const taken = await c.env.DB.prepare(
+      `SELECT id FROM companies WHERE kind = 'company' AND verified_domain = ?
+       AND verified_at IS NOT NULL AND id != ?`,
+    )
+      .bind(siteDomain, co.id)
+      .first();
+    if (taken) {
+      return c.json(
+        {
+          error: `Une entreprise vérifiée existe déjà pour le domaine ${siteDomain}. Si vous êtes un
+            professionnel affilié (courtier, conseiller…), passez votre profil en « Professionnel
+            indépendant » : votre vérification portera sur votre affiliation.`.replace(/\s+/g, " "),
+        },
+        409,
+      );
+    }
+    domain = siteDomain;
   }
   if (await isRateLimited(c.env, "coverify", user.id, 3, 900)) return tooManyRequests(c);
 
   const token = randomToken(24);
   await c.env.KV.put(
     `coverify:${token}`,
-    JSON.stringify({ company_id: co.id, domain: siteDomain }),
+    JSON.stringify({ company_id: co.id, domain }),
     { expirationTtl: 24 * 3600 },
   );
   const url = `${c.env.WEB_BASE_URL}/entreprise/verification/${token}`;
@@ -299,8 +334,10 @@ company.post("/verify/request", async (c) => {
     "Vérifiez votre entreprise sur EventGalo",
     layout(
       `Vérification de ${co.name}`,
-      `<p>Quelqu'un (sans doute vous) demande à faire vérifier l'entreprise <strong>${co.name}</strong>
-         sur EventGalo en prouvant le contrôle du domaine <strong>${siteDomain}</strong>.</p>
+      `<p>Quelqu'un (sans doute vous) demande à faire vérifier le profil <strong>${co.name}</strong>
+         sur EventGalo en prouvant ${co.kind === "professional"
+           ? `son affiliation au domaine <strong>${domain}</strong>`
+           : `le contrôle du domaine <strong>${domain}</strong>`}.</p>
        <p><a href="${url}">Confirmer la vérification</a></p>
        <p style="color:#777;font-size:13px">Ce lien expire dans 24&nbsp;heures. Si vous n'êtes pas à
          l'origine de cette demande, ignorez simplement ce message.</p>`,
@@ -309,7 +346,7 @@ company.post("/verify/request", async (c) => {
   );
   return c.json({
     ok: true,
-    domain: siteDomain,
+    domain,
     message: result.sent
       ? `Email envoyé à ${email} — cliquez le lien qu'il contient pour terminer la vérification.`
       : "Email non configuré : utilisez le lien ci-dessous (mode dev).",
@@ -425,7 +462,8 @@ directory.get("/", async (c) => {
     binds.push(`%${city}%`);
   }
   const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.name, c.sector, c.city, c.description, c.website, c.socials, c.public_email,
+    `SELECT c.id, c.name, c.kind, c.title, c.affiliation, c.sector, c.city, c.description, c.website,
+            c.socials, c.public_email,
             (c.logo_key IS NOT NULL) AS has_logo,
             (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
             (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships

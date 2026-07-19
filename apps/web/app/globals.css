@@ -963,3 +963,17 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
   .feature:hover::after { animation: none; opacity: 0; }
   .reveal:not(.reveal-visible) .section-kicker { letter-spacing: 0.12em; }
 }
+
+/* ------------------- Profils professionnels (annuaire & espace) ------------------- */
+
+.kind-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
+@media (max-width: 640px) { .kind-picker { grid-template-columns: 1fr; } }
+.kind-option {
+  display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px;
+  font-weight: 400; margin: 0; transition: border-color 0.2s ease, background 0.2s ease;
+}
+.kind-option input { margin-top: 3px; accent-color: var(--accent); }
+.kind-option.kind-selected { border-color: var(--accent); background: rgba(180,84,10,0.05); }
+
+.directory-card-head img.pro-photo { border-radius: 50%; object-fit: cover; padding: 0; }

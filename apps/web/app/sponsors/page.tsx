@@ -15,6 +15,9 @@ export const metadata: Metadata = {
 interface DirectoryCompany {
   id: string;
   name: string;
+  kind: "company" | "professional";
+  title: string | null;
+  affiliation: string | null;
   sector: string | null;
   city: string | null;
   description: string | null;
@@ -86,11 +89,17 @@ export default async function SponsorDirectoryPage({
         <div className="directory-grid">
           {companies.map((co) => {
             const socials = Object.entries(parseSocials(co.socials)) as Array<[SocialKey, string]>;
+            const pro = co.kind === "professional";
             return (
               <div key={co.id} className="card directory-card">
                 <div className="directory-card-head">
                   {co.has_logo ? (
-                    <img src={`${API_BASE}/api/public/companies/${co.id}/logo`} alt={co.name} loading="lazy" />
+                    <img
+                      src={`${API_BASE}/api/public/companies/${co.id}/logo`}
+                      alt={co.name}
+                      loading="lazy"
+                      className={pro ? "pro-photo" : undefined}
+                    />
                   ) : (
                     <span className="sponsor-name-fallback">{co.name.charAt(0).toUpperCase()}</span>
                   )}
@@ -98,13 +107,19 @@ export default async function SponsorDirectoryPage({
                     <h3>
                       {co.name}
                       {Boolean(co.verified) && (
-                        <span className="badge ok" style={{ marginLeft: 8, fontSize: 11, verticalAlign: "middle" }} title="Entreprise vérifiée (domaine ou registre des entreprises)">
-                          <BadgeCheck size={11} /> Vérifiée
+                        <span
+                          className="badge ok"
+                          style={{ marginLeft: 8, fontSize: 11, verticalAlign: "middle" }}
+                          title={pro ? "Professionnel vérifié (affiliation ou registre)" : "Entreprise vérifiée (domaine ou registre des entreprises)"}
+                        >
+                          <BadgeCheck size={11} /> {pro ? "Pro vérifié" : "Vérifiée"}
                         </span>
                       )}
                     </h3>
                     <p className="muted directory-meta">
-                      {co.sector && <span>{co.sector}</span>}
+                      {pro && co.title && <span>{co.title}</span>}
+                      {pro && co.affiliation && <span>{co.affiliation}</span>}
+                      {!pro && co.sector && <span>{co.sector}</span>}
                       {co.city && (
                         <span>
                           <MapPin size={12} /> {co.city}

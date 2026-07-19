@@ -25,6 +25,9 @@ interface SponsorRequest {
 interface Company {
   id: string;
   name: string;
+  kind: "company" | "professional";
+  title: string | null;
+  affiliation: string | null;
   sector: string | null;
   city: string | null;
   description: string | null;
@@ -54,7 +57,8 @@ export default function CompanyPage() {
   const [hasLogo, setHasLogo] = useState(false);
   const [logoBust, setLogoBust] = useState(0);
   const [form, setForm] = useState({
-    name: "", sector: "", city: "", description: "", website: "", phone: "", public_email: "",
+    name: "", kind: "company" as "company" | "professional", title: "", affiliation: "",
+    sector: "", city: "", description: "", website: "", phone: "", public_email: "",
     listed: false, socials: {} as Partial<Record<SocialKey, string>>,
   });
   const [verif, setVerif] = useState<VerificationState | null>(null);
@@ -84,6 +88,9 @@ export default function CompanyPage() {
           });
           setForm({
             name: r.company.name,
+            kind: r.company.kind === "professional" ? "professional" : "company",
+            title: r.company.title ?? "",
+            affiliation: r.company.affiliation ?? "",
             sector: r.company.sector ?? "",
             city: r.company.city ?? "",
             description: r.company.description ?? "",
@@ -117,6 +124,9 @@ export default function CompanyPage() {
         method: "PUT",
         body: {
           name: form.name,
+          kind: form.kind,
+          title: form.kind === "professional" ? form.title || null : null,
+          affiliation: form.kind === "professional" ? form.affiliation || null : null,
           sector: form.sector || null,
           city: form.city || null,
           description: form.description || null,
@@ -279,8 +289,57 @@ export default function CompanyPage() {
       )}
 
       <form className="card" onSubmit={save}>
-        <label>Nom de l&apos;entreprise *</label>
-        <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <label>Type de profil</label>
+        <div className="kind-picker">
+          {(
+            [
+              ["company", "Entreprise", "Commerce, PME, organisation — le profil porte le nom de l'entreprise."],
+              ["professional", "Professionnel indépendant", "Courtier, conseiller, artisan… — le profil porte votre nom, avec votre métier et votre bannière."],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label key={value} className={`kind-option${form.kind === value ? " kind-selected" : ""}`}>
+              <input
+                type="radio"
+                name="kind"
+                value={value}
+                checked={form.kind === value}
+                onChange={() => setForm({ ...form, kind: value })}
+              />
+              <span>
+                <strong>{label}</strong>
+                <span className="muted" style={{ display: "block", fontSize: 12 }}>{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <label>{form.kind === "professional" ? "Votre nom *" : "Nom de l'entreprise *"}</label>
+        <input
+          required
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder={form.kind === "professional" ? "Jean Dupont" : undefined}
+        />
+        {form.kind === "professional" && (
+          <div className="grid2">
+            <div>
+              <label>Votre métier</label>
+              <input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Courtier immobilier résidentiel"
+              />
+            </div>
+            <div>
+              <label>Bannière / réseau (optionnel)</label>
+              <input
+                value={form.affiliation}
+                onChange={(e) => setForm({ ...form, affiliation: e.target.value })}
+                placeholder="RE/MAX Québec"
+              />
+            </div>
+          </div>
+        )}
         <div className="grid2">
           <div>
             <label>Secteur d&apos;activité</label>
@@ -296,13 +355,17 @@ export default function CompanyPage() {
             <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Montréal" />
           </div>
         </div>
-        <label>Présentation</label>
+        <label>{form.kind === "professional" ? "Présentez-vous" : "Présentation"}</label>
         <textarea
           rows={4}
           maxLength={1200}
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Qui vous êtes, ce que vous faites, les causes que vous aimez soutenir…"
+          placeholder={
+            form.kind === "professional"
+              ? "Votre parcours, votre approche, les causes qui vous tiennent à cœur…"
+              : "Qui vous êtes, ce que vous faites, les causes que vous aimez soutenir…"
+          }
         />
         <div className="grid2">
           <div>
@@ -352,6 +415,7 @@ export default function CompanyPage() {
 
       {companyId && verif && (
         <CompanyVerification
+          kind={form.kind}
           companyName={form.name}
           website={form.website || null}
           verifiedAt={verif.verified_at}
@@ -366,13 +430,17 @@ export default function CompanyPage() {
 
       {companyId && (
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Logo</h3>
+          <h3 style={{ marginTop: 0 }}>{form.kind === "professional" ? "Votre photo" : "Logo"}</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             {hasLogo ? (
               <img
                 src={`${API_BASE}/api/public/companies/${companyId}/logo?v=${logoBust}`}
-                alt="Logo"
-                style={{ width: 84, height: 84, objectFit: "contain", borderRadius: 12, border: "1px solid var(--line)", background: "#fff", padding: 6 }}
+                alt={form.kind === "professional" ? "Photo" : "Logo"}
+                style={
+                  form.kind === "professional"
+                    ? { width: 84, height: 84, objectFit: "cover", borderRadius: "50%", border: "1px solid var(--line)" }
+                    : { width: 84, height: 84, objectFit: "contain", borderRadius: 12, border: "1px solid var(--line)", background: "#fff", padding: 6 }
+                }
               />
             ) : (
               <div className="sponsor-name-fallback">{form.name.charAt(0).toUpperCase() || "?"}</div>
@@ -385,9 +453,18 @@ export default function CompanyPage() {
                 onClick={() => fileInput.current?.click()}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
               >
-                <Upload size={14} /> {uploading ? "Envoi…" : hasLogo ? "Changer le logo" : "Ajouter un logo"}
+                <Upload size={14} />{" "}
+                {uploading
+                  ? "Envoi…"
+                  : hasLogo
+                    ? form.kind === "professional" ? "Changer la photo" : "Changer le logo"
+                    : form.kind === "professional" ? "Ajouter votre photo" : "Ajouter un logo"}
               </button>
-              <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>PNG carré sur fond clair recommandé.</p>
+              <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+                {form.kind === "professional"
+                  ? "Un portrait professionnel, cadré sur le visage — il apparaîtra en rond dans l'annuaire."
+                  : "PNG carré sur fond clair recommandé."}
+              </p>
             </div>
             <input
               ref={fileInput}

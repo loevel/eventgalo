@@ -15,6 +15,7 @@ interface RegistryRecord {
 }
 
 interface Props {
+  kind: "company" | "professional";
   companyName: string;
   website: string | null;
   verifiedAt: string | null;
@@ -34,9 +35,10 @@ const JURISDICTION_LABELS: Record<string, string> = {
 };
 
 export function CompanyVerification({
-  companyName, website, verifiedAt, verifiedDomain, registryVerifiedAt,
+  kind, companyName, website, verifiedAt, verifiedDomain, registryVerifiedAt,
   registryName, registryId, registryJurisdiction, onChanged,
 }: Props) {
+  const pro = kind === "professional";
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
@@ -105,12 +107,13 @@ export function CompanyVerification({
   return (
     <div className="card">
       <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
-        <BadgeCheck size={17} /> Vérification de l&apos;entreprise
-        {isVerified && <span className="badge ok">Vérifiée</span>}
+        <BadgeCheck size={17} /> {pro ? "Vérification de votre profil" : "Vérification de l'entreprise"}
+        {isVerified && <span className="badge ok">{pro ? "Pro vérifié" : "Vérifiée"}</span>}
       </h3>
       <p className="muted">
-        Le badge « Vérifiée » rassure les organisateurs : il apparaît dans l&apos;annuaire et sur vos
-        demandes de sponsoring. Deux moyens, au choix (les deux, c&apos;est encore mieux).
+        Le badge «&nbsp;{pro ? "Pro vérifié" : "Vérifiée"}&nbsp;» rassure les organisateurs : il apparaît
+        dans l&apos;annuaire et sur vos demandes de sponsoring. Deux moyens, au choix (les deux,
+        c&apos;est encore mieux).
       </p>
 
       {flash && <div className="alert ok">{flash}</div>}
@@ -124,18 +127,27 @@ export function CompanyVerification({
       {/* --- 1. Email au domaine du site web --- */}
       <h4 style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
         <MailCheck size={15} /> Par email professionnel
-        {verifiedAt && <span className="badge ok" style={{ fontSize: 11 }}>Domaine {verifiedDomain} vérifié</span>}
+        {verifiedAt && (
+          <span className="badge ok" style={{ fontSize: 11 }}>
+            {pro ? `Affiliation @${verifiedDomain} vérifiée` : `Domaine ${verifiedDomain} vérifié`}
+          </span>
+        )}
       </h4>
       {verifiedAt ? (
         <p className="muted" style={{ fontSize: 13 }}>
-          Vous avez prouvé le contrôle du domaine <strong>{verifiedDomain}</strong>. Si vous changez le
-          site web de votre profil, il faudra refaire la vérification.
+          {pro ? (
+            <>Vous avez prouvé votre affiliation au domaine <strong>{verifiedDomain}</strong>.</>
+          ) : (
+            <>Vous avez prouvé le contrôle du domaine <strong>{verifiedDomain}</strong>. Si vous changez
+            le site web de votre profil, il faudra refaire la vérification.</>
+          )}
         </p>
-      ) : website ? (
+      ) : pro || website ? (
         <form onSubmit={requestDomainVerification}>
           <p className="muted" style={{ fontSize: 13 }}>
-            Recevez un lien à une adresse au domaine de votre site web ({website}) : cliquer le lien
-            prouve que l&apos;entreprise vous appartient.
+            {pro
+              ? "Recevez un lien à votre adresse professionnelle (ex. votre email de bannière ou d'agence) : cliquer le lien prouve votre affiliation à ce domaine."
+              : `Recevez un lien à une adresse au domaine de votre site web (${website}) : cliquer le lien prouve que l'entreprise vous appartient.`}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
@@ -143,7 +155,7 @@ export function CompanyVerification({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="vous@votre-entreprise.com"
+              placeholder={pro ? "prenom.nom@votre-banniere.ca" : "vous@votre-entreprise.com"}
               style={{ flex: 1, minWidth: 220 }}
             />
             <button type="submit" className="btn-ghost btn-sm" disabled={busy} style={{ marginTop: 0 }}>
@@ -171,8 +183,9 @@ export function CompanyVerification({
       ) : (
         <>
           <p className="muted" style={{ fontSize: 13 }}>
-            Retrouvez votre inscription aux Registres d&apos;entreprises du Canada (NEQ, n° de société
-            fédérale ou provinciale) : on vérifie qu&apos;elle est active et que le nom correspond.
+            {pro
+              ? "Si vous êtes immatriculé comme travailleur autonome (NEQ d'entreprise individuelle), retrouvez votre inscription : on vérifie qu'elle est active et que le nom correspond."
+              : "Retrouvez votre inscription aux Registres d'entreprises du Canada (NEQ, n° de société fédérale ou provinciale) : on vérifie qu'elle est active et que le nom correspond."}
           </p>
           <form onSubmit={searchRegistry} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
