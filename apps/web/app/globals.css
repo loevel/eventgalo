@@ -119,6 +119,7 @@ tr:last-child td { border-bottom: none; }
 .alert.ok { background: #e2f3ea; color: var(--ok); }
 .alert.err { background: #fbe9e7; color: var(--err); }
 .alert.info { background: #eef2f7; color: #2c4a6e; }
+.alert.warn { background: #fdf0e3; color: #8a4a10; }
 
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: 20px 0 4px; }
 .tabs button {
@@ -706,6 +707,16 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 }
 .directory-cta svg:first-child { flex: none; }
 .directory-cta > div { flex: 1; min-width: 240px; }
+
+/* Étoiles (évaluations mutuelles) */
+.stars { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); }
+.stars .stars-value { margin-left: 5px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.stars-input { display: inline-flex; gap: 2px; }
+.stars-input button {
+  margin: 0; padding: 3px; background: none; border: none; box-shadow: none;
+  color: var(--accent); cursor: pointer; line-height: 0;
+}
+.stars-input button:hover { transform: scale(1.12); box-shadow: none; }
 
 /* Hero de l'espace sponsor */
 .sponsor-hero {

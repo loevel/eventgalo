@@ -19,6 +19,19 @@ export function clampText(v: unknown, max: number): string | null {
   return typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
 }
 
+/** N'accepte que YouTube et Vimeo (embarqués côté web, jamais hébergés chez nous). */
+export function sanitizeVideoUrl(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const url = raw.trim().slice(0, 300);
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const allowed = ["youtube.com", "youtu.be", "youtube-nocookie.com", "vimeo.com", "player.vimeo.com"];
+    return allowed.some((d) => host === d || host.endsWith(`.${d}`)) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Secteurs d'activité proposés dans l'annuaire (libres côté DB, guidés côté UI). */
 export const COMPANY_SECTORS = [
   "Restauration & traiteur",

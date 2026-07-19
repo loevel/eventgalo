@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, DownloadCloud, Inbox, Store, Upload } from "lucide-react";
-import { API_BASE, api, formatDate, getToken } from "@/lib/api";
-import { COMPANY_SECTORS, SOCIAL_KEYS, SOCIAL_LABELS, parseSocials, type SocialKey } from "@/lib/sponsor";
+import { Building2, DownloadCloud, Inbox, Receipt, Store, Upload } from "lucide-react";
+import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
+import { COMPANY_SECTORS, SOCIAL_KEYS, SOCIAL_LABELS, parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
 import { CompanyVerification } from "@/components/company-verification";
+import { Stars } from "@/components/star-rating";
 
 interface SponsorRequest {
   id: string;
@@ -16,10 +17,23 @@ interface SponsorRequest {
   invite_message: string | null;
   source: string;
   created_at: string;
+  confirmed_at: string | null;
+  proposed_cents: number | null;
+  proposal_status: "pending" | "accepted" | "rejected" | null;
   tier_name: string | null;
+  currency: string | null;
   event_title: string;
   starts_at: string | null;
+  ends_at: string | null;
   venue: string | null;
+  public_slug: string;
+  my_rating: number | null;
+}
+
+/** L'événement est-il passé ? (fin si connue, sinon début) */
+function isPast(r: SponsorRequest): boolean {
+  const ref = r.ends_at ?? r.starts_at;
+  return Boolean(ref) && new Date(String(ref)).getTime() < Date.now();
 }
 
 interface Company {
@@ -35,6 +49,7 @@ interface Company {
   phone: string | null;
   public_email: string | null;
   socials: string | null;
+  video_url: string | null;
   logo_key: string | null;
   listed: number;
   verified_at: string | null;
@@ -58,7 +73,7 @@ export default function CompanyPage() {
   const [logoBust, setLogoBust] = useState(0);
   const [form, setForm] = useState({
     name: "", kind: "company" as "company" | "professional", title: "", affiliation: "",
-    sector: "", city: "", description: "", website: "", phone: "", public_email: "",
+    sector: "", city: "", description: "", website: "", phone: "", public_email: "", video_url: "",
     listed: false, socials: {} as Partial<Record<SocialKey, string>>,
   });
   const [verif, setVerif] = useState<VerificationState | null>(null);
@@ -97,6 +112,7 @@ export default function CompanyPage() {
             website: r.company.website ?? "",
             phone: r.company.phone ?? "",
             public_email: r.company.public_email ?? "",
+            video_url: r.company.video_url ?? "",
             listed: Boolean(r.company.listed),
             socials: parseSocials(r.company.socials),
           });
@@ -133,6 +149,7 @@ export default function CompanyPage() {
           website: form.website || null,
           phone: form.phone || null,
           public_email: form.public_email || null,
+          video_url: form.video_url || null,
           socials: form.socials,
           listed: form.listed,
         },
@@ -220,58 +237,124 @@ export default function CompanyPage() {
       {flash && <div className="alert ok">{flash}</div>}
       {error && <div className="alert err">{error}</div>}
 
-      {requests.length > 0 && (
-        <div className="card">
-          <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            <Inbox size={17} /> Demandes et sponsorings
-            {requests.some((r) => r.status === "invited") && (
-              <span className="badge warn">
-                {requests.filter((r) => r.status === "invited").length} à traiter
-              </span>
-            )}
-          </h3>
-          {requests.map((r) => (
-            <div
-              key={r.id}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid var(--line)" }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <strong>{r.event_title}</strong>
-                <span className="muted" style={{ display: "block", fontSize: 13 }}>
-                  {r.starts_at ? formatDate(r.starts_at) : ""}
-                  {r.venue ? ` · ${r.venue}` : ""}
-                  {r.tier_name ? ` · ${r.tier_name}` : ""}
-                </span>
-                {r.invite_message && r.status === "invited" && (
-                  <span className="muted" style={{ display: "block", fontSize: 13, fontStyle: "italic" }}>
-                    « {r.invite_message} »
+      {requests.length > 0 && (() => {
+        const confirmed = requests.filter((r) => r.status === "confirmed");
+        const paid = requests.filter((r) => r.paid_at);
+        const totalConfirmed = confirmed.reduce((sum, r) => sum + (r.amount_cents ?? 0), 0);
+        const toRate = confirmed.filter((r) => isPast(r) && r.my_rating == null).length;
+        return (
+          <>
+            <div className="card">
+              <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Inbox size={17} /> Mes sponsorings
+                {requests.some((r) => r.status === "invited") && (
+                  <span className="badge warn">
+                    {requests.filter((r) => r.status === "invited").length} à traiter
                   </span>
                 )}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  className={`badge ${
-                    r.status === "confirmed" ? "ok" : r.status === "pending" ? "warn" : r.status === "declined" ? "err" : "mut"
-                  }`}
-                >
-                  {r.status === "confirmed"
-                    ? "Confirmé"
-                    : r.status === "pending"
-                      ? "Engagé"
-                      : r.status === "declined"
-                        ? "Décliné"
-                        : "Nouvelle demande"}
-                </span>
-                {r.status !== "declined" && (
-                  <a className="btn btn-ghost btn-sm" href={`/sp/${r.token}`} style={{ marginTop: 0 }}>
-                    {r.status === "invited" ? "Voir la proposition" : "Ouvrir"}
-                  </a>
+                {toRate > 0 && (
+                  <span className="badge mut">{toRate} évaluation{toRate > 1 ? "s" : ""} à laisser</span>
                 )}
-              </div>
+              </h3>
+              {confirmed.length > 0 && (
+                <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+                  {confirmed.length} sponsoring{confirmed.length > 1 ? "s" : ""} confirmé{confirmed.length > 1 ? "s" : ""} ·{" "}
+                  {formatPrice(totalConfirmed, confirmed[0]?.currency ?? "CAD")} au total
+                  {paid.length > 0 ? ` · ${paid.length} payé${paid.length > 1 ? "s" : ""} en ligne` : ""}
+                </p>
+              )}
+              {requests.map((r) => (
+                <div
+                  key={r.id}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: "1px solid var(--line)" }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <strong>{r.event_title}</strong>
+                    {isPast(r) && <span className="badge mut" style={{ marginLeft: 8, fontSize: 11 }}>Terminé</span>}
+                    <span className="muted" style={{ display: "block", fontSize: 13 }}>
+                      {r.starts_at ? formatDate(r.starts_at) : ""}
+                      {r.venue ? ` · ${r.venue}` : ""}
+                      {r.tier_name ? ` · ${r.tier_name}` : ""}
+                      {r.amount_cents != null ? ` · ${formatPrice(r.amount_cents, r.currency ?? "CAD")}` : ""}
+                    </span>
+                    {r.invite_message && r.status === "invited" && (
+                      <span className="muted" style={{ display: "block", fontSize: 13, fontStyle: "italic" }}>
+                        « {r.invite_message} »
+                      </span>
+                    )}
+                    {r.proposal_status === "pending" && r.proposed_cents != null && (
+                      <span className="muted" style={{ display: "block", fontSize: 13 }}>
+                        Contre-proposition de {formatPrice(r.proposed_cents, r.currency ?? "CAD")} en attente de réponse
+                      </span>
+                    )}
+                    {r.my_rating != null && (
+                      <span style={{ display: "block", marginTop: 2 }}>
+                        <Stars value={r.my_rating} size={11} />
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {r.paid_at && <span className="badge ok">Payé</span>}
+                    <span
+                      className={`badge ${
+                        r.status === "confirmed" ? "ok" : r.status === "pending" ? "warn" : r.status === "declined" ? "err" : "mut"
+                      }`}
+                    >
+                      {r.status === "confirmed"
+                        ? "Confirmé"
+                        : r.status === "pending"
+                          ? "Engagé"
+                          : r.status === "declined"
+                            ? "Décliné"
+                            : "Nouvelle demande"}
+                    </span>
+                    {r.status !== "declined" && (
+                      <a className="btn btn-ghost btn-sm" href={`/sp/${r.token}`} style={{ marginTop: 0 }}>
+                        {r.status === "invited"
+                          ? "Voir la proposition"
+                          : r.status === "confirmed" && isPast(r) && r.my_rating == null
+                            ? "Évaluer"
+                            : "Ouvrir"}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+
+            {paid.length > 0 && (
+              <div className="card">
+                <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Receipt size={17} /> Paiements
+                </h3>
+                <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+                  Vos sponsorings réglés en ligne via EventGalo — pour votre comptabilité.
+                </p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Événement</th>
+                      <th>Palier</th>
+                      <th>Montant</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paid.map((r) => (
+                      <tr key={r.id}>
+                        <td>{formatDate(r.paid_at)}</td>
+                        <td><a href={`/sp/${r.token}`}>{r.event_title}</a></td>
+                        <td>{r.tier_name ?? "—"}</td>
+                        <td>{r.amount_cents != null ? formatPrice(r.amount_cents, r.currency ?? "CAD") : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {companyId && (
         <div className="card">
@@ -394,6 +477,23 @@ export default function CompanyPage() {
             </div>
           ))}
         </div>
+
+        <label style={{ marginTop: 16 }}>Vidéo de présentation (lien YouTube ou Vimeo, optionnel)</label>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Présentation, contacts, réseaux et vidéo préremplissent automatiquement votre vitrine à chaque
+          nouveau sponsoring — plus rien à ressaisir.
+        </p>
+        <input
+          type="url"
+          value={form.video_url}
+          onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+          placeholder="https://www.youtube.com/watch?v=…"
+        />
+        {form.video_url && !videoEmbedUrl(form.video_url) && (
+          <p className="muted" style={{ color: "var(--err)", fontSize: 13 }}>
+            Lien non reconnu — collez une URL YouTube ou Vimeo.
+          </p>
+        )}
 
         <div className="check" style={{ marginTop: 18 }}>
           <input

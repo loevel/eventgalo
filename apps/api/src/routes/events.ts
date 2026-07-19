@@ -133,7 +133,10 @@ events.get("/:id", async (c) => {
     c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE event_id = ? ORDER BY rank, price_cents DESC").bind(event.id).all(),
     c.env.DB.prepare(
       `SELECT s.*, t.name AS tier_name,
-              (co.verified_at IS NOT NULL OR co.registry_verified_at IS NOT NULL) AS company_verified
+              (co.verified_at IS NOT NULL OR co.registry_verified_at IS NOT NULL) AS company_verified,
+              (SELECT rating FROM sponsor_reviews r WHERE r.sponsor_id = s.id AND r.rated_by = 'organizer') AS my_rating,
+              (SELECT comment FROM sponsor_reviews r WHERE r.sponsor_id = s.id AND r.rated_by = 'organizer') AS my_comment,
+              (SELECT rating FROM sponsor_reviews r WHERE r.sponsor_id = s.id AND r.rated_by = 'company') AS company_rating
        FROM sponsors s
        LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
        LEFT JOIN companies co ON co.id = s.company_id
@@ -1095,6 +1098,95 @@ events.patch("/:id/sponsors/:sid", async (c) => {
     );
   }
   return c.json({ ok: true });
+});
+
+/** Décision sur une contre-proposition de montant : accepter ou refuser. */
+events.post("/:id/sponsors/:sid/proposal", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("sid"), event.id)
+    .first<{
+      id: string; token: string; contact_email: string; company_name: string | null;
+      amount_cents: number | null; proposed_cents: number | null; proposal_status: string | null;
+    }>();
+  if (!sponsor) return c.json({ error: "Sponsor introuvable" }, 404);
+  if (sponsor.proposal_status !== "pending" || sponsor.proposed_cents == null) {
+    return c.json({ error: "Aucune contre-proposition en attente" }, 409);
+  }
+  const b = await c.req.json<{ action?: string }>().catch(() => ({}) as Record<string, never>);
+  if (b.action !== "accept" && b.action !== "reject") return c.json({ error: "Action invalide" }, 400);
+
+  const accepted = b.action === "accept";
+  if (accepted) {
+    await c.env.DB.prepare(
+      "UPDATE sponsors SET amount_cents = proposed_cents, proposal_status = 'accepted' WHERE id = ?",
+    )
+      .bind(sponsor.id)
+      .run();
+  } else {
+    await c.env.DB.prepare("UPDATE sponsors SET proposal_status = 'rejected' WHERE id = ?")
+      .bind(sponsor.id)
+      .run();
+  }
+
+  const url = `${c.env.WEB_BASE_URL}/sp/${sponsor.token}`;
+  const proposed = (sponsor.proposed_cents / 100).toFixed(2);
+  const logoUrl = await eventLogoUrl(c.env, event.id);
+  c.executionCtx.waitUntil(
+    sendEmail(
+      c.env,
+      sponsor.contact_email,
+      accepted
+        ? `Montant accepté — ${event.title}`
+        : `Contre-proposition refusée — ${event.title}`,
+      layout(
+        accepted ? "Votre proposition est acceptée !" : "Contre-proposition refusée",
+        accepted
+          ? `<p>L'organisation de <strong>${event.title}</strong> accepte votre proposition de
+               <strong>${proposed}&nbsp;$</strong>. Vous pouvez maintenant régler votre sponsoring en ligne :</p>
+             <p><a href="${url}">Finaliser mon sponsoring</a></p>`
+          : `<p>L'organisation de <strong>${event.title}</strong> a refusé votre proposition de
+               ${proposed}&nbsp;$. Le montant du palier
+               ${sponsor.amount_cents != null ? `(<strong>${(sponsor.amount_cents / 100).toFixed(2)}&nbsp;$</strong>)` : ""}
+               reste en vigueur — vous pouvez le régler en ligne, proposer un autre montant ou décliner :</p>
+             <p><a href="${url}">Ouvrir mon espace sponsor</a></p>`,
+        { logoUrl, eventTitle: String(event.title) },
+      ),
+      url,
+    ).then(() => undefined),
+  );
+  return c.json({ ok: true, proposal_status: accepted ? "accepted" : "rejected" });
+});
+
+/** Évaluation de l'entreprise sponsor par l'organisateur, après l'événement. */
+events.post("/:id/sponsors/:sid/review", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const sponsor = await c.env.DB.prepare("SELECT id, status FROM sponsors WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("sid"), event.id)
+    .first<{ id: string; status: string }>();
+  if (!sponsor) return c.json({ error: "Sponsor introuvable" }, 404);
+  if (sponsor.status !== "confirmed") return c.json({ error: "Seul un sponsoring confirmé peut être évalué" }, 409);
+  const ref = (event.ends_at as string | null) ?? event.starts_at;
+  if (!ref || String(ref) >= nowIso()) {
+    return c.json({ error: "Vous pourrez évaluer ce sponsor après l'événement" }, 409);
+  }
+
+  const b = await c.req.json<{ rating?: number; comment?: string }>().catch(() => ({}) as Record<string, never>);
+  const rating = Math.round(Number(b.rating ?? 0));
+  if (rating < 1 || rating > 5) return c.json({ error: "Note entre 1 et 5 requise" }, 400);
+  const comment = typeof b.comment === "string" && b.comment.trim() ? b.comment.trim().slice(0, 800) : null;
+
+  await c.env.DB.prepare(
+    `INSERT INTO sponsor_reviews (id, sponsor_id, rated_by, rating, comment) VALUES (?, ?, 'organizer', ?, ?)
+     ON CONFLICT (sponsor_id, rated_by) DO UPDATE SET rating = excluded.rating, comment = excluded.comment`,
+  )
+    .bind(uuid(), sponsor.id, rating, comment)
+    .run();
+  return c.json({ ok: true, rating });
 });
 
 events.delete("/:id/sponsors/:sid", async (c) => {

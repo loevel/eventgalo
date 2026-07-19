@@ -3,6 +3,10 @@ import { BadgeCheck, Globe, MapPin, Search, Store } from "lucide-react";
 import { COMPANY_SECTORS, parseSocials, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { ProposeSponsorship } from "@/components/propose-sponsorship";
+import { Stars } from "@/components/star-rating";
+
+/** Note affichée seulement à partir de 3 avis : une note isolée est trop bruitée. */
+const MIN_REVIEWS_SHOWN = 3;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -26,13 +30,25 @@ interface DirectoryCompany {
   has_logo: number;
   verified: number;
   sponsorships: number;
+  avg_rating: number | null;
+  review_count: number;
 }
 
-async function getCompanies(q: string, sector: string, city: string): Promise<DirectoryCompany[]> {
+interface DirectoryFilters {
+  q: string;
+  sector: string;
+  city: string;
+  kind: string;
+  verified: string;
+}
+
+async function getCompanies(f: DirectoryFilters): Promise<DirectoryCompany[]> {
   const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (sector) params.set("sector", sector);
-  if (city) params.set("city", city);
+  if (f.q) params.set("q", f.q);
+  if (f.sector) params.set("sector", f.sector);
+  if (f.city) params.set("city", f.city);
+  if (f.kind) params.set("kind", f.kind);
+  if (f.verified) params.set("verified", "1");
   const res = await fetch(`${API_BASE}/api/public/companies?${params}`, { cache: "no-store" });
   if (!res.ok) return [];
   const data = (await res.json()) as { companies: DirectoryCompany[] };
@@ -42,10 +58,10 @@ async function getCompanies(q: string, sector: string, city: string): Promise<Di
 export default async function SponsorDirectoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sector?: string; city?: string }>;
+  searchParams: Promise<{ q?: string; sector?: string; city?: string; kind?: string; verified?: string }>;
 }) {
-  const { q = "", sector = "", city = "" } = await searchParams;
-  const companies = await getCompanies(q, sector, city);
+  const { q = "", sector = "", city = "", kind = "", verified = "" } = await searchParams;
+  const companies = await getCompanies({ q, sector, city, kind, verified });
 
   return (
     <main className="container">
@@ -69,13 +85,31 @@ export default async function SponsorDirectoryPage({
             <input id="city" name="city" defaultValue={city} placeholder="Montréal" />
           </div>
         </div>
-        <label htmlFor="sector">Secteur</label>
-        <select id="sector" name="sector" defaultValue={sector}>
-          <option value="">Tous les secteurs</option>
-          {COMPANY_SECTORS.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <div className="grid2">
+          <div>
+            <label htmlFor="sector">Secteur</label>
+            <select id="sector" name="sector" defaultValue={sector}>
+              <option value="">Tous les secteurs</option>
+              {COMPANY_SECTORS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="kind">Type de profil</label>
+            <select id="kind" name="kind" defaultValue={kind}>
+              <option value="">Tous</option>
+              <option value="company">Entreprises</option>
+              <option value="professional">Professionnels indépendants</option>
+            </select>
+          </div>
+        </div>
+        <div className="check">
+          <input id="verified" name="verified" type="checkbox" value="1" defaultChecked={verified === "1"} />
+          <label htmlFor="verified" style={{ margin: 0, fontWeight: 400 }}>
+            Profils vérifiés uniquement (domaine ou registre des entreprises)
+          </label>
+        </div>
         <button type="submit" className="btn-accent" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <Search size={15} /> Rechercher
         </button>
@@ -83,7 +117,7 @@ export default async function SponsorDirectoryPage({
 
       {companies.length === 0 ? (
         <p className="muted" style={{ textAlign: "center", marginTop: 32 }}>
-          Aucune entreprise trouvée{q || sector || city ? " pour ces critères" : " pour le moment"}.
+          Aucune entreprise trouvée{q || sector || city || kind || verified ? " pour ces critères" : " pour le moment"}.
         </p>
       ) : (
         <div className="directory-grid">
@@ -128,10 +162,17 @@ export default async function SponsorDirectoryPage({
                     </p>
                   </div>
                 </div>
-                {co.sponsorships > 0 && (
-                  <span className="badge ok directory-badge">
-                    <BadgeCheck size={12} /> {co.sponsorships} événement{co.sponsorships > 1 ? "s" : ""} sponsorisé{co.sponsorships > 1 ? "s" : ""}
-                  </span>
+                {(co.sponsorships > 0 || (co.avg_rating != null && co.review_count >= MIN_REVIEWS_SHOWN)) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    {co.sponsorships > 0 && (
+                      <span className="badge ok directory-badge">
+                        <BadgeCheck size={12} /> {co.sponsorships} événement{co.sponsorships > 1 ? "s" : ""} sponsorisé{co.sponsorships > 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {co.avg_rating != null && co.review_count >= MIN_REVIEWS_SHOWN && (
+                      <Stars value={co.avg_rating} count={co.review_count} />
+                    )}
+                  </div>
                 )}
                 {co.description && <p className="sponsor-desc clamp">{co.description}</p>}
                 <div className="sponsor-links">

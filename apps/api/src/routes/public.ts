@@ -6,7 +6,7 @@ import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
-import { sanitizeSocials } from "../lib/profile";
+import { sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { buildIcsEvent, icsResponse } from "../lib/ics";
 
 const pub = new Hono<AppContext>();
@@ -75,29 +75,22 @@ pub.get("/events/:slug", async (c) => {
 
 /* ------------------------- Espace sponsor (lien privé) --------------------- */
 
-/** N'accepte que YouTube et Vimeo (embarqués côté web, jamais hébergés chez nous). */
-function sanitizeVideoUrl(raw: unknown): string | null {
-  if (typeof raw !== "string" || !raw.trim()) return null;
-  const url = raw.trim().slice(0, 300);
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    const allowed = ["youtube.com", "youtu.be", "youtube-nocookie.com", "vimeo.com", "player.vimeo.com"];
-    return allowed.some((d) => host === d || host.endsWith(`.${d}`)) ? url : null;
-  } catch {
-    return null;
-  }
-}
-
 const MAX_SPONSOR_PHOTOS = 6;
+
+/** L'événement est-il passé ? (fin si connue, sinon début) */
+export function eventIsPast(ev: { starts_at?: unknown; ends_at?: unknown }): boolean {
+  const ref = (ev.ends_at as string | null) ?? (ev.starts_at as string | null);
+  return Boolean(ref) && String(ref) < nowIso();
+}
 
 pub.get("/sponsor/:token", async (c) => {
   const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE token = ?")
     .bind(c.req.param("token"))
     .first<{ id: string; event_id: string; tier_id: string | null; status: string }>();
   if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
-  const [event, tiers, taken, photos] = await Promise.all([
+  const [event, tiers, taken, photos, myReview] = await Promise.all([
     c.env.DB.prepare(
-      `SELECT id, title, description, starts_at, venue, address, public_slug, cover_media_id, logo_media_id
+      `SELECT id, title, description, starts_at, ends_at, venue, address, public_slug, cover_media_id, logo_media_id
        FROM events WHERE id = ? AND status != 'archived'`,
     ).bind(sponsor.event_id).first(),
     c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE event_id = ? ORDER BY rank, price_cents DESC")
@@ -107,6 +100,8 @@ pub.get("/sponsor/:token", async (c) => {
        WHERE event_id = ? AND status IN ('pending','confirmed') AND tier_id IS NOT NULL GROUP BY tier_id`,
     ).bind(sponsor.event_id).all<{ tier_id: string; n: number }>(),
     c.env.DB.prepare("SELECT id FROM media WHERE sponsor_id = ? ORDER BY created_at").bind(sponsor.id).all(),
+    c.env.DB.prepare("SELECT rating, comment FROM sponsor_reviews WHERE sponsor_id = ? AND rated_by = 'company'")
+      .bind(sponsor.id).first<{ rating: number; comment: string | null }>(),
   ]);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const { token: _token, ...safeSponsor } = sponsor as Record<string, unknown>;
@@ -116,6 +111,8 @@ pub.get("/sponsor/:token", async (c) => {
     tiers: tiers.results,
     taken: taken.results,
     photos: photos.results,
+    my_review: myReview ?? null,
+    event_past: eventIsPast(event as { starts_at?: unknown; ends_at?: unknown }),
     stripe_enabled: Boolean(c.env.STRIPE_SECRET_KEY),
   });
 });
@@ -227,6 +224,31 @@ pub.post("/sponsor/:token", async (c) => {
     )
     .run();
 
+  // Vitrine par défaut : si un profil entreprise correspond au contact (rattaché ou
+  // même email de compte), on le lie et on préremplit les champs vitrine manquants.
+  const co = await c.env.DB.prepare(
+    `SELECT co.id, co.description, co.city, co.phone, co.public_email, co.socials, co.video_url
+     FROM companies co JOIN users u ON u.id = co.owner_user_id
+     WHERE co.id = (SELECT company_id FROM sponsors WHERE id = ?) OR u.email = ?
+     LIMIT 1`,
+  )
+    .bind(sponsor.id, sponsor.contact_email)
+    .first<{
+      id: string; description: string | null; city: string | null; phone: string | null;
+      public_email: string | null; socials: string | null; video_url: string | null;
+    }>();
+  if (co) {
+    await c.env.DB.prepare(
+      `UPDATE sponsors SET company_id = ?,
+         description = COALESCE(description, ?), address = COALESCE(address, ?),
+         phone = COALESCE(phone, ?), public_email = COALESCE(public_email, ?),
+         socials = COALESCE(socials, ?), video_url = COALESCE(video_url, ?)
+       WHERE id = ?`,
+    )
+      .bind(co.id, co.description, co.city, co.phone, co.public_email, co.socials, co.video_url, sponsor.id)
+      .run();
+  }
+
   // Récapitulatif à l'organisateur : nouvel engagement à examiner.
   c.executionCtx.waitUntil(
     (async () => {
@@ -276,6 +298,9 @@ pub.post("/sponsor/:token/checkout", async (c) => {
   if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
   if (sponsor.status !== "pending") return c.json({ error: "Engagement requis avant le paiement" }, 409);
   if (sponsor.paid_at) return c.json({ error: "Sponsoring déjà payé" }, 409);
+  if ((sponsor as { proposal_status?: string | null }).proposal_status === "pending") {
+    return c.json({ error: "Votre contre-proposition est en cours d'examen — attendez la réponse de l'organisation" }, 409);
+  }
   if (!sponsor.amount_cents || sponsor.amount_cents <= 0) return c.json({ error: "Montant invalide" }, 400);
   if (!c.env.STRIPE_SECRET_KEY) return c.json({ error: "Paiement en ligne indisponible" }, 501);
 
@@ -305,6 +330,105 @@ pub.post("/sponsor/:token/checkout", async (c) => {
     .bind(session.id, sponsor.id)
     .run();
   return c.json({ checkout_url: session.url });
+});
+
+/**
+ * Contre-proposition : l'entreprise propose un montant différent du palier.
+ * L'organisateur accepte (le montant engagé est remplacé) ou refuse depuis son
+ * tableau de bord. Une seule contre-proposition à la fois.
+ */
+pub.post("/sponsor/:token/propose", async (c) => {
+  const sponsor = await c.env.DB.prepare(
+    `SELECT s.id, s.event_id, s.status, s.paid_at, s.amount_cents, s.company_name, s.proposal_status,
+            t.name AS tier_name, e.title AS event_title
+     FROM sponsors s LEFT JOIN sponsor_tiers t ON t.id = s.tier_id JOIN events e ON e.id = s.event_id
+     WHERE s.token = ?`,
+  )
+    .bind(c.req.param("token"))
+    .first<{
+      id: string; event_id: string; status: string; paid_at: string | null; amount_cents: number | null;
+      company_name: string | null; proposal_status: string | null; tier_name: string | null; event_title: string;
+    }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (sponsor.status !== "pending") return c.json({ error: "Engagez-vous d'abord sur un palier" }, 409);
+  if (sponsor.paid_at) return c.json({ error: "Sponsoring déjà payé" }, 409);
+  if (sponsor.proposal_status === "pending") {
+    return c.json({ error: "Une contre-proposition est déjà en cours d'examen" }, 409);
+  }
+
+  const b = await c.req.json<{ amount_cents?: number; message?: string }>()
+    .catch(() => ({}) as Record<string, never>);
+  const proposed = Math.round(Number(b.amount_cents ?? 0));
+  if (!Number.isFinite(proposed) || proposed <= 0) return c.json({ error: "Montant proposé invalide" }, 400);
+  if (proposed === sponsor.amount_cents) {
+    return c.json({ error: "Le montant proposé est identique au montant actuel" }, 400);
+  }
+  const message = typeof b.message === "string" && b.message.trim() ? b.message.trim().slice(0, 800) : null;
+
+  await c.env.DB.prepare(
+    `UPDATE sponsors SET proposed_cents = ?, proposed_message = ?, proposed_at = ?, proposal_status = 'pending'
+     WHERE id = ?`,
+  )
+    .bind(proposed, message, nowIso(), sponsor.id)
+    .run();
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      const org = await c.env.DB.prepare(
+        "SELECT u.email FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?",
+      )
+        .bind(sponsor.event_id)
+        .first<{ email: string }>();
+      if (!org) return;
+      const company = sponsor.company_name ?? "Une entreprise";
+      await sendEmail(
+        c.env,
+        org.email,
+        `Contre-proposition de sponsoring — ${sponsor.event_title}`,
+        layout(
+          `${company} propose un autre montant`,
+          `<p><strong>${company}</strong> souhaite sponsoriser <strong>${sponsor.event_title}</strong>
+             (palier <strong>${sponsor.tier_name ?? ""}</strong>) pour
+             <strong>${(proposed / 100).toFixed(2)}&nbsp;$</strong> au lieu de
+             ${sponsor.amount_cents != null ? `${(sponsor.amount_cents / 100).toFixed(2)}&nbsp;$` : "—"}.</p>
+           ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${message} »</p>` : ""}
+           <p>Acceptez ou refusez cette proposition depuis l'onglet Sponsors de votre tableau de bord :</p>
+           <p><a href="${c.env.WEB_BASE_URL}/dashboard/e/${sponsor.event_id}">Ouvrir le tableau de bord</a></p>`,
+          { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: sponsor.event_title },
+        ),
+      );
+    })(),
+  );
+  return c.json({ ok: true, proposal_status: "pending", proposed_cents: proposed });
+});
+
+/**
+ * Évaluation de l'organisation par l'entreprise, après l'événement.
+ * Une note par engagement, modifiable (upsert sur sponsor_id + rated_by).
+ */
+pub.post("/sponsor/:token/review", async (c) => {
+  const sponsor = await c.env.DB.prepare(
+    `SELECT s.id, s.status, e.starts_at, e.ends_at FROM sponsors s JOIN events e ON e.id = s.event_id
+     WHERE s.token = ?`,
+  )
+    .bind(c.req.param("token"))
+    .first<{ id: string; status: string; starts_at: string | null; ends_at: string | null }>();
+  if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (sponsor.status !== "confirmed") return c.json({ error: "Seul un sponsoring confirmé peut être évalué" }, 409);
+  if (!eventIsPast(sponsor)) return c.json({ error: "Vous pourrez évaluer l'organisation après l'événement" }, 409);
+
+  const b = await c.req.json<{ rating?: number; comment?: string }>().catch(() => ({}) as Record<string, never>);
+  const rating = Math.round(Number(b.rating ?? 0));
+  if (rating < 1 || rating > 5) return c.json({ error: "Note entre 1 et 5 requise" }, 400);
+  const comment = typeof b.comment === "string" && b.comment.trim() ? b.comment.trim().slice(0, 800) : null;
+
+  await c.env.DB.prepare(
+    `INSERT INTO sponsor_reviews (id, sponsor_id, rated_by, rating, comment) VALUES (?, ?, 'company', ?, ?)
+     ON CONFLICT (sponsor_id, rated_by) DO UPDATE SET rating = excluded.rating, comment = excluded.comment`,
+  )
+    .bind(uuid(), sponsor.id, rating, comment)
+    .run();
+  return c.json({ ok: true, rating });
 });
 
 /** L'entreprise décline la proposition de sponsoring. */

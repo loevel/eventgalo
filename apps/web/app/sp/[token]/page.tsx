@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { BadgeCheck, Building2, Check, CreditCard, Handshake, Hourglass, ImagePlus, Megaphone, Trash2, Upload } from "lucide-react";
+import { BadgeCheck, Building2, Check, CreditCard, Handshake, HandCoins, Hourglass, ImagePlus, Megaphone, Star, Trash2, Upload } from "lucide-react";
 import { API_BASE, api, formatDate, formatPrice } from "@/lib/api";
 import { parsePerks } from "@/lib/perks";
 import { SOCIAL_KEYS, SOCIAL_LABELS, parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
+import { RatingForm } from "@/components/star-rating";
 
 interface SponsorPayload {
   sponsor: {
@@ -25,11 +26,15 @@ interface SponsorPayload {
     public_email: string | null;
     video_url: string | null;
     socials: string | null;
+    proposed_cents: number | null;
+    proposed_message: string | null;
+    proposal_status: "pending" | "accepted" | "rejected" | null;
   };
   event: {
     title: string;
     description: string | null;
     starts_at: string | null;
+    ends_at: string | null;
     venue: string | null;
     public_slug: string;
     logo_media_id: string | null;
@@ -47,6 +52,8 @@ interface SponsorPayload {
   }>;
   taken: Array<{ tier_id: string; n: number }>;
   photos: Array<{ id: string }>;
+  my_review: { rating: number; comment: string | null } | null;
+  event_past: boolean;
   stripe_enabled: boolean;
 }
 
@@ -195,6 +202,54 @@ export default function SponsorPage() {
     }
   }
 
+  // Négociation du montant
+  const [showPropose, setShowPropose] = useState(false);
+  const [proposeAmount, setProposeAmount] = useState("");
+  const [proposeMsg, setProposeMsg] = useState("");
+  const [proposing, setProposing] = useState(false);
+
+  async function sendProposal(e: React.FormEvent) {
+    e.preventDefault();
+    setProposing(true);
+    setError(null);
+    try {
+      await api(`/api/public/sponsor/${token}/propose`, {
+        method: "POST",
+        auth: false,
+        body: { amount_cents: Math.round(Number(proposeAmount) * 100), message: proposeMsg || null },
+      });
+      setShowPropose(false);
+      setProposeAmount("");
+      setProposeMsg("");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setProposing(false);
+    }
+  }
+
+  // Évaluation de l'organisation après l'événement
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewSaved, setReviewSaved] = useState(false);
+
+  function sendReview(rating: number, comment: string) {
+    setReviewBusy(true);
+    setReviewSaved(false);
+    setError(null);
+    api(`/api/public/sponsor/${token}/review`, {
+      method: "POST",
+      auth: false,
+      body: { rating, comment: comment || null },
+    })
+      .then(() => {
+        setReviewSaved(true);
+        load();
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Erreur"))
+      .finally(() => setReviewBusy(false));
+  }
+
   async function commit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -257,6 +312,28 @@ export default function SponsorPage() {
           </div>
         )}
 
+        {sponsor.status === "confirmed" && data.event_past && (
+          <div className="card">
+            <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <Star size={17} /> Comment s&apos;est passé l&apos;événement ?
+            </h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Évaluez l&apos;organisation : votre note aide les autres entreprises de l&apos;annuaire à choisir
+              leurs prochains sponsorings.
+              {data.my_review ? " Vous pouvez modifier votre note à tout moment." : ""}
+            </p>
+            {reviewSaved && <div className="alert ok">Merci, votre évaluation est enregistrée ✓</div>}
+            <RatingForm
+              key={data.my_review ? `${data.my_review.rating}:${data.my_review.comment ?? ""}` : "new"}
+              initialRating={data.my_review?.rating}
+              initialComment={data.my_review?.comment}
+              busy={reviewBusy}
+              onSubmit={sendReview}
+              label={data.my_review ? "Mettre à jour ma note" : "Envoyer mon évaluation"}
+            />
+          </div>
+        )}
+
         {sponsor.status === "pending" && (
           <div className="card">
             <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
@@ -273,7 +350,31 @@ export default function SponsorPage() {
               <strong>{sponsor.amount_cents != null ? formatPrice(sponsor.amount_cents, tiers[0]?.currency ?? "CAD") : "—"}</strong>{" "}
               au nom de <strong>{sponsor.company_name}</strong> a été transmis à l&apos;organisation.
             </p>
-            {data.stripe_enabled && (sponsor.amount_cents ?? 0) > 0 && !justPaid ? (
+            {sponsor.proposal_status === "pending" && (
+              <div className="alert info">
+                Votre contre-proposition de{" "}
+                <strong>{formatPrice(sponsor.proposed_cents ?? 0, tiers[0]?.currency ?? "CAD")}</strong> est en
+                cours d&apos;examen par l&apos;organisation — vous recevrez un email dès sa réponse.
+              </div>
+            )}
+            {sponsor.proposal_status === "accepted" && (
+              <div className="alert ok">
+                Montant négocié accepté : votre sponsoring s&apos;élève maintenant à{" "}
+                <strong>{formatPrice(sponsor.amount_cents ?? 0, tiers[0]?.currency ?? "CAD")}</strong>.
+              </div>
+            )}
+            {sponsor.proposal_status === "rejected" && (
+              <div className="alert info">
+                L&apos;organisation a décliné votre contre-proposition
+                {sponsor.proposed_cents != null
+                  ? ` de ${formatPrice(sponsor.proposed_cents, tiers[0]?.currency ?? "CAD")}`
+                  : ""}{" "}
+                — le montant du palier reste{" "}
+                <strong>{formatPrice(sponsor.amount_cents ?? 0, tiers[0]?.currency ?? "CAD")}</strong>. Vous
+                pouvez le régler, proposer un autre montant ou décliner.
+              </div>
+            )}
+            {data.stripe_enabled && (sponsor.amount_cents ?? 0) > 0 && !justPaid && sponsor.proposal_status !== "pending" ? (
               <>
                 <button
                   className="btn-accent"
@@ -293,12 +394,62 @@ export default function SponsorPage() {
                 </p>
               </>
             ) : (
-              !justPaid && (
+              !justPaid && sponsor.proposal_status !== "pending" && (
                 <p className="muted" style={{ marginBottom: 0 }}>
                   L&apos;organisation vous contactera pour finaliser le paiement (virement ou facture). Votre logo
                   apparaîtra sur la page de l&apos;événement dès confirmation.
                 </p>
               )
+            )}
+          </div>
+        )}
+
+        {sponsor.status === "pending" && !sponsor.paid_at && sponsor.proposal_status !== "pending" && !justPaid && (
+          <div className="card">
+            <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <HandCoins size={17} /> Proposer un autre montant
+            </h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Le montant du palier ne correspond pas à votre budget&nbsp;? Faites une contre-proposition :
+              l&apos;organisation l&apos;accepte ou la refuse, et vous recevez sa réponse par email.
+            </p>
+            {!showPropose ? (
+              <button type="button" className="btn-ghost btn-sm" onClick={() => setShowPropose(true)}>
+                Faire une contre-proposition
+              </button>
+            ) : (
+              <form onSubmit={sendProposal}>
+                <div className="grid2">
+                  <div>
+                    <label>Montant proposé (CAD) *</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step="0.01"
+                      required
+                      value={proposeAmount}
+                      onChange={(e) => setProposeAmount(e.target.value)}
+                      placeholder={sponsor.amount_cents != null ? String(sponsor.amount_cents / 100) : ""}
+                    />
+                  </div>
+                </div>
+                <label>Message à l&apos;organisation (optionnel)</label>
+                <textarea
+                  rows={2}
+                  maxLength={800}
+                  value={proposeMsg}
+                  onChange={(e) => setProposeMsg(e.target.value)}
+                  placeholder="Expliquez votre proposition : budget, contreparties souhaitées…"
+                />
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button type="submit" className="btn-accent btn-sm" disabled={proposing || !proposeAmount}>
+                    {proposing ? "Envoi…" : "Envoyer la contre-proposition"}
+                  </button>
+                  <button type="button" className="btn-ghost btn-sm" disabled={proposing} onClick={() => setShowPropose(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         )}

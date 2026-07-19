@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
 import { MediaGallery, type MediaItem } from "@/components/media-gallery";
 import { TicketPreview } from "@/components/ticket-preview";
+import { RatingForm, Stars } from "@/components/star-rating";
 import { parsePerks } from "@/lib/perks";
 
 interface Detail {
@@ -1361,6 +1362,10 @@ function SponsorsTab({
   const [editingTier, setEditingTier] = useState<Record<string, string> | null>(null);
   const [invite, setInvite] = useState({ email: "", company: "", contact: "" });
 
+  // L'évaluation d'un sponsor n'est possible qu'après l'événement.
+  const eventEnd = (ev.ends_at as string | null) ?? (ev.starts_at as string | null);
+  const eventPast = Boolean(eventEnd) && new Date(String(eventEnd)).getTime() < Date.now();
+
   const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
     invited: { label: "Invité", cls: "mut" },
     pending: { label: "Engagé — à confirmer", cls: "warn" },
@@ -1614,7 +1619,17 @@ function SponsorsTab({
                         </span>
                       </td>
                       <td>{s.tier_name ?? <span className="muted">à choisir</span>}</td>
-                      <td>{s.amount_cents != null ? formatPrice(s.amount_cents, "CAD") : "—"}</td>
+                      <td>
+                        {s.amount_cents != null ? formatPrice(s.amount_cents, "CAD") : "—"}
+                        {s.proposal_status === "pending" && (
+                          <span className="badge warn" style={{ display: "block", marginTop: 4, fontSize: 11 }}>
+                            Propose {formatPrice(s.proposed_cents ?? 0, "CAD")}
+                          </span>
+                        )}
+                        {s.proposal_status === "accepted" && (
+                          <span className="muted" style={{ display: "block", fontSize: 11 }}>montant négocié</span>
+                        )}
+                      </td>
                       <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
                       <td>
                         {s.status === "pending" && (
@@ -1668,6 +1683,55 @@ function SponsorsTab({
                         </button>
                       </td>
                     </tr>
+                    {s.proposal_status === "pending" && (
+                      <tr>
+                        <td colSpan={5} style={{ paddingTop: 0 }}>
+                          <div className="alert warn" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "4px 0" }}>
+                            <span style={{ flex: 1, minWidth: 220 }}>
+                              <strong>Contre-proposition :</strong>{" "}
+                              {formatPrice(s.proposed_cents ?? 0, "CAD")} au lieu de{" "}
+                              {s.amount_cents != null ? formatPrice(s.amount_cents, "CAD") : "—"}
+                              {s.proposed_message && (
+                                <span className="muted" style={{ display: "block", fontSize: 13, fontStyle: "italic" }}>
+                                  « {s.proposed_message} »
+                                </span>
+                              )}
+                            </span>
+                            <span style={{ display: "flex", gap: 8 }}>
+                              <button
+                                className="btn-sm btn-accent"
+                                onClick={() =>
+                                  act(
+                                    () => api(`/api/events/${ev.id}/sponsors/${s.id}/proposal`, { method: "POST", body: { action: "accept" } }),
+                                    "Montant négocié accepté",
+                                  )
+                                }
+                              >
+                                Accepter
+                              </button>
+                              <button
+                                className="btn-sm btn-ghost"
+                                onClick={() =>
+                                  act(
+                                    () => api(`/api/events/${ev.id}/sponsors/${s.id}/proposal`, { method: "POST", body: { action: "reject" } }),
+                                    "Contre-proposition refusée",
+                                  )
+                                }
+                              >
+                                Refuser
+                              </button>
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {s.status === "confirmed" && eventPast && (
+                      <tr>
+                        <td colSpan={5} style={{ paddingTop: 0 }}>
+                          <RateSponsorInline eventId={ev.id} sponsor={s} act={act} />
+                        </td>
+                      </tr>
+                    )}
                     <tr>
                       <td colSpan={5} style={{ paddingTop: 0 }}>
                         <CopyField value={`${WEB}/sp/${s.token}`} />
@@ -1681,6 +1745,62 @@ function SponsorsTab({
         </div>
       )}
     </>
+  );
+}
+
+/** Évaluation d'un sponsor confirmé après l'événement (note 1–5 + commentaire). */
+function RateSponsorInline({
+  eventId, sponsor, act,
+}: {
+  eventId: string;
+  sponsor: Record<string, any>;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const submit = (rating: number, comment: string) => {
+    setBusy(true);
+    act(
+      () =>
+        api(`/api/events/${eventId}/sponsors/${sponsor.id}/review`, {
+          method: "POST",
+          body: { rating, comment: comment || null },
+        }).finally(() => {
+          setBusy(false);
+          setOpen(false);
+        }),
+      "Évaluation enregistrée",
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "2px 0 6px" }}>
+      {sponsor.my_rating != null && !open && <Stars value={Number(sponsor.my_rating)} />}
+      {sponsor.company_rating != null && (
+        <span className="muted" style={{ fontSize: 12 }}>
+          L&apos;entreprise vous a noté {sponsor.company_rating}/5
+        </span>
+      )}
+      {!open ? (
+        <button className="btn-sm btn-ghost" onClick={() => setOpen(true)}>
+          {sponsor.my_rating != null ? "Modifier ma note" : "⭐ Évaluer ce sponsor"}
+        </button>
+      ) : (
+        <div style={{ flexBasis: "100%", maxWidth: 420 }}>
+          <RatingForm
+            initialRating={sponsor.my_rating}
+            initialComment={sponsor.my_comment}
+            busy={busy}
+            onSubmit={submit}
+            label="Enregistrer ma note"
+          />
+          <button className="btn-sm btn-ghost" disabled={busy} onClick={() => setOpen(false)} style={{ marginTop: 6 }}>
+            Annuler
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

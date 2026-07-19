@@ -4,7 +4,7 @@ import { nowIso, randomToken, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { validateMediaFile } from "../lib/media";
-import { clampText, sanitizeSocials } from "../lib/profile";
+import { clampText, sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import {
   companyNamesMatch, domainOfEmail, domainOfUrl, findRegistryRecord,
@@ -32,6 +32,10 @@ company.put("/", async (c) => {
   const name = String(b.name ?? "").trim().slice(0, 120);
   if (!name) return c.json({ error: "Nom de l'entreprise requis" }, 400);
   const kind = b.kind === "professional" ? "professional" : "company";
+  const videoUrl = sanitizeVideoUrl(b.video_url);
+  if (b.video_url && typeof b.video_url === "string" && b.video_url.trim() && !videoUrl) {
+    return c.json({ error: "Vidéo : seuls les liens YouTube et Vimeo sont acceptés" }, 400);
+  }
   const existing = await c.env.DB.prepare("SELECT id, kind, verified_domain FROM companies WHERE owner_user_id = ?")
     .bind(user.id)
     .first<{ id: string; kind: string; verified_domain: string | null }>();
@@ -47,6 +51,7 @@ company.put("/", async (c) => {
     clampText(b.phone, 40),
     clampText(b.public_email, 120),
     sanitizeSocials(b.socials),
+    videoUrl,
     b.listed ? 1 : 0,
     nowIso(),
   ];
@@ -61,7 +66,7 @@ company.put("/", async (c) => {
         domainOfUrl(clampText(b.website, 300)) === existing.verified_domain);
     await c.env.DB.prepare(
       `UPDATE companies SET name = ?, kind = ?, title = ?, affiliation = ?, sector = ?, city = ?,
-         description = ?, website = ?, phone = ?, public_email = ?, socials = ?, listed = ?, updated_at = ?,
+         description = ?, website = ?, phone = ?, public_email = ?, socials = ?, video_url = ?, listed = ?, updated_at = ?,
          verified_at = CASE WHEN ? THEN verified_at END,
          verified_domain = CASE WHEN ? THEN verified_domain END
        WHERE id = ?`,
@@ -73,8 +78,8 @@ company.put("/", async (c) => {
   const id = uuid();
   await c.env.DB.prepare(
     `INSERT INTO companies (id, owner_user_id, name, kind, title, affiliation, sector, city,
-       description, website, phone, public_email, socials, listed, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       description, website, phone, public_email, socials, video_url, listed, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(id, user.id, ...values)
     .run();
@@ -152,13 +157,15 @@ company.get("/requests", async (c) => {
     .first<{ id: string }>();
   const rows = await c.env.DB.prepare(
     `SELECT s.id, s.token, s.status, s.amount_cents, s.paid_at, s.invite_message, s.source, s.created_at,
-            t.name AS tier_name,
-            e.title AS event_title, e.starts_at, e.venue, e.public_slug
+            s.confirmed_at, s.proposed_cents, s.proposal_status,
+            t.name AS tier_name, t.currency,
+            e.title AS event_title, e.starts_at, e.ends_at, e.venue, e.public_slug,
+            (SELECT rating FROM sponsor_reviews r WHERE r.sponsor_id = s.id AND r.rated_by = 'company') AS my_rating
      FROM sponsors s
      JOIN events e ON e.id = s.event_id
      LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
      WHERE s.company_id = ? OR s.contact_email = ?
-     ORDER BY s.created_at DESC LIMIT 50`,
+     ORDER BY s.created_at DESC LIMIT 100`,
   )
     .bind(co?.id ?? "-", user.email)
     .all();
@@ -176,7 +183,7 @@ company.post("/apply", async (c) => {
     .bind(user.id)
     .first<{
       id: string; name: string; website: string | null; description: string | null; city: string | null;
-      phone: string | null; public_email: string | null; socials: string | null;
+      phone: string | null; public_email: string | null; socials: string | null; video_url: string | null;
       logo_key: string | null; logo_type: string | null;
     }>();
   if (!co) return c.json({ error: "Créez d'abord votre profil entreprise" }, 409);
@@ -234,13 +241,13 @@ company.post("/apply", async (c) => {
 
   await c.env.DB.prepare(
     `INSERT INTO sponsors (id, event_id, tier_id, company_id, company_name, website, contact_email,
-       logo_media_id, description, address, phone, public_email, socials, message,
+       logo_media_id, description, address, phone, public_email, socials, video_url, message,
        amount_cents, status, token, source, committed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'directory', ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'directory', ?)`,
   )
     .bind(
       sponsorId, event.id, tier.id, co.id, co.name, co.website, user.email,
-      logoMediaId, co.description, co.city, co.phone, co.public_email, co.socials, message,
+      logoMediaId, co.description, co.city, co.phone, co.public_email, co.socials, co.video_url, message,
       tier.price_cents, token, nowIso(),
     )
     .run();
@@ -447,6 +454,7 @@ directory.get("/", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 80);
   const sector = (c.req.query("sector") ?? "").trim().slice(0, 80);
   const city = (c.req.query("city") ?? "").trim().slice(0, 80);
+  const kind = (c.req.query("kind") ?? "").trim();
   const conditions = ["listed = 1"];
   const binds: unknown[] = [];
   if (q) {
@@ -461,12 +469,23 @@ directory.get("/", async (c) => {
     conditions.push("city LIKE ?");
     binds.push(`%${city}%`);
   }
+  if (kind === "company" || kind === "professional") {
+    conditions.push("kind = ?");
+    binds.push(kind);
+  }
+  if (c.req.query("verified") === "1") {
+    conditions.push("(verified_at IS NOT NULL OR registry_verified_at IS NOT NULL)");
+  }
   const rows = await c.env.DB.prepare(
     `SELECT c.id, c.name, c.kind, c.title, c.affiliation, c.sector, c.city, c.description, c.website,
             c.socials, c.public_email,
             (c.logo_key IS NOT NULL) AS has_logo,
             (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
-            (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships
+            (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships,
+            (SELECT ROUND(AVG(r.rating), 1) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+             WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS avg_rating,
+            (SELECT COUNT(*) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+             WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS review_count
      FROM companies c
      WHERE ${conditions.join(" AND ")}
      ORDER BY verified DESC, sponsorships DESC, c.updated_at DESC LIMIT 60`,
