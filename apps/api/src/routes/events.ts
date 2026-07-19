@@ -8,6 +8,7 @@ import { MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, validateMediaFile } from "../lib
 import { callEventDO, DOError } from "../do/event-do";
 import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
+import { triggerWebhooks } from "../lib/webhooks";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
@@ -1072,9 +1073,16 @@ events.patch("/:id/sponsors/:sid", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const sponsor = await c.env.DB.prepare("SELECT * FROM sponsors WHERE id = ? AND event_id = ?")
+  const sponsor = await c.env.DB.prepare(
+    `SELECT s.id, s.contact_email, s.company_name, s.status, s.amount_cents, t.name AS tier_name
+     FROM sponsors s LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
+     WHERE s.id = ? AND s.event_id = ?`,
+  )
     .bind(c.req.param("sid"), event.id)
-    .first<{ id: string; contact_email: string; company_name: string | null; status: string }>();
+    .first<{
+      id: string; contact_email: string; company_name: string | null; status: string;
+      amount_cents: number | null; tier_name: string | null;
+    }>();
   if (!sponsor) return c.json({ error: "Sponsor introuvable" }, 404);
   const b = await c.req.json<{ status?: string }>().catch(() => ({}) as Record<string, never>);
   if (!b.status || !["pending", "confirmed", "declined"].includes(b.status)) {
@@ -1098,6 +1106,14 @@ events.patch("/:id/sponsors/:sid", async (c) => {
           { logoUrl, eventTitle: String(event.title) },
         ),
       ).then(() => undefined),
+    );
+    c.executionCtx.waitUntil(
+      triggerWebhooks(c.env, event.id, "sponsor.confirmed", {
+        sponsor_id: sponsor.id,
+        company_name: sponsor.company_name,
+        tier_name: sponsor.tier_name,
+        amount_cents: sponsor.amount_cents,
+      }),
     );
   }
   return c.json({ ok: true });
@@ -1352,6 +1368,101 @@ events.delete("/:id/performers/:pid/photo", async (c) => {
     c.env.DB.prepare(`UPDATE event_performers SET ${column} = NULL WHERE id = ?`).bind(c.req.param("pid")),
     c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(performer.current_media_id),
   ]);
+  return c.json({ ok: true });
+});
+
+/* -------------------------------- Webhooks ---------------------------------- */
+
+const WEBHOOK_EVENT_TYPES = ["ticket.sold", "sponsor.confirmed", "sponsor.declined", "refund.requested"] as const;
+
+type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+
+function sanitizeWebhookTypes(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return null;
+  const types = raw.filter((t): t is WebhookEventType => WEBHOOK_EVENT_TYPES.includes(t));
+  return types.length ? JSON.stringify(types) : null;
+}
+
+events.get("/:id/webhooks", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const rows = await c.env.DB.prepare(
+    "SELECT id, url, event_types, enabled, last_triggered_at, last_status, created_at FROM event_webhooks WHERE event_id = ? ORDER BY created_at",
+  )
+    .bind(event.id)
+    .all();
+  return c.json({ webhooks: rows.results, available_types: WEBHOOK_EVENT_TYPES });
+});
+
+events.post("/:id/webhooks", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const b = await c.req.json<{ url?: string; event_types?: string[] }>().catch(() => ({}) as Record<string, never>);
+  const url = String(b.url ?? "").trim().slice(0, 500);
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") throw new Error();
+  } catch {
+    return c.json({ error: "URL invalide — utilisez une adresse https://" }, 400);
+  }
+  const id = uuid();
+  const secret = randomToken(32);
+  await c.env.DB.prepare(
+    "INSERT INTO event_webhooks (id, event_id, url, secret, event_types) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(id, event.id, url, secret, sanitizeWebhookTypes(b.event_types))
+    .run();
+  // Le secret ne sera plus jamais renvoyé en clair après cette réponse.
+  return c.json({ id, secret }, 201);
+});
+
+events.patch("/:id/webhooks/:wid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const webhook = await c.env.DB.prepare("SELECT id FROM event_webhooks WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("wid"), event.id)
+    .first();
+  if (!webhook) return c.json({ error: "Webhook introuvable" }, 404);
+  const b = await c.req.json<{ url?: string; event_types?: string[]; enabled?: boolean }>()
+    .catch(() => ({}) as Record<string, never>);
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (b.url !== undefined) {
+    const url = String(b.url).trim().slice(0, 500);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:") throw new Error();
+    } catch {
+      return c.json({ error: "URL invalide — utilisez une adresse https://" }, 400);
+    }
+    sets.push("url = ?");
+    values.push(url);
+  }
+  if (b.event_types !== undefined) {
+    sets.push("event_types = ?");
+    values.push(sanitizeWebhookTypes(b.event_types));
+  }
+  if (b.enabled !== undefined) {
+    sets.push("enabled = ?");
+    values.push(b.enabled ? 1 : 0);
+  }
+  if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
+  values.push(c.req.param("wid"));
+  await c.env.DB.prepare(`UPDATE event_webhooks SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+  return c.json({ ok: true });
+});
+
+events.delete("/:id/webhooks/:wid", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const res = await c.env.DB.prepare("DELETE FROM event_webhooks WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("wid"), event.id)
+    .run();
+  if (!res.meta.changes) return c.json({ error: "Webhook introuvable" }, 404);
   return c.json({ ok: true });
 });
 

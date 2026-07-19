@@ -5,6 +5,7 @@ import { callEventDO } from "../do/event-do";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { nowIso } from "../lib/crypto";
 import { sendTicketsEmail } from "./public";
+import { triggerWebhooks } from "../lib/webhooks";
 
 /** Paiement de sponsoring reçu : confirmation automatique + emails aux deux parties. */
 async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: string): Promise<void> {
@@ -59,6 +60,12 @@ async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: stri
         brand,
       ),
     ),
+    triggerWebhooks(env, eventId, "sponsor.confirmed", {
+      sponsor_id: sponsor.id,
+      company_name: sponsor.company_name,
+      tier_name: sponsor.tier_name,
+      amount_cents: sponsor.amount_cents,
+    }),
   ]);
 }
 

@@ -8,6 +8,7 @@ import { callEventDO, DOError } from "../do/event-do";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { buildIcsEvent, icsResponse } from "../lib/ics";
+import { triggerWebhooks } from "../lib/webhooks";
 
 const pub = new Hono<AppContext>();
 
@@ -471,6 +472,12 @@ pub.post("/sponsor/:token/decline", async (c) => {
       );
     })(),
   );
+  c.executionCtx.waitUntil(
+    triggerWebhooks(c.env, sponsor.event_id, "sponsor.declined", {
+      sponsor_id: sponsor.id,
+      company_name: sponsor.company_name,
+    }),
+  );
   return c.json({ ok: true, status: "declined" });
 });
 
@@ -884,6 +891,12 @@ export async function sendTicketsEmail(
     ),
     tickets[0] ? `${env.WEB_BASE_URL}/t/${tickets[0].serial}` : undefined,
   );
+  await triggerWebhooks(env, eventId, "ticket.sold", {
+    buyer_name: name,
+    buyer_email: email,
+    quantity: tickets.length,
+    tickets: tickets.map((t) => ({ serial: t.serial })),
+  });
 }
 
 /* ------------------------------ Transaction ------------------------------- */
@@ -964,14 +977,14 @@ function parseRefundPolicy(raw: unknown): { kind?: string; days_before?: number;
 pub.post("/tickets/:serial/refund-request", async (c) => {
   const b = await c.req.json<{ reason?: string; email?: string }>().catch(() => ({}) as Record<string, never>);
   const ticket = await c.env.DB.prepare(
-    `SELECT t.id, t.transaction_id, t.buyer_email, t.status, e.starts_at, e.refund_policy
+    `SELECT t.id, t.transaction_id, t.buyer_email, t.status, t.serial, e.id AS event_id, e.starts_at, e.refund_policy
      FROM tickets t JOIN events e ON e.id = t.event_id
      WHERE t.serial = ?`,
   )
     .bind(c.req.param("serial").toUpperCase())
     .first<{
-      id: string; transaction_id: string; buyer_email: string; status: string;
-      starts_at: string; refund_policy: string | null;
+      id: string; transaction_id: string; buyer_email: string; status: string; serial: string;
+      event_id: string; starts_at: string; refund_policy: string | null;
     }>();
   if (!ticket) return c.json({ error: "Billet introuvable" }, 404);
   if (ticket.status !== "valid") return c.json({ error: "Ce billet n'est plus remboursable" }, 409);
@@ -1002,6 +1015,12 @@ pub.post("/tickets/:serial/refund-request", async (c) => {
   )
     .bind(id, ticket.id, ticket.transaction_id, b.reason ?? null)
     .run();
+  c.executionCtx.waitUntil(
+    triggerWebhooks(c.env, ticket.event_id, "refund.requested", {
+      ticket_serial: ticket.serial,
+      reason: b.reason ?? null,
+    }),
+  );
   return c.json({ ok: true, id }, 201);
 });
 

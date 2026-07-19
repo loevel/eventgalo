@@ -205,6 +205,8 @@ export default function EventAdmin() {
           ["photos", "Photos"],
           ["sponsors", `Sponsors (${sponsors.filter((s) => s.status === "pending").length ? `${sponsors.filter((s) => s.status === "pending").length} à traiter` : sponsors.length})`],
           ["artistes", `Artistes (${performers.length})`],
+          ["rapport", "Rapport"],
+          ["integrations", "Intégrations"],
           ...(ev.type === "ticketed"
             ? ([
                 ["billets", "Billetterie"],
@@ -329,6 +331,18 @@ export default function EventAdmin() {
 
       {tab === "sponsors" && <SponsorsTab ev={ev} tiers={sponsor_tiers} sponsors={sponsors} act={act} />}
       {tab === "artistes" && <PerformersTab ev={ev} performers={performers} act={act} />}
+      {tab === "rapport" && (
+        <ReportTab
+          ev={ev}
+          categories={categories}
+          sales={sales}
+          refundRequests={refund_requests}
+          waitlist={waitlist}
+          sponsorTiers={sponsor_tiers}
+          sponsors={sponsors}
+        />
+      )}
+      {tab === "integrations" && <WebhooksTab eventId={ev.id} />}
 
       {tab === "billets" && <CategoriesTab ev={ev} categories={categories} waitlist={waitlist} act={act} />}
 
@@ -1808,6 +1822,150 @@ function RateSponsorInline({
   );
 }
 
+/**
+ * Rapport organisateur : entièrement calculé à partir des données déjà chargées
+ * par GET /api/events/:id — aucune nouvelle table ni tracking, juste de l'agrégation.
+ */
+function ReportTab({
+  ev, categories, sales, refundRequests, waitlist, sponsorTiers, sponsors,
+}: {
+  ev: Record<string, any>;
+  categories: Array<Record<string, any>>;
+  sales: Array<Record<string, any>>;
+  refundRequests: Array<Record<string, any>>;
+  waitlist: Array<Record<string, any>>;
+  sponsorTiers: Array<Record<string, any>>;
+  sponsors: Array<Record<string, any>>;
+}) {
+  const currency = categories[0]?.currency ?? sponsorTiers[0]?.currency ?? "CAD";
+
+  // Billetterie : revenu réel (billets valides/utilisés) — exclut déjà les remboursés.
+  const ticketRevenue = sales.reduce((s, r) => s + (r.revenue_cents ?? 0), 0);
+  const ticketsSold = categories.reduce((s, c) => s + c.sold, 0);
+  const ticketsCapacity = categories.reduce((s, c) => s + c.quantity, 0);
+  const fillRate = ticketsCapacity > 0 ? ticketsSold / ticketsCapacity : null;
+  const refundsByStatus = { pending: 0, approved: 0, rejected: 0 };
+  for (const r of refundRequests) refundsByStatus[r.status as keyof typeof refundsByStatus]++;
+
+  // Sponsoring : réalisé vs potentiel si tous les paliers étaient vendus au complet.
+  const confirmedSponsors = sponsors.filter((s) => s.status === "confirmed");
+  const sponsorRevenue = confirmedSponsors.reduce((s, r) => s + (r.amount_cents ?? 0), 0);
+  const sponsorPotential = sponsorTiers.reduce((s, t) => s + t.price_cents * t.quantity, 0);
+  const sponsorRealization = sponsorPotential > 0 ? sponsorRevenue / sponsorPotential : null;
+  const pipeline = { invited: 0, pending: 0, confirmed: 0, declined: 0 };
+  for (const s of sponsors) if (s.status in pipeline) pipeline[s.status as keyof typeof pipeline]++;
+  const decided = pipeline.confirmed + pipeline.declined;
+  const acceptanceRate = decided > 0 ? pipeline.confirmed / decided : null;
+  const revenueByTier = new Map<string, number>();
+  for (const s of confirmedSponsors) {
+    const name = s.tier_name ?? "Sans palier";
+    revenueByTier.set(name, (revenueByTier.get(name) ?? 0) + (s.amount_cents ?? 0));
+  }
+
+  const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
+
+  return (
+    <>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Billetterie</h3>
+        {categories.length === 0 ? (
+          <p className="muted">Aucune catégorie de billet pour cet événement.</p>
+        ) : (
+          <>
+            <div className="report-stats">
+              <div className="report-stat">
+                <span className="report-stat-value">{formatPrice(ticketRevenue, currency)}</span>
+                <span className="report-stat-label">Revenu billetterie</span>
+              </div>
+              <div className="report-stat">
+                <span className="report-stat-value">{ticketsSold}/{ticketsCapacity}</span>
+                <span className="report-stat-label">Billets vendus ({pct(fillRate)} rempli)</span>
+              </div>
+              <div className="report-stat">
+                <span className="report-stat-value">{waitlist.length}</span>
+                <span className="report-stat-label">En liste d&apos;attente</span>
+              </div>
+              <div className="report-stat">
+                <span className="report-stat-value">{refundsByStatus.approved}</span>
+                <span className="report-stat-label">
+                  Remboursés{refundsByStatus.pending > 0 ? ` (${refundsByStatus.pending} en attente)` : ""}
+                </span>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Catégorie</th>
+                  <th>Vendus</th>
+                  <th>Remplissage</th>
+                  <th>Prix</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.name}</td>
+                    <td>{c.sold}/{c.quantity}</td>
+                    <td>{pct(c.quantity > 0 ? c.sold / c.quantity : null)}</td>
+                    <td>{formatPrice(c.price_cents, c.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Sponsoring</h3>
+        {sponsorTiers.length === 0 ? (
+          <p className="muted">Aucun palier de sponsoring pour cet événement.</p>
+        ) : (
+          <>
+            <div className="report-stats">
+              <div className="report-stat">
+                <span className="report-stat-value">{formatPrice(sponsorRevenue, currency)}</span>
+                <span className="report-stat-label">
+                  Confirmé{sponsorPotential > 0 ? ` sur ${formatPrice(sponsorPotential, currency)} possibles (${pct(sponsorRealization)})` : ""}
+                </span>
+              </div>
+              <div className="report-stat">
+                <span className="report-stat-value">{pct(acceptanceRate)}</span>
+                <span className="report-stat-label">
+                  Taux d&apos;acceptation ({pipeline.confirmed} confirmé{pipeline.confirmed > 1 ? "s" : ""},{" "}
+                  {pipeline.declined} refusé{pipeline.declined > 1 ? "s" : ""})
+                </span>
+              </div>
+              <div className="report-stat">
+                <span className="report-stat-value">{pipeline.invited + pipeline.pending}</span>
+                <span className="report-stat-label">En cours (invité/engagé)</span>
+              </div>
+            </div>
+            {revenueByTier.size > 0 && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Palier</th>
+                    <th>Revenu confirmé</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...revenueByTier.entries()].map(([name, cents]) => (
+                    <tr key={name}>
+                      <td>{name}</td>
+                      <td>{formatPrice(cents, currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 /** Une photo (slot 1 ou 2) d'un artiste : upload, remplacement, suppression. */
 function PerformerPhoto({
   eventId, performerId, slot, mediaId, act,
@@ -2042,6 +2200,167 @@ function PerformersTab({
           Ajouter
         </button>
       </div>
+    </div>
+  );
+}
+
+const WEBHOOK_TYPE_LABELS: Record<string, string> = {
+  "ticket.sold": "Billet vendu",
+  "sponsor.confirmed": "Sponsoring confirmé",
+  "sponsor.declined": "Sponsoring refusé",
+  "refund.requested": "Demande de remboursement",
+};
+
+/**
+ * Webhooks sortants génériques : brancher Zapier/Make ou un outil maison sur les
+ * événements clés (billet vendu, sponsoring confirmé/refusé, remboursement
+ * demandé) sans intégration nommée à maintenir. Charge ses propres données —
+ * cet onglet n'a pas besoin du payload principal de l'événement.
+ */
+function WebhooksTab({ eventId }: { eventId: string }) {
+  const [webhooks, setWebhooks] = useState<Array<Record<string, any>> | null>(null);
+  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+  const [url, setUrl] = useState("");
+  const [types, setTypes] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newSecret, setNewSecret] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api<{ webhooks: Array<Record<string, any>>; available_types: string[] }>(`/api/events/${eventId}/webhooks`)
+      .then((r) => {
+        setWebhooks(r.webhooks);
+        setAvailableTypes(r.available_types);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Erreur"));
+  }, [eventId]);
+
+  useEffect(load, [load]);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ id: string; secret: string }>(`/api/events/${eventId}/webhooks`, {
+        method: "POST",
+        body: { url, event_types: types.length ? types : undefined },
+      });
+      setNewSecret(res.secret);
+      setUrl("");
+      setTypes([]);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!webhooks) return <div className="card"><p className="muted">Chargement…</p></div>;
+
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Webhooks sortants</h3>
+      <p className="muted">
+        Recevez une notification HTTP sur les événements clés de votre événement — utile pour brancher Zapier,
+        Make, ou votre propre outil (CRM, feuille de calcul, script maison…). Chaque envoi est signé (en-tête{" "}
+        <code>X-EventGalo-Signature</code>) pour vérifier qu&apos;il vient bien d&apos;EventGalo.
+      </p>
+
+      {error && <div className="alert err">{error}</div>}
+      {newSecret && (
+        <div className="alert warn">
+          <strong>Secret du webhook (affiché une seule fois) :</strong>
+          <CopyField value={newSecret} />
+          Conservez-le pour vérifier la signature des envois — on ne pourra plus vous le remontrer.
+        </div>
+      )}
+
+      {webhooks.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Événements</th>
+              <th>Dernière livraison</th>
+              <th>Actif</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {webhooks.map((w) => {
+              const subscribed: string[] = w.event_types ? JSON.parse(w.event_types) : [];
+              return (
+                <tr key={w.id}>
+                  <td style={{ maxWidth: 260, overflowWrap: "break-word" }}>{w.url}</td>
+                  <td style={{ fontSize: 12.5 }}>
+                    {subscribed.length ? subscribed.map((t) => WEBHOOK_TYPE_LABELS[t] ?? t).join(", ") : "Tous"}
+                  </td>
+                  <td style={{ fontSize: 12.5 }}>
+                    {w.last_triggered_at ? (
+                      <>
+                        {formatDate(w.last_triggered_at)}{" "}
+                        <span className={`badge ${w.last_status >= 200 && w.last_status < 300 ? "ok" : "err"}`}>
+                          {w.last_status === 0 ? "Échec réseau" : w.last_status}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="muted">Jamais déclenché</span>
+                    )}
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(w.enabled)}
+                      onChange={(e) => {
+                        api(`/api/events/${eventId}/webhooks/${w.id}`, { method: "PATCH", body: { enabled: e.target.checked } })
+                          .then(load)
+                          .catch((err) => setError(err instanceof Error ? err.message : "Erreur"));
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="btn-sm btn-ghost"
+                      onClick={() => {
+                        if (confirm("Supprimer ce webhook ?")) {
+                          api(`/api/events/${eventId}/webhooks/${w.id}`, { method: "DELETE" })
+                            .then(load)
+                            .catch((err) => setError(err instanceof Error ? err.message : "Erreur"));
+                        }
+                      }}
+                    >
+                      Supprimer
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <h4 style={{ marginBottom: 4 }}>Ajouter un webhook</h4>
+      <label>URL (https:// uniquement) *</label>
+      <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.zapier.com/…" />
+      <label>Événements à recevoir (aucune case = tous)</label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, margin: "6px 0 14px" }}>
+        {availableTypes.map((t) => (
+          <label key={t} className="check" style={{ margin: 0 }}>
+            <input
+              type="checkbox"
+              checked={types.includes(t)}
+              onChange={(e) =>
+                setTypes(e.target.checked ? [...types, t] : types.filter((x) => x !== t))
+              }
+            />
+            <span style={{ fontWeight: 400 }}>{WEBHOOK_TYPE_LABELS[t] ?? t}</span>
+          </label>
+        ))}
+      </div>
+      <button className="btn-accent" disabled={busy || !url} onClick={create}>
+        {busy ? "Ajout…" : "Ajouter le webhook"}
+      </button>
     </div>
   );
 }
