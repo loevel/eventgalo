@@ -235,9 +235,14 @@ export default function Home() {
                   choisissez vous-même les événements à sponsoriser. Votre vitrine (logo, photos, vidéo, liens)
                   vous met en valeur auprès du public.
                 </p>
-                <a href="/opportunites" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
-                  Voir les événements à sponsoriser
-                </a>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
+                  <a href="/entreprise" className="btn btn-ghost btn-sm">
+                    Créer mon profil gratuit
+                  </a>
+                  <a href="/opportunites" className="muted" style={{ fontSize: 13 }}>
+                    Voir les événements à sponsoriser
+                  </a>
+                </div>
               </div>
             </Reveal>
           </div>
