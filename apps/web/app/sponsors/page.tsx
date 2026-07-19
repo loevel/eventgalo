@@ -126,7 +126,7 @@ export default async function SponsorDirectoryPage({
             const pro = co.kind === "professional";
             return (
               <div key={co.id} className="card directory-card">
-                <div className="directory-card-head">
+                <a href={`/sponsors/${co.id}`} className="directory-card-head" style={{ textDecoration: "none", color: "inherit" }}>
                   {co.has_logo ? (
                     <img
                       src={`${API_BASE}/api/public/companies/${co.id}/logo`}
@@ -161,7 +161,7 @@ export default async function SponsorDirectoryPage({
                       )}
                     </p>
                   </div>
-                </div>
+                </a>
                 {(co.sponsorships > 0 || (co.avg_rating != null && co.review_count >= MIN_REVIEWS_SHOWN)) && (
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     {co.sponsorships > 0 && (

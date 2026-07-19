@@ -533,6 +533,47 @@ directory.get("/opportunities", async (c) => {
   });
 });
 
+/** Ids + date de mise à jour des entreprises listées — utilisée par le sitemap. */
+directory.get("/sitemap", async (c) => {
+  const rows = await c.env.DB.prepare(
+    "SELECT id, updated_at FROM companies WHERE listed = 1 ORDER BY updated_at DESC LIMIT 5000",
+  ).all();
+  return c.json({ companies: rows.results });
+});
+
+/** Profil public d'une entreprise (page dédiée /sponsors/:id) — 404 si non listée. */
+directory.get("/:id", async (c) => {
+  const co = await c.env.DB.prepare(
+    `SELECT c.id, c.name, c.kind, c.title, c.affiliation, c.sector, c.city, c.description, c.website,
+            c.socials, c.public_email, c.video_url, c.updated_at,
+            (c.logo_key IS NOT NULL) AS has_logo,
+            (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
+            (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships,
+            (SELECT ROUND(AVG(r.rating), 1) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+             WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS avg_rating,
+            (SELECT COUNT(*) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+             WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS review_count
+     FROM companies c WHERE c.id = ? AND c.listed = 1`,
+  )
+    .bind(c.req.param("id"))
+    .first();
+  if (!co) return c.json({ error: "Profil introuvable" }, 404);
+
+  // Événements sponsorisés (confirmés, publiés) — maillage interne vers les pages événement.
+  const events = await c.env.DB.prepare(
+    `SELECT e.title, e.public_slug, e.starts_at, t.name AS tier_name
+     FROM sponsors s
+     JOIN events e ON e.id = s.event_id
+     LEFT JOIN sponsor_tiers t ON t.id = s.tier_id
+     WHERE s.company_id = ? AND s.status = 'confirmed' AND e.status = 'published'
+     ORDER BY e.starts_at DESC LIMIT 20`,
+  )
+    .bind(c.req.param("id"))
+    .all();
+
+  return c.json({ company: co, events: events.results });
+});
+
 // Pas de condition `listed` : l'id UUID n'est pas devinable (même modèle que /media/:id/file),
 // et le propriétaire doit voir son logo avant de publier son profil.
 directory.get("/:id/logo", async (c) => {

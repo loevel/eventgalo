@@ -51,5 +51,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // API indisponible : on sert au moins la page d'accueil
   }
 
+  try {
+    const res = await fetch(`${API_BASE}/api/public/companies/sitemap`, { cache: "no-store" });
+    if (res.ok) {
+      const data = (await res.json()) as { companies: Array<{ id: string; updated_at: string | null }> };
+      for (const co of data.companies) {
+        entries.push({
+          url: `https://eventgalo.com/sponsors/${co.id}`,
+          ...(co.updated_at ? { lastModified: new Date(co.updated_at) } : {}),
+          changeFrequency: "monthly",
+          priority: 0.5,
+        });
+      }
+    }
+  } catch {
+    // API indisponible : on sert le reste du sitemap sans les profils entreprises
+  }
+
   return entries;
 }
