@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store } from "lucide-react";
 import { api } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
+import { ConstellationBg, GoldDust, HeroFx, SplitTitle, StatNumber, StepsPath, TiltCard } from "@/components/landing-fx";
 
 const ParticleHero = dynamic(() => import("@/components/particle-hero").then((m) => m.ParticleHero), {
   ssr: false,
@@ -79,14 +80,15 @@ export default function Home() {
     <>
       <div className="landing-hero">
         <ParticleHero />
+        <HeroFx />
         <div className="landing-hero-content">
           <span className="hero-badge">
             <span className="dot" />
             Invitations · RSVP · Billetterie
           </span>
-          <h1>
+          <SplitTitle as="h1" mode="load">
             Vos événements, <em>sans les relances</em>
-          </h1>
+          </SplitTitle>
           <p>
             Une fiche unique par événement, des invitations personnalisées avec RSVP en un clic, et une
             billetterie sécurisée avec suivi par vendeur — anniversaires, galas, soirées communautaires.
@@ -107,12 +109,13 @@ export default function Home() {
       </div>
 
       <div className="hero-stats-wrap">
+        <GoldDust />
         <div className="hero-stats-bar">
           {STATS.map((s) => (
             <div className="hero-stat glass" key={s.label}>
               <s.icon />
               <div>
-                <span className="hero-stat-num">{s.num}</span>
+                <StatNumber value={s.num} />
                 <span className="hero-stat-lbl">{s.label}</span>
               </div>
             </div>
@@ -124,13 +127,15 @@ export default function Home() {
         <div className="grid3 features-grid">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={i * 90}>
-              <div className="card feature">
-                <div className="glass-icon feature-icon">
-                  <f.icon />
+              <TiltCard>
+                <div className="card feature">
+                  <div className="glass-icon feature-icon">
+                    <f.icon />
+                  </div>
+                  <h3>{f.title}</h3>
+                  <p className="muted">{f.text}</p>
                 </div>
-                <h3>{f.title}</h3>
-                <p className="muted">{f.text}</p>
-              </div>
+              </TiltCard>
             </Reveal>
           ))}
         </div>
@@ -138,19 +143,22 @@ export default function Home() {
         <section id="how" className="section">
           <Reveal>
             <span className="section-kicker">Trois étapes</span>
-            <h2 className="section-title">Comment ça marche</h2>
+            <SplitTitle className="section-title">Comment ça marche</SplitTitle>
             <p className="section-sub">De la création à l&apos;accueil du jour J, sans jongler entre dix outils.</p>
           </Reveal>
-          <div className="grid3">
-            {STEPS.map((s, i) => (
-              <Reveal key={s.num} delay={i * 90}>
-                <div className="step">
-                  <div className="step-num">{s.num}</div>
-                  <h3>{s.title}</h3>
-                  <p className="muted">{s.text}</p>
-                </div>
-              </Reveal>
-            ))}
+          <div className="steps-wrap">
+            <StepsPath />
+            <div className="grid3">
+              {STEPS.map((s, i) => (
+                <Reveal key={s.num} delay={i * 90}>
+                  <div className="step">
+                    <div className="step-num">{s.num}</div>
+                    <h3>{s.title}</h3>
+                    <p className="muted">{s.text}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -185,10 +193,11 @@ export default function Home() {
           </Reveal>
         </div>
 
-        <section className="section">
+        <section className="section marketplace-section">
+          <ConstellationBg />
           <Reveal>
             <span className="section-kicker">Place de marché</span>
-            <h2 className="section-title">Le sponsoring, simplifié</h2>
+            <SplitTitle className="section-title">Le sponsoring, simplifié</SplitTitle>
             <p className="section-sub">
               Les associations trouvent des sponsors, les entreprises gagnent en visibilité — tout se passe sur
               EventGalo, de la mise en relation au paiement.
