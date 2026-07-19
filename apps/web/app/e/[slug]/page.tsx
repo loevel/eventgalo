@@ -22,6 +22,7 @@ interface PublicEvent {
   public_slug: string;
   cover_media_id: string | null;
   logo_media_id: string | null;
+  created_at: string | null;
 }
 
 interface EventPayload {
@@ -151,6 +152,9 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
   if (!data) notFound();
 
   const ev = data.event;
+  const pageUrl = `https://eventgalo.com/e/${slug}`;
+  const coverUrl = ev.cover_media_id ? `${API_BASE}/api/public/media/${ev.cover_media_id}/file` : null;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Event",
@@ -158,6 +162,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
     ...(ev.description ? { description: ev.description } : {}),
     ...(ev.starts_at ? { startDate: ev.starts_at } : {}),
     ...(ev.ends_at ? { endDate: ev.ends_at } : {}),
+    ...(coverUrl ? { image: [coverUrl] } : {}),
     eventStatus: "https://schema.org/EventScheduled",
     eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
     ...(ev.venue
@@ -169,7 +174,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
           },
         }
       : {}),
-    url: `https://eventgalo.com/e/${slug}`,
+    url: pageUrl,
     organizer: { "@type": "Organization", name: "EventGalo", url: "https://eventgalo.com" },
     ...(ev.type === "ticketed" && data.categories.length > 0
       ? {
@@ -180,14 +185,12 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             priceCurrency: c.currency,
             availability:
               c.sold < c.quantity ? "https://schema.org/InStock" : "https://schema.org/SoldOut",
-            url: `https://eventgalo.com/e/${slug}`,
+            ...(ev.created_at ? { validFrom: ev.created_at } : {}),
+            url: pageUrl,
           })),
         }
       : {}),
   };
-
-  const pageUrl = `https://eventgalo.com/e/${slug}`;
-  const coverUrl = ev.cover_media_id ? `${API_BASE}/api/public/media/${ev.cover_media_id}/file` : null;
 
   const duration = ev.starts_at && ev.ends_at ? formatDuration(ev.starts_at, ev.ends_at) : null;
   const endLabel =

@@ -12,7 +12,8 @@ import { buildIcsEvent, icsResponse } from "../lib/ics";
 const pub = new Hono<AppContext>();
 
 const PUBLIC_EVENT_FIELDS = `id, title, description, starts_at, ends_at, venue, address,
-  dress_code, capacity, public_slug, type, status, refund_policy, rsvp_question, cover_media_id, logo_media_id`;
+  dress_code, capacity, public_slug, type, status, refund_policy, rsvp_question, cover_media_id, logo_media_id,
+  created_at`;
 
 /* ---------------------------- Page publique ------------------------------ */
 
