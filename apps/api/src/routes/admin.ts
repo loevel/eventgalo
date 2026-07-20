@@ -236,6 +236,43 @@ admin.patch("/settings", async (c) => {
   return c.json({ ok: true });
 });
 
+/** Avis sponsors (organisateur ⇄ entreprise), pour modération des litiges. */
+admin.get("/reviews", async (c) => {
+  const onlyLow = c.req.query("low") === "1";
+  const { limit, offset } = page(c);
+  const rows = await c.env.DB.prepare(
+    `SELECT r.id, r.sponsor_id, r.rated_by, r.rating, r.comment, r.created_at,
+            s.company_name AS sponsor_company_name, co.id AS company_id, co.name AS company_name,
+            e.title AS event_title, e.public_slug, u.email AS organizer_email
+     FROM sponsor_reviews r
+     JOIN sponsors s ON s.id = r.sponsor_id
+     JOIN events e ON e.id = s.event_id
+     JOIN users u ON u.id = e.organizer_id
+     LEFT JOIN companies co ON co.id = s.company_id
+     ${onlyLow ? "WHERE r.rating <= 2" : ""}
+     ORDER BY r.created_at DESC LIMIT ? OFFSET ?`,
+  )
+    .bind(limit, offset)
+    .all();
+  return c.json({ reviews: rows.results });
+});
+
+/** Supprime un avis litigieux (visible publiquement sur le profil de l'entreprise notée). */
+admin.delete("/reviews/:id", async (c) => {
+  const id = c.req.param("id");
+  const admin_ = c.get("user");
+  const review = await c.env.DB.prepare("SELECT id, sponsor_id, rated_by, rating FROM sponsor_reviews WHERE id = ?")
+    .bind(id)
+    .first<{ id: string; sponsor_id: string; rated_by: string; rating: number }>();
+  if (!review) return c.json({ error: "Introuvable" }, 404);
+  await c.env.DB.prepare("DELETE FROM sponsor_reviews WHERE id = ?").bind(id).run();
+  await logAdminAction(c.env, admin_.id, "review.delete", "sponsor_review", id, {
+    rated_by: review.rated_by,
+    rating: review.rating,
+  });
+  return c.json({ ok: true });
+});
+
 /** Journal d'audit des actions administratives. */
 admin.get("/audit-log", async (c) => {
   const { limit, offset } = page(c);

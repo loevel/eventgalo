@@ -11,6 +11,7 @@ const TABS = [
   { href: "/admin/events", label: "Événements" },
   { href: "/admin/finances", label: "Finances" },
   { href: "/admin/settings", label: "Paramètres" },
+  { href: "/admin/reviews", label: "Avis sponsors" },
   { href: "/admin/audit", label: "Journal d'audit" },
 ];
 

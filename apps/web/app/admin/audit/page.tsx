@@ -19,6 +19,7 @@ const ACTION_LABEL: Record<string, string> = {
   "user.role": "Changement de rôle",
   "event.status": "Changement de statut d'événement",
   "settings.update": "Modification des paramètres",
+  "review.delete": "Suppression d'un avis sponsor",
 };
 
 function formatDetails(raw: string | null): string {
