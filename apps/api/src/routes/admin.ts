@@ -279,24 +279,37 @@ admin.get("/connect-accounts", async (c) => {
   return c.json({ accounts: rows.results });
 });
 
-/** Paramètres de la plateforme (frais de service, etc). */
+const SETTINGS_KEYS = [
+  "platform_fee_percent", "platform_fee_fixed_cents", "feature_signups_enabled",
+  "banner_enabled", "banner_kind", "banner_text", "banner_link",
+] as const;
+
+/** Paramètres de la plateforme (frais de service, feature flags, bannière). */
 admin.get("/settings", async (c) => {
-  const [percent, fixed] = await Promise.all([
-    getSetting(c.env, "platform_fee_percent"),
-    getSetting(c.env, "platform_fee_fixed_cents"),
-  ]);
-  return c.json({ settings: { platform_fee_percent: percent, platform_fee_fixed_cents: fixed } });
+  const entries = await Promise.all(SETTINGS_KEYS.map(async (k) => [k, await getSetting(c.env, k)] as const));
+  return c.json({ settings: Object.fromEntries(entries) });
 });
+
+const NUMERIC_SETTINGS = new Set(["platform_fee_percent", "platform_fee_fixed_cents"]);
+const BOOLEAN_SETTINGS = new Set(["feature_signups_enabled", "banner_enabled"]);
 
 admin.patch("/settings", async (c) => {
   const body = await c.req.json<Record<string, string>>().catch(() => ({}) as Record<string, string>);
   const admin_ = c.get("user");
-  const allowed = ["platform_fee_percent", "platform_fee_fixed_cents"];
-  for (const key of allowed) {
+  for (const key of SETTINGS_KEYS) {
     if (body[key] === undefined) continue;
-    const n = Number(body[key]);
-    if (!Number.isFinite(n) || n < 0) return c.json({ error: `Valeur invalide pour ${key}` }, 400);
-    await setSetting(c.env, key, String(n), admin_.id);
+    if (NUMERIC_SETTINGS.has(key)) {
+      const n = Number(body[key]);
+      if (!Number.isFinite(n) || n < 0) return c.json({ error: `Valeur invalide pour ${key}` }, 400);
+      await setSetting(c.env, key, String(n), admin_.id);
+    } else if (BOOLEAN_SETTINGS.has(key)) {
+      await setSetting(c.env, key, body[key] === "1" ? "1" : "0", admin_.id);
+    } else if (key === "banner_kind") {
+      if (!["info", "warning", "success"].includes(body[key])) return c.json({ error: "Type de bannière invalide" }, 400);
+      await setSetting(c.env, key, body[key], admin_.id);
+    } else {
+      await setSetting(c.env, key, body[key].slice(0, 300), admin_.id);
+    }
   }
   await logAdminAction(c.env, admin_.id, "settings.update", "platform_settings", null, body);
   return c.json({ ok: true });

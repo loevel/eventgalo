@@ -45,6 +45,11 @@ export async function logAdminAction(
 const SETTINGS_DEFAULTS: Record<string, string> = {
   platform_fee_percent: "5",
   platform_fee_fixed_cents: "99",
+  feature_signups_enabled: "1",
+  banner_enabled: "0",
+  banner_kind: "info",
+  banner_text: "",
+  banner_link: "",
 };
 
 /** Lit un paramètre plateforme : base D1 (modifiable en admin) → variable d'env → défaut codé en dur. */

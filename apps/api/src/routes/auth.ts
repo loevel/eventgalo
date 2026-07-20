@@ -5,6 +5,7 @@ import { layout, sendEmail } from "../lib/email";
 import { ADMIN_SESSION_TTL, createSession, requireAuth, sessionKey } from "../lib/auth";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { verifyTurnstile } from "../lib/turnstile";
+import { getSetting } from "../lib/admin";
 
 const auth = new Hono<AppContext>();
 
@@ -23,6 +24,12 @@ auth.post("/magic-link", async (c) => {
   }
   // 5 demandes / 5 min par IP : évite le bombardement de boîtes de réception.
   if (await isRateLimited(c.env, "magic-link", ip, 5, 300)) return tooManyRequests(c);
+
+  if ((await getSetting(c.env, "feature_signups_enabled")) === "0") {
+    const existing = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+    if (!existing) return c.json({ error: "Les nouvelles inscriptions sont temporairement suspendues." }, 403);
+  }
+
   const token = randomToken(24);
   await c.env.KV.put(
     `magic:${token}`,
@@ -68,6 +75,9 @@ auth.post("/verify", async (c) => {
   let user: AuthedUser;
   let role = "user";
   if (!existing) {
+    if ((await getSetting(c.env, "feature_signups_enabled")) === "0") {
+      return c.json({ error: "Les nouvelles inscriptions sont temporairement suspendues." }, 403);
+    }
     const id = uuid();
     await c.env.DB.prepare("INSERT INTO users (id, email, name, created_at) VALUES (?, ?, ?, ?)")
       .bind(id, email, name, nowIso())

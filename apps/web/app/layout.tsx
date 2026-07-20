@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
 import Link from "next/link";
 import { TopbarNav } from "@/components/topbar-nav";
+import { SiteBanner } from "@/components/site-banner";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -87,6 +88,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <SiteBanner />
         <div className="topbar">
           <Link href="/" className="brand">
             Event<span>Galo</span>

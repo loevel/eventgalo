@@ -57,6 +57,14 @@ a:hover { text-decoration: underline; }
 .topbar .brand { font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--ink); letter-spacing: -0.01em; }
 .topbar .brand span { color: var(--accent); font-style: italic; }
 
+.site-banner {
+  text-align: center; padding: 10px 16px; font-size: 13px; font-weight: 500;
+}
+.site-banner a { color: inherit; text-decoration: underline; }
+.site-banner-info { background: #eef2f7; color: #2c4a6e; }
+.site-banner-warning { background: #fdf0e3; color: #8a4a10; }
+.site-banner-success { background: #e2f3ea; color: var(--ok); }
+
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 26px; letter-spacing: -0.01em; margin: 24px 0 8px; }
 h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 28px 0 10px; }
 h3 { font-size: 16px; margin: 18px 0 8px; }

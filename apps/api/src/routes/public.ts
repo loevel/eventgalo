@@ -8,6 +8,7 @@ import { callEventDO, DOError } from "../do/event-do";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { buildIcsEvent, icsResponse } from "../lib/ics";
+import { getSetting } from "../lib/admin";
 import { triggerWebhooks } from "../lib/webhooks";
 import { organizerDestination, serviceFeeCents } from "../lib/stripe";
 
@@ -18,6 +19,18 @@ const PUBLIC_EVENT_FIELDS = `id, title, description, starts_at, ends_at, venue, 
   agenda, created_at`;
 
 /* ---------------------------- Page publique ------------------------------ */
+
+/** Bannière d'annonce site-wide, gérée depuis l'espace admin. */
+pub.get("/settings/banner", async (c) => {
+  const [enabled, kind, text, link] = await Promise.all([
+    getSetting(c.env, "banner_enabled"),
+    getSetting(c.env, "banner_kind"),
+    getSetting(c.env, "banner_text"),
+    getSetting(c.env, "banner_link"),
+  ]);
+  if (enabled !== "1" || !text) return c.json({ enabled: false });
+  return c.json({ enabled: true, kind, text, link: link || null });
+});
 
 // Liste des événements publiés (slug + date de mise à jour) — utilisée par le sitemap du site web
 pub.get("/events", async (c) => {
