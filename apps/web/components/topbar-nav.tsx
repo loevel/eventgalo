@@ -2,12 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { api, getToken, setToken } from "@/lib/api";
 
 export function TopbarNav() {
+  const pathname = usePathname();
   const [connected, setConnected] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Le layout racine (et donc ce composant) reste monté pendant les navigations
+  // côté client : on revérifie la session à chaque changement de page pour capter
+  // une connexion qui vient de se faire (callback du lien magique → /dashboard).
   useEffect(() => {
     const has = Boolean(getToken());
     setConnected(has);
@@ -15,8 +20,10 @@ export function TopbarNav() {
       api<{ user: { role: string } }>("/api/auth/me")
         .then((r) => setIsAdmin(r.user.role === "admin" || r.user.role === "superadmin"))
         .catch(() => setIsAdmin(false));
+    } else {
+      setIsAdmin(false);
     }
-  }, []);
+  }, [pathname]);
 
   async function logout() {
     try {
