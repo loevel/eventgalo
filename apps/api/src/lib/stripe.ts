@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import type { Env } from "../types";
+import { getSetting } from "./admin";
 
 /** Client Stripe configuré pour l'environnement Workers (fetch, pas de Node http). */
 export function getStripe(env: Env): Stripe {
@@ -9,12 +10,13 @@ export function getStripe(env: Env): Stripe {
 /**
  * Frais de service payés par l'acheteur, en sus du prix affiché : l'organisateur
  * reçoit 100 % de son prix, la plateforme couvre sa commission et les frais
- * Stripe avec ces frais. Défaut : 5 % + 0,99 $ par billet.
+ * Stripe avec ces frais. Réglable depuis l'espace admin (table platform_settings),
+ * avec repli sur les variables d'env puis sur 5 % + 0,99 $ par billet.
  */
-export function serviceFeeCents(env: Env, amountCents: number, quantity: number): number {
-  const percent = Number(env.PLATFORM_FEE_PERCENT ?? "5");
-  const fixed = Number(env.PLATFORM_FEE_FIXED_CENTS ?? "99");
+export async function serviceFeeCents(env: Env, amountCents: number, quantity: number): Promise<number> {
   if (amountCents <= 0) return 0;
+  const percent = Number(await getSetting(env, "platform_fee_percent"));
+  const fixed = Number(await getSetting(env, "platform_fee_fixed_cents"));
   return Math.round((amountCents * percent) / 100) + fixed * Math.max(1, quantity | 0);
 }
 

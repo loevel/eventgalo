@@ -6,9 +6,16 @@ import { api, getToken, setToken } from "@/lib/api";
 
 export function TopbarNav() {
   const [connected, setConnected] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    setConnected(Boolean(getToken()));
+    const has = Boolean(getToken());
+    setConnected(has);
+    if (has) {
+      api<{ user: { role: string } }>("/api/auth/me")
+        .then((r) => setIsAdmin(r.user.role === "admin" || r.user.role === "superadmin"))
+        .catch(() => setIsAdmin(false));
+    }
   }, []);
 
   async function logout() {
@@ -24,6 +31,7 @@ export function TopbarNav() {
   return (
     <nav>
       <Link href="/dashboard">Mon espace</Link>
+      {connected && isAdmin && <Link href="/admin">Administration</Link>}
       {connected && (
         <button className="btn-sm btn-ghost" onClick={logout}>
           Déconnexion

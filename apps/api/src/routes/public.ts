@@ -316,7 +316,7 @@ pub.post("/sponsor/:token/checkout", async (c) => {
   // Destination charge si l'organisateur est activé sur Connect : il reçoit
   // 100 % du montant du palier, l'entreprise paie les frais de service.
   const destination = await organizerDestination(c.env, sponsor.organizer_id);
-  const fee = destination ? serviceFeeCents(c.env, sponsor.amount_cents, 1) : 0;
+  const fee = destination ? await serviceFeeCents(c.env, sponsor.amount_cents, 1) : 0;
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: sponsor.contact_email,
@@ -828,7 +828,7 @@ pub.post("/checkout", async (c) => {
     ]);
     // Organisateur activé sur Connect : destination charge — il reçoit 100 % du
     // prix affiché, l'acheteur paie des frais de service qui restent à la plateforme.
-    const fee = destination ? serviceFeeCents(c.env, reservation.amount_cents, quantity) : 0;
+    const fee = destination ? await serviceFeeCents(c.env, reservation.amount_cents, quantity) : 0;
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: buyerEmail,

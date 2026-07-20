@@ -52,15 +52,21 @@ auth.post("/verify", async (c) => {
   await c.env.KV.delete(`magic:${token}`);
   const { email, name } = JSON.parse(raw) as { email: string; name: string | null };
 
-  let user = await c.env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?")
+  const existing = await c.env.DB.prepare("SELECT id, email, name, status FROM users WHERE email = ?")
     .bind(email)
-    .first<AuthedUser>();
-  if (!user) {
+    .first<AuthedUser & { status: string }>();
+  if (existing?.status === "suspended") {
+    return c.json({ error: "Ce compte a été suspendu. Contactez le support." }, 403);
+  }
+  let user: AuthedUser;
+  if (!existing) {
     const id = uuid();
     await c.env.DB.prepare("INSERT INTO users (id, email, name, created_at) VALUES (?, ?, ?, ?)")
       .bind(id, email, name, nowIso())
       .run();
     user = { id, email, name };
+  } else {
+    user = { id: existing.id, email: existing.email, name: existing.name };
   }
 
   const session = randomToken(32);
@@ -68,7 +74,14 @@ auth.post("/verify", async (c) => {
   return c.json({ token: session, user });
 });
 
-auth.get("/me", requireAuth, async (c) => c.json({ user: c.get("user") }));
+/** Rôle toujours lu en base (jamais depuis la session KV, qui peut être ancienne). */
+auth.get("/me", requireAuth, async (c) => {
+  const session = c.get("user");
+  const fresh = await c.env.DB.prepare("SELECT role, status FROM users WHERE id = ?")
+    .bind(session.id)
+    .first<{ role: string; status: string }>();
+  return c.json({ user: { ...session, role: fresh?.role ?? "user", status: fresh?.status ?? "active" } });
+});
 
 /** Déconnexion : révoque la session KV. */
 auth.delete("/session", requireAuth, async (c) => {

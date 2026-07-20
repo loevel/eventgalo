@@ -29,5 +29,5 @@ export interface AuthedUser {
 
 export type AppContext = {
   Bindings: Env;
-  Variables: { user: AuthedUser };
+  Variables: { user: AuthedUser; adminRole?: "admin" | "superadmin" };
 };

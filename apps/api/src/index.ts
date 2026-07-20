@@ -6,6 +6,7 @@ import eventRoutes from "./routes/events";
 import publicRoutes from "./routes/public";
 import webhookRoutes from "./routes/stripe-webhook";
 import connectRoutes from "./routes/connect";
+import adminRoutes from "./routes/admin";
 import { companyRoutes, companyDirectoryRoutes } from "./routes/companies";
 import { nowIso } from "./lib/crypto";
 import { eventLogoUrl, layout, sendEmail } from "./lib/email";
@@ -28,6 +29,7 @@ app.route("/api/public/companies", companyDirectoryRoutes);
 app.route("/api/company", companyRoutes);
 app.route("/api/webhooks", webhookRoutes);
 app.route("/api/connect", connectRoutes);
+app.route("/api/admin", adminRoutes);
 
 app.onError((err, c) => {
   console.error("unhandled", err);
