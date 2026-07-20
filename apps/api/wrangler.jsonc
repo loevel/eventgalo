@@ -24,6 +24,7 @@
       "bucket_name": "eventgalo-media"
     }
   ],
+  "ai": { "binding": "AI" },
   "durable_objects": {
     "bindings": [{ "name": "EVENT_DO", "class_name": "EventDO" }]
   },
@@ -58,6 +59,7 @@
           "bucket_name": "eventgalo-media-staging"
         }
       ],
+      "ai": { "binding": "AI" },
       "durable_objects": {
         "bindings": [{ "name": "EVENT_DO", "class_name": "EventDO" }]
       },

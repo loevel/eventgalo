@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   KV: KVNamespace;
   MEDIA: R2Bucket;
+  AI: Ai;
   EVENT_DO: DurableObjectNamespace;
   EMAIL: SendEmail;
   WEB_BASE_URL: string;

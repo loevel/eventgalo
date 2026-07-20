@@ -134,6 +134,24 @@ export default function NewEvent() {
   const [refundKind, setRefundKind] = useState("full");
   const [refundDays, setRefundDays] = useState("7");
   const [refundPercent, setRefundPercent] = useState("50");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function generateDescription() {
+    if (!eventId) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ text: string }>(`/api/events/${eventId}/ai/draft`, {
+        method: "POST",
+        body: { target: "description" },
+      });
+      setDescription(res.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   const allocated = categories.reduce((s, c) => s + c.quantity, 0);
 
@@ -484,7 +502,12 @@ export default function NewEvent() {
 
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Détails complémentaires</h3>
-            <label>Description / programme</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={{ margin: 0 }}>Description / programme</label>
+              <button type="button" className="btn-sm btn-ghost" onClick={generateDescription} disabled={aiBusy}>
+                {aiBusy ? "Génération…" : "✨ Générer avec l'IA"}
+              </button>
+            </div>
             <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
             <label>Dress code</label>
             <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />

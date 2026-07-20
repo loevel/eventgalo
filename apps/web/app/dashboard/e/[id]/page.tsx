@@ -711,10 +711,39 @@ function MediaTab({
 
 function AnnounceForm({ eventId, act }: { eventId: string; act: (fn: () => Promise<unknown>, ok?: string) => void }) {
   const [body, setBody] = useState("");
+  const [hint, setHint] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function generate() {
+    setAiBusy(true);
+    try {
+      const res = await api<{ text: string }>(`/api/events/${eventId}/ai/draft`, {
+        method: "POST",
+        body: { target: "announcement", hint },
+      });
+      setBody(res.text);
+    } catch {
+      // L'erreur s'affiche déjà via le flux act() ailleurs ; ici on échoue silencieusement.
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   return (
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Nouvelle annonce</h3>
       <p className="muted">Visible sur toutes les invitations, et envoyée par email aux invités.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <input
+          placeholder="De quoi parle l'annonce ? (ex. changement d'horaire)"
+          value={hint}
+          onChange={(e) => setHint(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <button type="button" className="btn-sm btn-ghost" onClick={generate} disabled={aiBusy}>
+          {aiBusy ? "Génération…" : "✨ Générer avec l'IA"}
+        </button>
+      </div>
       <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Changement d'horaire : ouverture des portes à 19h." />
       <button
         className="btn-accent"

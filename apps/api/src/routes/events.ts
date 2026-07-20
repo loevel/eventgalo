@@ -10,6 +10,8 @@ import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
 import { triggerWebhooks } from "../lib/webhooks";
 import { deleteEventCascade } from "../lib/event-delete";
+import { generateDraft } from "../lib/ai";
+import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
@@ -224,6 +226,29 @@ events.delete("/:id", async (c) => {
   const result = await deleteEventCascade(c.env, event.id);
   if (result.blocked) return c.json({ error: result.reason }, 409);
   return c.json({ ok: true });
+});
+
+/** Brouillon généré par IA : description de l'événement ou annonce aux invités. */
+events.post("/:id/ai/draft", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  if (await isRateLimited(c.env, "ai-draft", user.id, 20, 3600)) return tooManyRequests(c);
+
+  const body = await c.req.json<{ target?: string; hint?: string }>().catch(() => ({}) as Record<string, never>);
+  if (body.target !== "description" && body.target !== "announcement") {
+    return c.json({ error: "Cible invalide" }, 400);
+  }
+  const text = await generateDraft(c.env, {
+    target: body.target,
+    title: event.title,
+    eventType: event.type as "private" | "ticketed",
+    startsAt: event.starts_at,
+    venue: (event.venue as string | null) ?? null,
+    dressCode: (event.dress_code as string | null) ?? null,
+    hint: body.hint?.slice(0, 300),
+  });
+  return c.json({ text });
 });
 
 /* --------------------------- Co-organisateurs ----------------------------- */
