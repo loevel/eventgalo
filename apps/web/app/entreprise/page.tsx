@@ -229,12 +229,14 @@ export default function CompanyPage() {
   return (
     <main className="container narrow">
       <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Building2 size={24} /> Mon entreprise
+        <Building2 size={24} /> Mon profil
       </h1>
       <p className="muted">
-        Créez le profil public de votre entreprise pour apparaître dans l&apos;
-        <a href="/sponsors">annuaire des sponsors</a> : les associations qui organisent des événements sur
-        EventGalo pourront vous découvrir et vous proposer des opportunités de sponsoring.
+        Ouvert aux entreprises comme aux indépendants — coiffeur, photographe, décorateur, DJ… même si ce n&apos;est
+        pas votre activité principale. Créez votre profil public pour apparaître dans l&apos;
+        <a href="/sponsors">annuaire des sponsors</a> et/ou l&apos;<a href="/prestataires">annuaire des
+        prestataires</a> : les organisateurs d&apos;événements sur EventGalo pourront vous découvrir et vous
+        contacter.
       </p>
 
       {flash && <div className="alert ok">{flash}</div>}
@@ -380,7 +382,7 @@ export default function CompanyPage() {
           {(
             [
               ["company", "Entreprise", "Commerce, PME, organisation — le profil porte le nom de l'entreprise."],
-              ["professional", "Professionnel indépendant", "Courtier, conseiller, artisan… — le profil porte votre nom, avec votre métier et votre bannière."],
+              ["professional", "Indépendant / occasionnel", "Coiffeur, photographe, décorateur, courtier, artisan… même de façon ponctuelle — le profil porte votre nom, avec votre métier et votre bannière."],
             ] as const
           ).map(([value, label, hint]) => (
             <label key={value} className={`kind-option${form.kind === value ? " kind-selected" : ""}`}>
