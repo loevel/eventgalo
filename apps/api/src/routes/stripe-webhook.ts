@@ -6,6 +6,7 @@ import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { nowIso } from "../lib/crypto";
 import { sendTicketsEmail } from "./public";
 import { triggerWebhooks } from "../lib/webhooks";
+import { syncAccountStatus } from "../lib/stripe";
 
 /** Paiement de sponsoring reçu : confirmation automatique + emails aux deux parties. */
 async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: string): Promise<void> {
@@ -79,18 +80,28 @@ webhook.post("/stripe", async (c) => {
   const signature = c.req.header("stripe-signature");
   if (!signature) return c.json({ error: "Signature manquante" }, 400);
 
-  let event: Stripe.Event;
-  try {
-    event = await stripe.webhooks.constructEventAsync(
-      await c.req.text(),
-      signature,
-      c.env.STRIPE_WEBHOOK_SECRET,
-      undefined,
-      Stripe.createSubtleCryptoProvider(),
-    );
-  } catch {
-    return c.json({ error: "Signature invalide" }, 400);
+  // Deux destinations Stripe pointent ici (compte plateforme + comptes connectés),
+  // chacune avec son propre secret de signature : on essaie les deux.
+  const secrets = [c.env.STRIPE_WEBHOOK_SECRET, c.env.STRIPE_CONNECT_WEBHOOK_SECRET].filter(
+    (s): s is string => Boolean(s),
+  );
+  const body = await c.req.text();
+  let event: Stripe.Event | null = null;
+  for (const secret of secrets) {
+    try {
+      event = await stripe.webhooks.constructEventAsync(
+        body,
+        signature,
+        secret,
+        undefined,
+        Stripe.createSubtleCryptoProvider(),
+      );
+      break;
+    } catch {
+      // secret suivant
+    }
   }
+  if (!event) return c.json({ error: "Signature invalide" }, 400);
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
@@ -117,6 +128,10 @@ webhook.post("/stripe", async (c) => {
         );
       }
     }
+  } else if (event.type === "account.updated") {
+    // Statut du compte Connect Express d'un organisateur (onboarding terminé,
+    // encaissements/payouts activés ou suspendus par Stripe).
+    await syncAccountStatus(c.env, event.data.object as Stripe.Account);
   } else if (event.type === "checkout.session.expired") {
     const session = event.data.object as Stripe.Checkout.Session;
     const txId = session.metadata?.transaction_id;

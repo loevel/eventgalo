@@ -702,7 +702,8 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
   const b = await c.req.json<{ approve?: boolean }>().catch(() => ({}) as Record<string, never>);
 
   const request = await c.env.DB.prepare(
-    `SELECT r.*, t.event_id, t.category_id, tr.stripe_payment_intent, tr.amount_cents, tr.quantity, tr.currency
+    `SELECT r.*, t.event_id, t.category_id, tr.stripe_payment_intent, tr.amount_cents, tr.quantity, tr.currency,
+            tr.stripe_destination_account
      FROM refund_requests r
      JOIN tickets t ON t.id = r.ticket_id
      JOIN transactions tr ON tr.id = r.transaction_id
@@ -712,6 +713,7 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
     .first<{
       id: string; ticket_id: string; transaction_id: string; category_id: string;
       stripe_payment_intent: string | null; amount_cents: number; quantity: number; currency: string;
+      stripe_destination_account: string | null;
     }>();
   if (!request) return c.json({ error: "Demande introuvable ou déjà traitée" }, 404);
 
@@ -771,6 +773,10 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
       const refund = await stripe.refunds.create({
         payment_intent: request.stripe_payment_intent,
         amount: refundAmount,
+        // Destination charge (Connect) : reprend la part correspondante sur le
+        // compte de l'organisateur. Les frais de service restent acquis à la
+        // plateforme (refund_application_fee reste à false).
+        ...(request.stripe_destination_account ? { reverse_transfer: true } : {}),
       });
       stripeRefundId = refund.id;
     } catch (e) {

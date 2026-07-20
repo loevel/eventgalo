@@ -13,6 +13,11 @@ export interface Env {
   /** Secrets optionnels */
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  /** Secret de la destination webhook « Comptes connectés » (account.updated). */
+  STRIPE_CONNECT_WEBHOOK_SECRET?: string;
+  /** Frais de service payés par l'acheteur : pourcentage (défaut 5) et fixe par billet en cents (défaut 99). */
+  PLATFORM_FEE_PERCENT?: string;
+  PLATFORM_FEE_FIXED_CENTS?: string;
   EMAIL_FROM?: string;
 }
 

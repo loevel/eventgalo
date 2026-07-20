@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, formatDate, getToken } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
+import { ConnectPaymentsCard } from "@/components/connect-payments";
 
 interface EventListItem {
   id: string;
@@ -94,6 +95,8 @@ export default function Dashboard() {
       </div>
 
       {error && <div className="alert err">{error}</div>}
+
+      {events !== null && <ConnectPaymentsCard />}
 
       {events === null && !error && (
         <div className="grid2" style={{ marginTop: 14 }}>

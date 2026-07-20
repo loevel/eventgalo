@@ -213,6 +213,11 @@ export function CheckoutForm({
               ? `Payer ${formatPrice(selected.price_cents * qty, selected.currency)}`
               : "Obtenir mes billets"}
       </button>
+      {!soldOut && selected && selected.price_cents > 0 && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          Des frais de service peuvent s&apos;ajouter au moment du paiement sécurisé.
+        </p>
+      )}
     </form>
   );
 }

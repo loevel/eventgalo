@@ -9,6 +9,7 @@ import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { buildIcsEvent, icsResponse } from "../lib/ics";
 import { triggerWebhooks } from "../lib/webhooks";
+import { organizerDestination, serviceFeeCents } from "../lib/stripe";
 
 const pub = new Hono<AppContext>();
 
@@ -292,7 +293,7 @@ pub.post("/sponsor/:token", async (c) => {
 /** Paiement en ligne du sponsoring (Stripe Checkout). */
 pub.post("/sponsor/:token/checkout", async (c) => {
   const sponsor = await c.env.DB.prepare(
-    `SELECT s.*, t.name AS tier_name, t.currency, e.title AS event_title
+    `SELECT s.*, t.name AS tier_name, t.currency, e.title AS event_title, e.organizer_id
      FROM sponsors s JOIN sponsor_tiers t ON t.id = s.tier_id JOIN events e ON e.id = s.event_id
      WHERE s.token = ?`,
   )
@@ -300,6 +301,7 @@ pub.post("/sponsor/:token/checkout", async (c) => {
     .first<{
       id: string; event_id: string; status: string; amount_cents: number | null; paid_at: string | null;
       contact_email: string; company_name: string | null; tier_name: string; currency: string; event_title: string;
+      organizer_id: string;
     }>();
   if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
   if (sponsor.status !== "pending") return c.json({ error: "Engagement requis avant le paiement" }, 409);
@@ -311,6 +313,10 @@ pub.post("/sponsor/:token/checkout", async (c) => {
   if (!c.env.STRIPE_SECRET_KEY) return c.json({ error: "Paiement en ligne indisponible" }, 501);
 
   const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { httpClient: Stripe.createFetchHttpClient() });
+  // Destination charge si l'organisateur est activé sur Connect : il reçoit
+  // 100 % du montant du palier, l'entreprise paie les frais de service.
+  const destination = await organizerDestination(c.env, sponsor.organizer_id);
+  const fee = destination ? serviceFeeCents(c.env, sponsor.amount_cents, 1) : 0;
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: sponsor.contact_email,
@@ -326,7 +332,22 @@ pub.post("/sponsor/:token/checkout", async (c) => {
           },
         },
       },
+      ...(fee > 0
+        ? [
+            {
+              quantity: 1,
+              price_data: {
+                currency: sponsor.currency.toLowerCase(),
+                unit_amount: fee,
+                product_data: { name: "Frais de service EventGalo" },
+              },
+            },
+          ]
+        : []),
     ],
+    ...(destination
+      ? { payment_intent_data: { application_fee_amount: fee, transfer_data: { destination } } }
+      : {}),
     metadata: { sponsor_id: sponsor.id, event_id: sponsor.event_id },
     success_url: `${c.env.WEB_BASE_URL}/sp/${c.req.param("token")}?paid=1`,
     cancel_url: `${c.env.WEB_BASE_URL}/sp/${c.req.param("token")}?canceled=1`,
@@ -771,10 +792,10 @@ pub.post("/checkout", async (c) => {
   if (!b.consent) return c.json({ error: "Le consentement à la collecte des données est requis" }, 400);
 
   const event = await c.env.DB.prepare(
-    "SELECT id, title, public_slug FROM events WHERE public_slug = ? AND status = 'published'",
+    "SELECT id, title, public_slug, organizer_id FROM events WHERE public_slug = ? AND status = 'published'",
   )
     .bind(b.slug ?? "")
-    .first<{ id: string; title: string; public_slug: string }>();
+    .first<{ id: string; title: string; public_slug: string; organizer_id: string }>();
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
 
   // Réservation atomique via le Durable Object de l'événement
@@ -798,29 +819,58 @@ pub.post("/checkout", async (c) => {
   // Paiement Stripe si configuré et montant > 0 ; sinon émission directe
   if (c.env.STRIPE_SECRET_KEY && reservation.amount_cents > 0) {
     const stripe = new Stripe(c.env.STRIPE_SECRET_KEY, { httpClient: Stripe.createFetchHttpClient() });
-    const cat = await c.env.DB.prepare("SELECT name FROM ticket_categories WHERE id = ?")
-      .bind(b.category_id)
-      .first<{ name: string }>();
+    const quantity = Number(b.quantity ?? 1) | 0;
+    const [cat, destination] = await Promise.all([
+      c.env.DB.prepare("SELECT name FROM ticket_categories WHERE id = ?")
+        .bind(b.category_id)
+        .first<{ name: string }>(),
+      organizerDestination(c.env, event.organizer_id),
+    ]);
+    // Organisateur activé sur Connect : destination charge — il reçoit 100 % du
+    // prix affiché, l'acheteur paie des frais de service qui restent à la plateforme.
+    const fee = destination ? serviceFeeCents(c.env, reservation.amount_cents, quantity) : 0;
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: buyerEmail,
       line_items: [
         {
-          quantity: Number(b.quantity ?? 1) | 0,
+          quantity,
           price_data: {
             currency: reservation.currency.toLowerCase(),
-            unit_amount: reservation.amount_cents / (Number(b.quantity ?? 1) | 0),
+            unit_amount: reservation.amount_cents / quantity,
             product_data: { name: `${event.title} — ${cat?.name ?? "Billet"}` },
           },
         },
+        ...(fee > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: reservation.currency.toLowerCase(),
+                  unit_amount: fee,
+                  product_data: { name: "Frais de service EventGalo" },
+                },
+              },
+            ]
+          : []),
       ],
+      ...(destination
+        ? {
+            payment_intent_data: {
+              application_fee_amount: fee,
+              transfer_data: { destination },
+            },
+          }
+        : {}),
       metadata: { transaction_id: reservation.transaction_id, event_id: event.id },
       success_url: `${c.env.WEB_BASE_URL}/checkout/success?tx=${reservation.transaction_id}`,
       cancel_url: `${c.env.WEB_BASE_URL}/e/${event.public_slug}?canceled=1`,
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     });
-    await c.env.DB.prepare("UPDATE transactions SET stripe_session_id = ? WHERE id = ?")
-      .bind(session.id, reservation.transaction_id)
+    await c.env.DB.prepare(
+      "UPDATE transactions SET stripe_session_id = ?, service_fee_cents = ?, stripe_destination_account = ? WHERE id = ?",
+    )
+      .bind(session.id, fee, destination, reservation.transaction_id)
       .run();
     return c.json({ mode: "stripe", checkout_url: session.url });
   }
