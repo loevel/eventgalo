@@ -77,6 +77,20 @@ a.card-link:hover .card {
   border-color: rgba(180,84,10,0.28);
 }
 
+.event-preview-card {
+  background: var(--ink); color: #fff; border-radius: var(--radius);
+  padding: 24px 26px; margin: 14px 0;
+}
+.event-preview-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 99px; margin-bottom: 12px;
+  background: rgba(242,192,120,0.14); border: 1px solid rgba(242,192,120,0.35);
+  color: var(--gold); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.event-preview-card h2 { margin: 0 0 8px; font-size: 24px; color: #fff; }
+.event-preview-meta { margin: 0; font-size: 13px; color: rgba(246,237,225,0.75); }
+.event-preview-desc { margin: 12px 0 0; font-size: 14px; color: rgba(246,237,225,0.9); white-space: pre-wrap; }
+
 label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
 input, textarea, select {
   width: 100%; padding: 10px 12px; font-size: 15px; font-family: inherit;

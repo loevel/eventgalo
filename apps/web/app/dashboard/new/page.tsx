@@ -66,6 +66,11 @@ const TEMPLATES: Record<TemplateKey, EventTemplate> = {
   },
 };
 
+function formatPreviewDate(local: string): string {
+  if (!local) return "Date à venir";
+  return new Intl.DateTimeFormat("fr-CA", { dateStyle: "full", timeStyle: "short" }).format(new Date(local));
+}
+
 const PRIVATE_TEMPLATES: TemplateKey[] = ["generic", "wedding", "birthday_adult", "birthday_kids"];
 const TICKETED_TEMPLATES: TemplateKey[] = ["generic", "gala", "conference"];
 
@@ -479,6 +484,19 @@ export default function NewEvent() {
 
       {step === 3 && (
         <>
+          <div className="event-preview-card">
+            <span className="event-preview-badge">
+              {type === "ticketed" ? "🎟️ Billetterie" : "💌 Invitation"} · Aperçu en direct
+            </span>
+            <h2>{title || "Titre de votre événement"}</h2>
+            <p className="event-preview-meta">
+              {formatPreviewDate(startsAt)}
+              {venue ? ` · ${venue}` : ""}
+              {dressCode ? ` · ${dressCode}` : ""}
+            </p>
+            {description && <p className="event-preview-desc">{description}</p>}
+          </div>
+
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Identité visuelle</h3>
             <label>Logo de l&apos;association organisatrice (optionnel)</label>
