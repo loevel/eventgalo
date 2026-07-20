@@ -298,6 +298,25 @@ export default function EventAdmin() {
                 Archiver
               </button>
             )}
+            {is_owner && (
+              <button
+                className="btn-sm btn-ghost"
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Supprimer définitivement cet événement ? Cette action est irréversible et ne fonctionne que s'il n'a aucune vente ni sponsor confirmé.",
+                    )
+                  ) {
+                    setError(null);
+                    api(`/api/events/${ev.id}`, { method: "DELETE" })
+                      .then(() => router.replace("/dashboard"))
+                      .catch((e) => setError(e instanceof Error ? e.message : "Erreur"));
+                  }
+                }}
+              >
+                Supprimer
+              </button>
+            )}
           </div>
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Détails</h3>

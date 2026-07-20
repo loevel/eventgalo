@@ -54,6 +54,20 @@ export default function AdminEventsPage() {
     }
   }
 
+  async function deleteEvent(ev: AdminEvent) {
+    if (!confirm(`Supprimer définitivement « ${ev.title} » ? Cette action est irréversible.`)) return;
+    setBusy(ev.id);
+    setError(null);
+    try {
+      await api(`/api/admin/events/${ev.id}`, { method: "DELETE" });
+      load(q, status);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="card">
       <form
@@ -118,6 +132,9 @@ export default function AdminEventsPage() {
                         Archiver
                       </button>
                     )}
+                    <button className="btn-sm btn-ghost" disabled={busy === ev.id} onClick={() => deleteEvent(ev)}>
+                      Supprimer
+                    </button>
                   </td>
                 </tr>
               );

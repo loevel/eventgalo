@@ -9,6 +9,7 @@ import { callEventDO, DOError } from "../do/event-do";
 import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
 import { triggerWebhooks } from "../lib/webhooks";
+import { deleteEventCascade } from "../lib/event-delete";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
@@ -210,6 +211,19 @@ events.patch("/:id", async (c) => {
   values.push(nowIso(), event.id);
   await c.env.DB.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
   return c.json({ event: await getOwnedEvent(c.env, event.id, user.id) });
+});
+
+/** Suppression définitive — réservée à l'organisateur principal (pas les co-organisateurs). */
+events.delete("/:id", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  if (event.organizer_id !== user.id) {
+    return c.json({ error: "Seul l'organisateur principal peut supprimer l'événement" }, 403);
+  }
+  const result = await deleteEventCascade(c.env, event.id);
+  if (result.blocked) return c.json({ error: result.reason }, 409);
+  return c.json({ ok: true });
 });
 
 /* --------------------------- Co-organisateurs ----------------------------- */

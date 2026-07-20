@@ -3,6 +3,7 @@ import type { AppContext } from "../types";
 import { requireAuth } from "../lib/auth";
 import { requireAdmin, requireSuperadmin, logAdminAction, getSetting, setSetting } from "../lib/admin";
 import { nowIso } from "../lib/crypto";
+import { deleteEventCascade } from "../lib/event-delete";
 
 const admin = new Hono<AppContext>();
 admin.use("*", requireAuth, requireAdmin);
@@ -178,6 +179,16 @@ admin.post("/events/:id/status", async (c) => {
     .run();
   if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
   await logAdminAction(c.env, admin_.id, "event.status", "event", id, { status: body.status });
+  return c.json({ ok: true });
+});
+
+/** Suppression définitive par un administrateur (modération). */
+admin.delete("/events/:id", async (c) => {
+  const id = c.req.param("id");
+  const admin_ = c.get("user");
+  const result = await deleteEventCascade(c.env, id);
+  if (result.blocked) return c.json({ error: result.reason }, 409);
+  await logAdminAction(c.env, admin_.id, "event.delete", "event", id);
   return c.json({ ok: true });
 });
 

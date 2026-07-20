@@ -18,6 +18,7 @@ const ACTION_LABEL: Record<string, string> = {
   "user.reactivate": "Réactivation d'un compte",
   "user.role": "Changement de rôle",
   "event.status": "Changement de statut d'événement",
+  "event.delete": "Suppression d'un événement",
   "settings.update": "Modification des paramètres",
   "review.delete": "Suppression d'un avis sponsor",
 };
