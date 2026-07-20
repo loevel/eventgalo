@@ -569,6 +569,17 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             </section>
           </Reveal>
         )}
+
+        <Reveal delay={70}>
+          <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
+            <p className="muted" style={{ margin: 0 }}>
+              Vous organisez un événement similaire ? Trouvez un photographe, une salle, un traiteur…
+            </p>
+            <a className="btn btn-ghost btn-sm" href="/prestataires">
+              Annuaire des prestataires
+            </a>
+          </div>
+        </Reveal>
       </main>
     </>
   );

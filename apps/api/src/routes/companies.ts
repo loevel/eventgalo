@@ -53,6 +53,7 @@ company.put("/", async (c) => {
     sanitizeSocials(b.socials),
     videoUrl,
     b.listed ? 1 : 0,
+    b.vendor_listed ? 1 : 0,
     nowIso(),
   ];
   if (existing) {
@@ -66,7 +67,8 @@ company.put("/", async (c) => {
         domainOfUrl(clampText(b.website, 300)) === existing.verified_domain);
     await c.env.DB.prepare(
       `UPDATE companies SET name = ?, kind = ?, title = ?, affiliation = ?, sector = ?, city = ?,
-         description = ?, website = ?, phone = ?, public_email = ?, socials = ?, video_url = ?, listed = ?, updated_at = ?,
+         description = ?, website = ?, phone = ?, public_email = ?, socials = ?, video_url = ?, listed = ?,
+         vendor_listed = ?, updated_at = ?,
          verified_at = CASE WHEN ? THEN verified_at END,
          verified_domain = CASE WHEN ? THEN verified_domain END
        WHERE id = ?`,
@@ -78,8 +80,8 @@ company.put("/", async (c) => {
   const id = uuid();
   await c.env.DB.prepare(
     `INSERT INTO companies (id, owner_user_id, name, kind, title, affiliation, sector, city,
-       description, website, phone, public_email, socials, video_url, listed, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       description, website, phone, public_email, socials, video_url, listed, vendor_listed, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(id, user.id, ...values)
     .run();
@@ -455,7 +457,8 @@ directory.get("/", async (c) => {
   const sector = (c.req.query("sector") ?? "").trim().slice(0, 80);
   const city = (c.req.query("city") ?? "").trim().slice(0, 80);
   const kind = (c.req.query("kind") ?? "").trim();
-  const conditions = ["listed = 1"];
+  const vendorMode = c.req.query("vendor") === "1";
+  const conditions = [vendorMode ? "vendor_listed = 1" : "listed = 1"];
   const binds: unknown[] = [];
   if (q) {
     conditions.push("(name LIKE ? OR description LIKE ?)");
@@ -488,7 +491,7 @@ directory.get("/", async (c) => {
              WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS review_count
      FROM companies c
      WHERE ${conditions.join(" AND ")}
-     ORDER BY verified DESC, sponsorships DESC, c.updated_at DESC LIMIT 60`,
+     ORDER BY verified DESC, ${vendorMode ? "" : "sponsorships DESC, "}c.updated_at DESC LIMIT 60`,
   )
     .bind(...binds)
     .all();
@@ -536,7 +539,7 @@ directory.get("/opportunities", async (c) => {
 /** Ids + date de mise à jour des entreprises listées — utilisée par le sitemap. */
 directory.get("/sitemap", async (c) => {
   const rows = await c.env.DB.prepare(
-    "SELECT id, updated_at FROM companies WHERE listed = 1 ORDER BY updated_at DESC LIMIT 5000",
+    "SELECT id, updated_at FROM companies WHERE listed = 1 OR vendor_listed = 1 ORDER BY updated_at DESC LIMIT 5000",
   ).all();
   return c.json({ companies: rows.results });
 });
@@ -553,7 +556,7 @@ directory.get("/:id", async (c) => {
              WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS avg_rating,
             (SELECT COUNT(*) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
              WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS review_count
-     FROM companies c WHERE c.id = ? AND c.listed = 1`,
+     FROM companies c WHERE c.id = ? AND (c.listed = 1 OR c.vendor_listed = 1)`,
   )
     .bind(c.req.param("id"))
     .first();

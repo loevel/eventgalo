@@ -10,6 +10,13 @@ export const COMPANY_SECTORS = [
   "Transport",
   "Éducation",
   "Boissons & vignobles",
+  "Photographe",
+  "Salle / lieu de réception",
+  "Traiteur",
+  "Musicien / DJ",
+  "Décoration",
+  "Fleuriste",
+  "Location d'équipement",
   "Autre",
 ] as const;
 

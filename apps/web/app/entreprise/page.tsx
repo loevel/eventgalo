@@ -52,6 +52,7 @@ interface Company {
   video_url: string | null;
   logo_key: string | null;
   listed: number;
+  vendor_listed: number;
   verified_at: string | null;
   verified_domain: string | null;
   registry_id: string | null;
@@ -74,7 +75,7 @@ export default function CompanyPage() {
   const [form, setForm] = useState({
     name: "", kind: "company" as "company" | "professional", title: "", affiliation: "",
     sector: "", city: "", description: "", website: "", phone: "", public_email: "", video_url: "",
-    listed: false, socials: {} as Partial<Record<SocialKey, string>>,
+    listed: false, vendor_listed: false, socials: {} as Partial<Record<SocialKey, string>>,
   });
   const [verif, setVerif] = useState<VerificationState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -114,6 +115,7 @@ export default function CompanyPage() {
             public_email: r.company.public_email ?? "",
             video_url: r.company.video_url ?? "",
             listed: Boolean(r.company.listed),
+            vendor_listed: Boolean(r.company.vendor_listed),
             socials: parseSocials(r.company.socials),
           });
         }
@@ -152,9 +154,10 @@ export default function CompanyPage() {
           video_url: form.video_url || null,
           socials: form.socials,
           listed: form.listed,
+          vendor_listed: form.vendor_listed,
         },
       });
-      setFlash(form.listed ? "Profil enregistré — visible dans l'annuaire" : "Profil enregistré");
+      setFlash(form.listed || form.vendor_listed ? "Profil enregistré — visible dans l'annuaire" : "Profil enregistré");
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
@@ -505,6 +508,20 @@ export default function CompanyPage() {
           <label htmlFor="listed" style={{ margin: 0, fontWeight: 400 }}>
             <strong>Apparaître dans l&apos;annuaire public des sponsors.</strong> Les organisateurs d&apos;événements
             pourront voir votre profil et vous inviter à sponsoriser leurs événements.
+          </label>
+        </div>
+
+        <div className="check" style={{ marginTop: 10 }}>
+          <input
+            id="vendor_listed"
+            type="checkbox"
+            checked={form.vendor_listed}
+            onChange={(e) => setForm({ ...form, vendor_listed: e.target.checked })}
+          />
+          <label htmlFor="vendor_listed" style={{ margin: 0, fontWeight: 400 }}>
+            <strong>Apparaître dans l&apos;annuaire des prestataires.</strong> Les organisateurs pourront vous
+            découvrir pour de la photographie, la location d&apos;une salle, un traiteur, de la musique, de la
+            décoration…
           </label>
         </div>
 

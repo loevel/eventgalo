@@ -657,6 +657,15 @@ export default function NewEvent() {
             )}
           </div>
 
+          <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
+            <p className="muted" style={{ margin: 0 }}>
+              Besoin d&apos;un photographe, d&apos;une salle, d&apos;un traiteur pour cet événement ?
+            </p>
+            <a className="btn btn-ghost btn-sm" href="/prestataires" target="_blank" rel="noreferrer">
+              Parcourir l&apos;annuaire des prestataires
+            </a>
+          </div>
+
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Récapitulatif</h3>
             <p className="muted" style={{ margin: "4px 0" }}>
