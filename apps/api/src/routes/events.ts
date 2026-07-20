@@ -208,6 +208,10 @@ events.patch("/:id", async (c) => {
     sets.push("refund_policy = ?");
     values.push(b.refund_policy ? JSON.stringify(b.refund_policy) : null);
   }
+  if (b.agenda !== undefined) {
+    sets.push("agenda = ?");
+    values.push(Array.isArray(b.agenda) && b.agenda.length ? JSON.stringify(b.agenda) : null);
+  }
   if (!sets.length) return c.json({ error: "Aucun champ à modifier" }, 400);
   sets.push("updated_at = ?");
   values.push(nowIso(), event.id);

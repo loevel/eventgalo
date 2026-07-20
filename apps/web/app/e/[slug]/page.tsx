@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock } from "lucide-react";
 import { parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { CheckoutForm } from "@/components/checkout-form";
@@ -22,6 +22,7 @@ interface PublicEvent {
   public_slug: string;
   cover_media_id: string | null;
   logo_media_id: string | null;
+  agenda: string | null;
   created_at: string | null;
 }
 
@@ -134,6 +135,16 @@ function truncate(text: string, max = 160): string {
   return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
+function parseAgenda(raw: string | null): Array<{ time: string; label: string }> {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const data = await getEvent(slug);
@@ -212,6 +223,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
         : `Jusqu'au ${formatDate(ev.ends_at)} (${duration})`
       : null;
 
+  const agenda = parseAgenda(ev.agenda);
   const mapQuery = [ev.venue, ev.address].filter(Boolean).join(", ");
   const mapEmbedUrl = mapQuery ? `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&output=embed` : null;
   const mapDirectionsUrl = mapQuery
@@ -293,6 +305,24 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
               <Reveal>
                 <div className="card">
                   <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{ev.description}</p>
+                </div>
+              </Reveal>
+            )}
+
+            {agenda.length > 0 && (
+              <Reveal delay={50}>
+                <div className="card">
+                  <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <CalendarClock size={17} /> Programme
+                  </h3>
+                  <ol className="agenda-list">
+                    {agenda.map((item, i) => (
+                      <li key={i}>
+                        <span className="agenda-time">{item.time}</span>
+                        <span className="agenda-label">{item.label}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
               </Reveal>
             )}

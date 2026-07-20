@@ -90,6 +90,9 @@ a.card-link:hover .card {
 .event-preview-card h2 { margin: 0 0 8px; font-size: 24px; color: #fff; }
 .event-preview-meta { margin: 0; font-size: 13px; color: rgba(246,237,225,0.75); }
 .event-preview-desc { margin: 12px 0 0; font-size: 14px; color: rgba(246,237,225,0.9); white-space: pre-wrap; }
+.event-preview-agenda { list-style: none; margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid rgba(255,255,255,0.12); }
+.event-preview-agenda li { font-size: 13px; color: rgba(246,237,225,0.85); padding: 3px 0; }
+.event-preview-agenda li strong { color: var(--gold); margin-right: 8px; }
 
 label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
 input, textarea, select {
@@ -858,6 +861,15 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
   content: ""; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px;
   border-radius: 50%; background: var(--accent);
 }
+
+.agenda-list { list-style: none; margin: 0; padding: 0; }
+.agenda-list li {
+  display: flex; gap: 14px; align-items: baseline; padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.agenda-list li:last-child { border-bottom: none; }
+.agenda-time { flex: none; min-width: 72px; font-weight: 600; color: var(--accent); font-size: 14px; }
+.agenda-label { color: var(--ink); font-size: 14px; }
 
 .pulse-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;

@@ -32,10 +32,15 @@ const STEP_LABELS = ["Essentiels", "Configuration", "Récapitulatif"] as const;
 
 type TemplateKey = "generic" | "wedding" | "birthday_adult" | "birthday_kids" | "gala" | "conference";
 
+interface AgendaItem {
+  time: string;
+  label: string;
+}
+
 interface EventTemplate {
   label: string;
   dressCode?: string;
-  description?: string;
+  agenda?: AgendaItem[];
 }
 
 const TEMPLATES: Record<TemplateKey, EventTemplate> = {
@@ -43,26 +48,48 @@ const TEMPLATES: Record<TemplateKey, EventTemplate> = {
   wedding: {
     label: "💍 Mariage",
     dressCode: "Tenue de soirée / élégante",
-    description:
-      "18 h 00 – Cérémonie\n19 h 00 – Cocktail de bienvenue\n20 h 00 – Repas\n21 h 30 – Ouverture de bal\n22 h 00 – Soirée dansante",
+    agenda: [
+      { time: "18 h 00", label: "Cérémonie" },
+      { time: "19 h 00", label: "Cocktail de bienvenue" },
+      { time: "20 h 00", label: "Repas" },
+      { time: "21 h 30", label: "Ouverture de bal" },
+      { time: "22 h 00", label: "Soirée dansante" },
+    ],
   },
   birthday_adult: {
     label: "🎂 Anniversaire",
     dressCode: "Décontracté chic",
-    description: "19 h 00 – Accueil des invités\n19 h 30 – Apéritif\n20 h 30 – Repas\n21 h 30 – Gâteau et discours\n22 h 00 – Musique et danse",
+    agenda: [
+      { time: "19 h 00", label: "Accueil des invités" },
+      { time: "19 h 30", label: "Apéritif" },
+      { time: "20 h 30", label: "Repas" },
+      { time: "21 h 30", label: "Gâteau et discours" },
+      { time: "22 h 00", label: "Musique et danse" },
+    ],
   },
   birthday_kids: { label: "🎈 Anniversaire d'enfant" },
   gala: {
     label: "🏆 Gala",
     dressCode: "Tenue de gala / cravate noire",
-    description:
-      "18 h 00 – Accueil et cocktail\n19 h 00 – Mot d'ouverture\n19 h 30 – Souper\n20 h 30 – Remise de prix / animation\n21 h 30 – Soirée dansante",
+    agenda: [
+      { time: "18 h 00", label: "Accueil et cocktail" },
+      { time: "19 h 00", label: "Mot d'ouverture" },
+      { time: "19 h 30", label: "Souper" },
+      { time: "20 h 30", label: "Remise de prix / animation" },
+      { time: "21 h 30", label: "Soirée dansante" },
+    ],
   },
   conference: {
     label: "🎤 Conférence",
     dressCode: "Tenue professionnelle",
-    description:
-      "08 h 30 – Accueil et inscription\n09 h 00 – Mot de bienvenue\n09 h 15 – Conférences\n12 h 00 – Pause déjeuner\n13 h 30 – Ateliers\n16 h 30 – Clôture",
+    agenda: [
+      { time: "08 h 30", label: "Accueil et inscription" },
+      { time: "09 h 00", label: "Mot de bienvenue" },
+      { time: "09 h 15", label: "Conférences" },
+      { time: "12 h 00", label: "Pause déjeuner" },
+      { time: "13 h 30", label: "Ateliers" },
+      { time: "16 h 30", label: "Clôture" },
+    ],
   },
 };
 
@@ -115,6 +142,8 @@ export default function NewEvent() {
   // Étape 3 — récapitulatif
   const [description, setDescription] = useState("");
   const [dressCode, setDressCode] = useState("");
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
+  const [agendaForm, setAgendaForm] = useState({ time: "", label: "" });
   const [seatingPlan, setSeatingPlan] = useState("");
   const [rsvpQuestion, setRsvpQuestion] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
@@ -183,7 +212,17 @@ export default function NewEvent() {
     setTemplate(key);
     const t = TEMPLATES[key];
     setDressCode(t.dressCode ?? "");
-    setDescription(t.description ?? "");
+    setAgenda(t.agenda ?? []);
+  }
+
+  function addAgendaItem() {
+    if (!agendaForm.time || !agendaForm.label) return;
+    setAgenda((a) => [...a, agendaForm]);
+    setAgendaForm({ time: "", label: "" });
+  }
+
+  function removeAgendaItem(i: number) {
+    setAgenda((a) => a.filter((_, idx) => idx !== i));
   }
 
   async function continueFromStep1(e: React.FormEvent) {
@@ -262,6 +301,7 @@ export default function NewEvent() {
           description: description || null,
           dress_code: dressCode || null,
           seating_plan: seatingPlan || null,
+          agenda,
           rsvp_question: type === "private" ? rsvpQuestion || null : null,
           status: publish ? "published" : "draft",
           refund_policy:
@@ -495,6 +535,13 @@ export default function NewEvent() {
               {dressCode ? ` · ${dressCode}` : ""}
             </p>
             {description && <p className="event-preview-desc">{description}</p>}
+            {agenda.length > 0 && (
+              <ul className="event-preview-agenda">
+                {agenda.map((item, i) => (
+                  <li key={i}><strong>{item.time}</strong> {item.label}</li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="card">
@@ -521,7 +568,7 @@ export default function NewEvent() {
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Détails complémentaires</h3>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <label style={{ margin: 0 }}>Description / programme</label>
+              <label style={{ margin: 0 }}>Description</label>
               <button type="button" className="btn-sm btn-ghost" onClick={generateDescription} disabled={aiBusy}>
                 {aiBusy ? "Génération…" : "✨ Générer avec l'IA"}
               </button>
@@ -529,6 +576,34 @@ export default function NewEvent() {
             <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
             <label>Dress code</label>
             <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />
+
+            <label style={{ marginTop: 14 }}>Programme de la soirée (optionnel)</label>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Heure par heure — affiché comme une frise sur la page publique.
+            </p>
+            {agenda.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                {agenda.map((item, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+                    <span><strong>{item.time}</strong> — {item.label}</span>
+                    <button type="button" className="btn-sm btn-ghost" onClick={() => removeAgendaItem(i)}>Retirer</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid2">
+              <div>
+                <label>Heure</label>
+                <input value={agendaForm.time} onChange={(e) => setAgendaForm({ ...agendaForm, time: e.target.value })} placeholder="19 h 00" />
+              </div>
+              <div>
+                <label>Ce qui se passe</label>
+                <input value={agendaForm.label} onChange={(e) => setAgendaForm({ ...agendaForm, label: e.target.value })} placeholder="Cocktail de bienvenue" />
+              </div>
+            </div>
+            <button type="button" className="btn-sm btn-ghost" onClick={addAgendaItem} disabled={!agendaForm.time || !agendaForm.label}>
+              + Ajouter au programme
+            </button>
 
             <label>Plan de table / notes logistiques (optionnel)</label>
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
