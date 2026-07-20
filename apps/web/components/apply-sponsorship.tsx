@@ -48,7 +48,7 @@ export function ApplySponsorship({ eventId, eventTitle, tiers }: { eventId: stri
         <Handshake size={14} /> Me proposer comme sponsor
       </button>
     ) : (
-      <a className="btn btn-ghost btn-sm" href="/#login" style={{ marginTop: 0 }}>
+      <a className="btn btn-ghost btn-sm" href="/connexion" style={{ marginTop: 0 }}>
         Connectez-vous pour vous proposer comme sponsor
       </a>
     );

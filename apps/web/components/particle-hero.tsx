@@ -2,11 +2,20 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 /**
- * Champ de particules dorées dérivant lentement, avec parallax souris.
+ * Champ de particules dorées dérivant lentement, avec parallax souris, et un
+ * anneau 3D signature qui tourne doucement au centre et recule au scroll.
  * Rendu Three.js pur (pas de R3F) pour garder le bundle léger sur la landing.
  * Respecte prefers-reduced-motion : une seule frame statique est alors rendue.
+ * Sur mobile / matériel modeste, la scène est allégée (moins de particules,
+ * anneau simplifié) pour préserver la fluidité.
  */
 export function ParticleHero() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -16,13 +25,16 @@ export function ParticleHero() {
     if (!mount) return;
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isNarrow = window.innerWidth < 700;
+    const isLowPower = (navigator.hardwareConcurrency ?? 8) <= 4;
+    const lite = isNarrow || isLowPower;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(55, mount.clientWidth / mount.clientHeight, 0.1, 100);
     camera.position.z = 18;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: !lite, alpha: true });
+    renderer.setPixelRatio(lite ? 1 : Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
@@ -39,7 +51,7 @@ export function ParticleHero() {
     ctx.fillRect(0, 0, 64, 64);
     const spriteTexture = new THREE.CanvasTexture(spriteCanvas);
 
-    const COUNT = 340;
+    const COUNT = lite ? 140 : 340;
     const positions = new Float32Array(COUNT * 3);
     const speeds = new Float32Array(COUNT);
     const sways = new Float32Array(COUNT);
@@ -81,6 +93,29 @@ export function ParticleHero() {
 
     const points = new THREE.Points(geometry, material);
     scene.add(points);
+
+    // Anneau doré signature au centre du hero : élégant, discret, cohérent
+    // avec la charte. Simplifié (moins de segments, pas de tore intérieur)
+    // sur mobile / matériel modeste.
+    const ring = new THREE.Group();
+    const ringGeometry = new THREE.TorusGeometry(4.2, 0.18, lite ? 10 : 24, lite ? 48 : 120);
+    const ringMaterial = new THREE.MeshPhysicalMaterial({
+      color: "#f2c078",
+      metalness: 0.75,
+      roughness: 0.28,
+      clearcoat: lite ? 0 : 0.4,
+      emissive: "#5a3a12",
+      emissiveIntensity: 0.15,
+    });
+    const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+    ringMesh.rotation.x = Math.PI / 2.6;
+    ring.add(ringMesh);
+    scene.add(ring);
+
+    const ambientLight = new THREE.AmbientLight("#4a3a2a", 1.1);
+    const keyLight = new THREE.DirectionalLight("#ffcf94", 1.4);
+    keyLight.position.set(6, 8, 10);
+    scene.add(ambientLight, keyLight);
 
     let mouseX = 0;
     let mouseY = 0;
@@ -124,9 +159,28 @@ export function ParticleHero() {
       points.rotation.y = targetRotY;
       points.rotation.z = t * 0.01;
 
+      ring.rotation.z = t * 0.08;
+
       renderer.render(scene, camera);
       frameId = requestAnimationFrame(renderFrame);
     }
+
+    // L'anneau recule et pivote légèrement à mesure qu'on quitte le hero au
+    // scroll — même logique que le parallax du contenu texte dans HeroFx.
+    const scrollTween = reduceMotion
+      ? null
+      : gsap.to(ring.position, {
+          z: -7,
+          ease: "none",
+          scrollTrigger: { trigger: mount, start: "top top", end: "bottom top", scrub: true },
+        });
+    const scrollRotTween = reduceMotion
+      ? null
+      : gsap.to(ring.rotation, {
+          y: Math.PI * 0.9,
+          ease: "none",
+          scrollTrigger: { trigger: mount, start: "top top", end: "bottom top", scrub: true },
+        });
 
     if (reduceMotion) {
       renderer.render(scene, camera);
@@ -138,9 +192,15 @@ export function ParticleHero() {
       cancelAnimationFrame(frameId);
       window.removeEventListener("resize", onResize);
       mount?.removeEventListener("pointermove", onPointerMove);
+      scrollTween?.scrollTrigger?.kill();
+      scrollTween?.kill();
+      scrollRotTween?.scrollTrigger?.kill();
+      scrollRotTween?.kill();
       geometry.dispose();
       material.dispose();
       spriteTexture.dispose();
+      ringGeometry.dispose();
+      ringMaterial.dispose();
       renderer.dispose();
       mount?.removeChild(renderer.domElement);
     };

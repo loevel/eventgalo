@@ -128,7 +128,7 @@ export default function CompanyPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!getToken()) router.replace("/#login");
+    if (!getToken()) router.replace("/connexion");
     else load();
   }, [load, router]);
 

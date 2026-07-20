@@ -70,7 +70,7 @@ export function ProposeSponsorship({ companyId, companyName }: { companyId: stri
         <Send size={13} /> Proposer un sponsoring
       </button>
     ) : (
-      <a className="btn btn-ghost btn-sm" href="/#login" style={{ marginTop: 4 }}>
+      <a className="btn btn-ghost btn-sm" href="/connexion" style={{ marginTop: 4 }}>
         Organisateur ? Connectez-vous pour proposer un sponsoring
       </a>
     );

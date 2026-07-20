@@ -113,6 +113,31 @@ export function SplitTitle({
   );
 }
 
+/**
+ * Storytelling au scroll pour les sections principales de la home (grille de
+ * fonctionnalités, cas d'usage, section marketplace) : entrée en profondeur
+ * avec un léger effet d'échelle, en plus du fade/translate déjà géré par
+ * `Reveal`. Purement décoratif, aucune nouvelle dépendance — même pattern que
+ * `HeroFx` (gsap.context + reduceMotion()).
+ */
+export function SectionDepthFx() {
+  useEffect(() => {
+    if (reduceMotion()) return;
+    const ctx = gsap.context(() => {
+      gsap.utils.toArray<HTMLElement>(".depth-fx").forEach((el) => {
+        gsap.from(el, {
+          scale: 0.94,
+          opacity: 0.5,
+          ease: "power2.out",
+          scrollTrigger: { trigger: el, start: "top 85%", end: "top 55%", scrub: true },
+        });
+      });
+    });
+    return () => ctx.revert();
+  }, []);
+  return null;
+}
+
 /** Compteur animé (« 100% », « 3 min », « 0 ») déclenché à l'entrée dans le viewport. */
 export function StatNumber({ value }: { value: string }) {
   const ref = useRef<HTMLSpanElement>(null);
