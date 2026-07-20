@@ -5,6 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Un seul déploiement à la fois : les runs en attente intermédiaires sont
+# annulés au profit du plus récent (le run en cours n'est jamais interrompu,
+# pour ne pas laisser un déploiement à moitié fait).
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
