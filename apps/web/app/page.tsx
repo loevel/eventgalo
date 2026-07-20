@@ -200,6 +200,23 @@ export default function Home() {
           </Reveal>
         </div>
 
+        <Reveal>
+          <div className="payments-strip glass">
+            <div className="payments-strip-head">
+              <ShieldCheck />
+              <div>
+                <strong>Paiement 100&nbsp;% sécurisé</strong>
+                <span className="muted">Propulsé par Stripe — vos clients paient comme ils préfèrent.</span>
+              </div>
+            </div>
+            <ul className="payments-methods">
+              {["Visa", "Mastercard", "American Express", "Apple Pay", "Google Pay"].map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+
         <section className="section marketplace-section">
           <ConstellationBg />
           <Reveal>
