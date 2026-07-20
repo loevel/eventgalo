@@ -275,6 +275,17 @@ export default function EventAdmin() {
                 </button>{" "}
               </>
             )}
+            {ev.status === "published" && sponsor_tiers.length === 0 &&
+              (!ev.starts_at || new Date(ev.starts_at).getTime() > Date.now()) && (
+                <div className="alert info">
+                  Astuce : cet événement n&apos;apparaît pas encore dans les{" "}
+                  <a href="/opportunites" target="_blank" rel="noreferrer">événements à sponsoriser</a>. Créez au
+                  moins un palier de sponsoring pour y figurer et recevoir des propositions d&apos;entreprises.{" "}
+                  <button className="btn-sm btn-ghost" onClick={() => setTab("sponsors")}>
+                    Créer un palier
+                  </button>
+                </div>
+              )}
             {ev.status !== "archived" && (
               <button
                 className="btn-sm btn-ghost"
@@ -1424,6 +1435,13 @@ function SponsorsTab({
           (logo sur scène, kakémono, billets VIP inclus, mention au micro…). Le rang 0 est le palier le plus
           prestigieux, affiché en premier et en plus grand sur la page publique.
         </p>
+        {tiers.length === 0 && (
+          <div className="alert info">
+            Tant qu&apos;aucun palier n&apos;est créé, votre événement n&apos;apparaît pas dans les{" "}
+            <a href="/opportunites" target="_blank" rel="noreferrer">événements à sponsoriser</a> et les
+            entreprises ne peuvent pas vous faire de propositions. Créez votre premier palier ci-dessous.
+          </div>
+        )}
         {tiers.length > 0 && (
           <table>
             <thead>
