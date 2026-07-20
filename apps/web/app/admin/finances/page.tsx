@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, formatDate, formatPrice } from "@/lib/api";
+import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
 
 interface Transaction {
   id: string;
@@ -99,20 +99,42 @@ export default function AdminFinancesPage() {
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Transactions</h3>
-        <select
-          value={txStatus}
-          onChange={(e) => {
-            setTxStatus(e.target.value);
-            loadTxs(e.target.value);
-          }}
-          style={{ marginBottom: 14 }}
-        >
-          <option value="">Tous les statuts</option>
-          <option value="paid">Payé</option>
-          <option value="pending">En attente</option>
-          <option value="refunded">Remboursé</option>
-          <option value="canceled">Annulé</option>
-        </select>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+          <select
+            value={txStatus}
+            onChange={(e) => {
+              setTxStatus(e.target.value);
+              loadTxs(e.target.value);
+            }}
+          >
+            <option value="">Tous les statuts</option>
+            <option value="paid">Payé</option>
+            <option value="pending">En attente</option>
+            <option value="refunded">Remboursé</option>
+            <option value="canceled">Annulé</option>
+          </select>
+          <button
+            type="button"
+            className="btn-sm btn-ghost"
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (txStatus) params.set("status", txStatus);
+              fetch(`${API_BASE}/api/admin/transactions/export?${params}`, {
+                headers: { Authorization: `Bearer ${getToken()}` },
+              })
+                .then((r) => r.blob())
+                .then((b) => {
+                  const url = URL.createObjectURL(b);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `eventgalo-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+                  a.click();
+                });
+            }}
+          >
+            ⬇ Exporter (CSV)
+          </button>
+        </div>
         {!txs ? (
           <p className="muted">Chargement…</p>
         ) : (

@@ -216,6 +216,60 @@ admin.get("/transactions", async (c) => {
   return c.json({ transactions: rows.results });
 });
 
+function csvField(v: unknown): string {
+  const s = v === null || v === undefined ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Export comptable CSV de toutes les transactions (filtrable par période/statut). */
+admin.get("/transactions/export", async (c) => {
+  const status = c.req.query("status");
+  const from = c.req.query("from");
+  const to = c.req.query("to");
+  const conditions: string[] = [];
+  const binds: unknown[] = [];
+  if (status && ["pending", "paid", "refunded", "canceled"].includes(status)) {
+    conditions.push("t.status = ?");
+    binds.push(status);
+  }
+  if (from) {
+    conditions.push("t.created_at >= ?");
+    binds.push(from);
+  }
+  if (to) {
+    conditions.push("t.created_at <= ?");
+    binds.push(to);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = await c.env.DB.prepare(
+    `SELECT t.created_at, e.title AS event_title, u.email AS organizer_email, t.buyer_name, t.buyer_email,
+            t.quantity, t.amount_cents, t.service_fee_cents, t.currency, t.status, t.stripe_destination_account
+     FROM transactions t JOIN events e ON e.id = t.event_id JOIN users u ON u.id = e.organizer_id
+     ${where} ORDER BY t.created_at DESC LIMIT 10000`,
+  )
+    .bind(...binds)
+    .all<Record<string, unknown>>();
+
+  const header = [
+    "Date", "Événement", "Organisateur", "Acheteur", "Email acheteur", "Quantité",
+    "Montant (cents)", "Frais de service (cents)", "Devise", "Statut", "Compte Connect destination",
+  ];
+  const lines = [header.join(",")];
+  for (const t of rows.results) {
+    lines.push([
+      t.created_at, t.event_title, t.organizer_email, t.buyer_name, t.buyer_email,
+      t.quantity, t.amount_cents, t.service_fee_cents, t.currency, t.status, t.stripe_destination_account ?? "",
+    ].map(csvField).join(","));
+  }
+  const csv = lines.join("\r\n");
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="eventgalo-transactions-${nowIso().slice(0, 10)}.csv"`,
+    },
+  });
+});
+
 /** Comptes Stripe Connect des organisateurs. */
 admin.get("/connect-accounts", async (c) => {
   const rows = await c.env.DB.prepare(
