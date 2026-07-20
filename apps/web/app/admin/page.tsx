@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, formatPrice } from "@/lib/api";
+import { api } from "@/lib/api";
+
+// formatPrice() du dashboard affiche "Gratuit" pour 0 ¢ (pertinent pour un billet) ;
+// ici 0 $ est un vrai montant à afficher tel quel.
+function formatAmount(cents: number): string {
+  return new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" }).format(cents / 100);
+}
 
 interface Overview {
   events: { total: number; published: number; this_month: number };
@@ -36,8 +42,8 @@ export default function AdminOverviewPage() {
         {stat(data.events.this_month, "Créés ce mois-ci")}
         {stat(data.users.total, "Comptes utilisateurs")}
         {stat(data.companies.total, "Entreprises inscrites")}
-        {stat(formatPrice(data.sales.gmv_cents), "Volume d'affaires (GMV)")}
-        {stat(formatPrice(data.sales.platform_fees_cents), "Frais de service perçus")}
+        {stat(formatAmount(data.sales.gmv_cents), "Volume d'affaires (GMV)")}
+        {stat(formatAmount(data.sales.platform_fees_cents), "Frais de service perçus")}
         {stat(data.sales.tickets_sold, "Billets vendus")}
         {stat(`${data.connect.accounts_enabled} / ${data.connect.accounts_started}`, "Comptes Connect activés")}
         {stat(data.users.suspended, "Comptes suspendus")}

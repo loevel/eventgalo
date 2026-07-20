@@ -22,6 +22,11 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [selfId, setSelfId] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ user: { id: string } }>("/api/auth/me").then((r) => setSelfId(r.user.id)).catch(() => {});
+  }, []);
 
   function load(query = "") {
     api<{ users: AdminUser[] }>(`/api/admin/users?q=${encodeURIComponent(query)}`)
@@ -102,7 +107,9 @@ export default function AdminUsersPage() {
                 <td>{u.events_count}</td>
                 <td>{formatDate(u.created_at)}</td>
                 <td>
-                  {u.status === "suspended" ? (
+                  {u.id === selfId ? (
+                    <span className="muted" style={{ fontSize: 12 }}>Votre compte</span>
+                  ) : u.status === "suspended" ? (
                     <button className="btn-sm btn-ghost" disabled={busy === u.id} onClick={() => reactivate(u)}>
                       Réactiver
                     </button>
