@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store } from "lucide-react";
 import { api } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import {
   BamilekeDivider, ConstellationBg, GoldDust, HeroFx, LeopardRosettes, SpiderMark,
   SplitTitle, StatNumber, StepsPath, TiltCard,
@@ -60,6 +61,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "err" | "info"; text: string; url?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   async function requestLink(e: React.FormEvent) {
     e.preventDefault();
@@ -68,7 +70,7 @@ export default function Home() {
     try {
       const res = await api<{ message: string; debug_url?: string }>("/api/auth/magic-link", {
         method: "POST",
-        body: { email },
+        body: { email, turnstile_token: turnstileToken },
         auth: false,
       });
       setStatus({ kind: res.debug_url ? "info" : "ok", text: res.message, url: res.debug_url });
@@ -289,7 +291,12 @@ export default function Home() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="vous@exemple.com"
                 />
-                <button type="submit" className="btn-accent" disabled={busy}>
+                <TurnstileWidget onVerify={setTurnstileToken} />
+                <button
+                  type="submit"
+                  className="btn-accent"
+                  disabled={busy || (Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) && !turnstileToken)}
+                >
                   {busy ? "Envoi…" : "Recevoir mon lien de connexion"}
                 </button>
               </form>

@@ -18,6 +18,7 @@ jobs:
     environment: staging
     env:
       NEXT_PUBLIC_API_URL: https://eventgalo-api-staging.davechendjou.workers.dev
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAAD5sHuRsZx00mbF5
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +55,7 @@ jobs:
     environment: production
     env:
       NEXT_PUBLIC_API_URL: https://eventgalo-api.davechendjou.workers.dev
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAAD5sHuRsZx00mbF5
     steps:
       - uses: actions/checkout@v4
 

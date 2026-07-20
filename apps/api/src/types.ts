@@ -19,6 +19,8 @@ export interface Env {
   PLATFORM_FEE_PERCENT?: string;
   PLATFORM_FEE_FIXED_CENTS?: string;
   EMAIL_FROM?: string;
+  /** Clé secrète Turnstile : protège la demande de lien magique contre l'abus automatisé. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 export interface AuthedUser {
