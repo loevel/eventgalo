@@ -11,7 +11,9 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         main: "./src/index.ts",
-        wrangler: { configPath: "./wrangler.jsonc" },
+        // wrangler.test.jsonc = wrangler.jsonc sans le binding "ai" (pas d'émulation
+        // locale possible, casse le pool de test hors session `wrangler login`).
+        wrangler: { configPath: "./wrangler.test.jsonc" },
         miniflare: {
           bindings: {
             TEST_MIGRATIONS: migrations,

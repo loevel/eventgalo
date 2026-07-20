@@ -1,0 +1,45 @@
+{
+  // Config utilisée uniquement par vitest-pool-workers (vitest.config.ts).
+  // Identique à wrangler.jsonc, sauf le binding "ai" : Workers AI n'a pas
+  // d'émulation locale, vitest-pool-workers essaie donc d'ouvrir une vraie
+  // session distante — ce qui échoue en CI (pas d'identifiants Cloudflare
+  // dans le job de test) même si ça marche en silence en local pour qui a
+  // une session `wrangler login` active. Aucun test n'appelle env.AI.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eventgalo-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "eventgalo-db",
+      "database_id": "9f46ba11-ca0f-445c-9abf-be69b5be81a2"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "2daef69c33a5411db488daf6417b5c17"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "eventgalo-media"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "EVENT_DO", "class_name": "EventDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventDO"] }],
+  "triggers": { "crons": ["0 4 * * *", "0 * * * *"] },
+  "send_email": [{ "name": "EMAIL" }],
+  "vars": {
+    "WEB_BASE_URL": "https://eventgalo.com",
+    "API_BASE_URL": "https://eventgalo-api.davechendjou.workers.dev",
+    "ENVIRONMENT": "production",
+    "EMAIL_FROM": "EventGalo <billetterie@eventgalo.com>"
+  }
+}
