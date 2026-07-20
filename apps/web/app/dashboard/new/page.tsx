@@ -30,6 +30,57 @@ const KIDS_RSVP_QUESTION = "Allergies alimentaires ou informations utiles ? (opt
 
 const STEP_LABELS = ["Essentiels", "Configuration", "Récapitulatif"] as const;
 
+type TemplateKey = "generic" | "wedding" | "birthday_adult" | "birthday_kids" | "gala" | "conference";
+
+interface EventTemplate {
+  label: string;
+  dressCode?: string;
+  description?: string;
+}
+
+const TEMPLATES: Record<TemplateKey, EventTemplate> = {
+  generic: { label: "Générique / autre" },
+  wedding: {
+    label: "💍 Mariage",
+    dressCode: "Tenue de soirée / élégante",
+    description:
+      "18 h 00 – Cérémonie\n19 h 00 – Cocktail de bienvenue\n20 h 00 – Repas\n21 h 30 – Ouverture de bal\n22 h 00 – Soirée dansante",
+  },
+  birthday_adult: {
+    label: "🎂 Anniversaire",
+    dressCode: "Décontracté chic",
+    description: "19 h 00 – Accueil des invités\n19 h 30 – Apéritif\n20 h 30 – Repas\n21 h 30 – Gâteau et discours\n22 h 00 – Musique et danse",
+  },
+  birthday_kids: { label: "🎈 Anniversaire d'enfant" },
+  gala: {
+    label: "🏆 Gala",
+    dressCode: "Tenue de gala / cravate noire",
+    description:
+      "18 h 00 – Accueil et cocktail\n19 h 00 – Mot d'ouverture\n19 h 30 – Souper\n20 h 30 – Remise de prix / animation\n21 h 30 – Soirée dansante",
+  },
+  conference: {
+    label: "🎤 Conférence",
+    dressCode: "Tenue professionnelle",
+    description:
+      "08 h 30 – Accueil et inscription\n09 h 00 – Mot de bienvenue\n09 h 15 – Conférences\n12 h 00 – Pause déjeuner\n13 h 30 – Ateliers\n16 h 30 – Clôture",
+  },
+};
+
+const PRIVATE_TEMPLATES: TemplateKey[] = ["generic", "wedding", "birthday_adult", "birthday_kids"];
+const TICKETED_TEMPLATES: TemplateKey[] = ["generic", "gala", "conference"];
+
+const TEMPLATE_TICKET_SUGGESTIONS: Partial<Record<TemplateKey, Array<{ name: string; percent: number; perks?: string[] }>>> = {
+  gala: [
+    { name: "Standard", percent: 0.6 },
+    { name: "VIP", percent: 0.3, perks: ["Placement prioritaire", "Coupe de bienvenue"] },
+    { name: "VIP+", percent: 0.1, perks: ["Table réservée", "Bouteille incluse", "Accès salon privé"] },
+  ],
+  conference: [
+    { name: "Standard", percent: 0.8 },
+    { name: "Premium", percent: 0.2, perks: ["Accès ateliers", "Repas inclus", "Kit de bienvenue"] },
+  ],
+};
+
 export default function NewEvent() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -40,7 +91,8 @@ export default function NewEvent() {
   // Étape 1 — essentiels
   const [title, setTitle] = useState("");
   const [type, setType] = useState<"private" | "ticketed">("private");
-  const [occasion, setOccasion] = useState<"generic" | "kids">("generic");
+  const [template, setTemplate] = useState<TemplateKey>("generic");
+  const occasion = template === "birthday_kids" ? "kids" : "generic";
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [venue, setVenue] = useState("");
@@ -97,6 +149,19 @@ export default function NewEvent() {
   useEffect(() => {
     if (occasion === "kids" && !rsvpQuestion) setRsvpQuestion(KIDS_RSVP_QUESTION);
   }, [occasion, rsvpQuestion]);
+
+  // En changeant de type, on retombe sur "générique" si le modèle choisi ne s'applique plus.
+  useEffect(() => {
+    const allowed = type === "private" ? PRIVATE_TEMPLATES : TICKETED_TEMPLATES;
+    if (!allowed.includes(template)) setTemplate("generic");
+  }, [type, template]);
+
+  function applyTemplate(key: TemplateKey) {
+    setTemplate(key);
+    const t = TEMPLATES[key];
+    setDressCode(t.dressCode ?? "");
+    setDescription(t.description ?? "");
+  }
 
   async function continueFromStep1(e: React.FormEvent) {
     e.preventDefault();
@@ -230,20 +295,17 @@ export default function NewEvent() {
             </select>
           )}
 
-          {type === "private" && (
-            <>
-              <label>C&apos;est quel genre d&apos;événement ?</label>
-              <select value={occasion} onChange={(e) => setOccasion(e.target.value as "generic" | "kids")}>
-                <option value="generic">Événement privé (générique)</option>
-                <option value="kids">🎈 Anniversaire d&apos;enfant</option>
-              </select>
-              {occasion === "kids" && (
-                <p className="muted" style={{ fontSize: 13 }}>
-                  On adapte la saisie des invités pour indiquer facilement le parent à contacter, et on ajoute une
-                  question RSVP pour les allergies et infos utiles.
-                </p>
-              )}
-            </>
+          <label>Modèle (pré-remplit dress code et programme — modifiable ensuite)</label>
+          <select value={template} onChange={(e) => applyTemplate(e.target.value as TemplateKey)}>
+            {(type === "private" ? PRIVATE_TEMPLATES : TICKETED_TEMPLATES).map((k) => (
+              <option key={k} value={k}>{TEMPLATES[k].label}</option>
+            ))}
+          </select>
+          {template === "birthday_kids" && (
+            <p className="muted" style={{ fontSize: 13 }}>
+              On adapte la saisie des invités pour indiquer facilement le parent à contacter, et on ajoute une
+              question RSVP pour les allergies et infos utiles.
+            </p>
           )}
 
           <div className="grid2">
@@ -285,6 +347,34 @@ export default function NewEvent() {
             </h3>
             {categories.length === 0 && (
               <p className="muted">Aucune catégorie créée pour l&apos;instant.</p>
+            )}
+            {TEMPLATE_TICKET_SUGGESTIONS[template] && (
+              <div style={{ margin: "8px 0 4px" }}>
+                <p className="muted" style={{ fontSize: 13, margin: "0 0 6px" }}>
+                  Suggestions pour ce modèle (remplissent le formulaire ci-dessous, à ajuster puis ajouter) :
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {TEMPLATE_TICKET_SUGGESTIONS[template]!
+                    .filter((s) => !categories.some((c) => c.name === s.name))
+                    .map((s) => (
+                      <button
+                        key={s.name}
+                        type="button"
+                        className="btn-sm btn-ghost"
+                        onClick={() =>
+                          setCatForm({
+                            name: s.name,
+                            price: "",
+                            quantity: String(Math.max(1, Math.round(s.percent * Number(capacity)))),
+                            perks: (s.perks ?? []).join("\n"),
+                          })
+                        }
+                      >
+                        + {s.name}
+                      </button>
+                    ))}
+                </div>
+              </div>
             )}
             {categories.map((c) => (
               <div key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
