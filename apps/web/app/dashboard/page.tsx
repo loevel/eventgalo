@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CalendarDays, PartyPopper, Plus, Ticket, Users } from "lucide-react";
 import { api, formatDate, getToken } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
 import { ConnectPaymentsCard } from "@/components/connect-payments";
@@ -27,6 +28,12 @@ const FILTERS = [
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]["key"];
+
+const STATUS_ACCENT: Record<string, string> = {
+  published: "border-l-ok",
+  draft: "border-l-gold",
+  archived: "border-l-line",
+};
 
 function relativeDate(iso: string): string {
   const diffMs = new Date(iso).getTime() - Date.now();
@@ -87,10 +94,13 @@ export default function Dashboard() {
 
   return (
     <main className="container">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <h1 style={{ marginBottom: 0 }}>Mes événements</h1>
-        <Link href="/dashboard/new" className="btn btn-accent">
-          + Créer un événement
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <h1 className="font-display text-3xl font-semibold tracking-tight mb-0">Mes événements</h1>
+        <Link
+          href="/dashboard/new"
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:-translate-y-0.5"
+        >
+          <Plus size={16} /> Créer un événement
         </Link>
       </div>
 
@@ -99,38 +109,50 @@ export default function Dashboard() {
       {events !== null && <ConnectPaymentsCard />}
 
       {events === null && !error && (
-        <div className="grid2" style={{ marginTop: 14 }}>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {[0, 1].map((i) => (
-            <div key={i} className="card" style={{ opacity: 0.5 }}>
-              <div className="muted">Chargement…</div>
-            </div>
+            <div key={i} className="h-20 animate-pulse rounded-xl border border-line bg-surface" />
           ))}
         </div>
       )}
 
       {stats && events && events.length > 0 && (
         <Reveal>
-          <div className="grid3" style={{ marginTop: 14 }}>
-            <div className="card stat">
-              <div className="num">{stats.upcoming}</div>
-              <div className="lbl">Événements à venir</div>
-            </div>
-            <div className="card stat">
-              <div className="num">{stats.confirmed}</div>
-              <div className="lbl">Invités confirmés</div>
-            </div>
-            <div className="card stat">
-              <div className="num">{stats.ticketsSold}</div>
-              <div className="lbl">Billets vendus</div>
-            </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { icon: CalendarDays, num: stats.upcoming, lbl: "Événements à venir" },
+              { icon: Users, num: stats.confirmed, lbl: "Invités confirmés" },
+              { icon: Ticket, num: stats.ticketsSold, lbl: "Billets vendus" },
+            ].map(({ icon: Icon, num, lbl }) => (
+              <div
+                key={lbl}
+                className="flex items-center gap-3 rounded-xl border border-line bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent/10 text-accent">
+                  <Icon size={18} />
+                </div>
+                <div>
+                  <div className="font-display text-2xl font-semibold leading-tight text-ink">{num}</div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted">{lbl}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </Reveal>
       )}
 
       {events && events.length > 0 && (
-        <div className="tabs">
+        <div className="mt-5 flex flex-wrap gap-2 border-b border-line pb-3">
           {FILTERS.map((f) => (
-            <button key={f.key} className={filter === f.key ? "active" : ""} onClick={() => setFilter(f.key)}>
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                filter === f.key
+                  ? "bg-ink text-white shadow-sm"
+                  : "text-muted hover:bg-line/60 hover:text-ink"
+              }`}
+            >
               {f.label}
             </button>
           ))}
@@ -138,57 +160,68 @@ export default function Dashboard() {
       )}
 
       {events?.length === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
-          <p style={{ fontSize: 32, margin: "0 0 8px" }}>🎉</p>
-          <p style={{ margin: "0 0 4px", fontWeight: 700 }}>Aucun événement pour le moment</p>
-          <p className="muted" style={{ margin: "0 0 16px" }}>
+        <div className="mt-4 rounded-xl border border-line bg-surface px-6 py-12 text-center">
+          <p className="mb-2 text-4xl">🎉</p>
+          <p className="mb-1 font-semibold text-ink">Aucun événement pour le moment</p>
+          <p className="mb-5 text-sm text-muted">
             Créez votre premier événement : anniversaire, gala, soirée communautaire…
           </p>
-          <Link href="/dashboard/new" className="btn btn-accent">
-            + Créer un événement
+          <Link
+            href="/dashboard/new"
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+          >
+            <Plus size={16} /> Créer un événement
           </Link>
         </div>
       )}
 
       {filtered && filtered.length === 0 && events && events.length > 0 && (
-        <div className="card">
-          <p className="muted" style={{ margin: 0 }}>Aucun événement dans cette catégorie.</p>
+        <div className="mt-4 rounded-xl border border-line bg-surface p-5 text-sm text-muted">
+          Aucun événement dans cette catégorie.
         </div>
       )}
 
-      {filtered?.map((e, i) => (
-        <Reveal key={e.id} delay={Math.min(i, 6) * 60}>
-          <Link href={`/dashboard/e/${e.id}`} className="card-link">
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                <div>
-                  <strong style={{ fontSize: 17 }}>
-                    {e.type === "ticketed" ? "🎟️ " : "🎂 "}
-                    {e.title}
-                    {!e.is_owner && (
-                      <span className="badge mut" style={{ marginLeft: 8, fontWeight: 400 }}>
-                        Co-organisé
-                      </span>
-                    )}
-                  </strong>
-                  <div className="muted">{relativeDate(e.starts_at)} · {formatDate(e.starts_at)}</div>
+      <div className="mt-4 flex flex-col gap-3">
+        {filtered?.map((e, i) => (
+          <Reveal key={e.id} delay={Math.min(i, 6) * 60}>
+            <Link href={`/dashboard/e/${e.id}`} className="block no-underline text-inherit">
+              <div
+                className={`flex items-center justify-between gap-3 rounded-xl border border-line border-l-4 ${
+                  STATUS_ACCENT[e.status] ?? "border-l-line"
+                } bg-surface p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-accent/10 text-lg">
+                    {e.type === "ticketed" ? <Ticket size={18} className="text-accent" /> : <PartyPopper size={18} className="text-accent" />}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 font-semibold text-ink">
+                      {e.title}
+                      {!e.is_owner && (
+                        <span className="badge mut" style={{ fontWeight: 400 }}>
+                          Co-organisé
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted">{relativeDate(e.starts_at)} · {formatDate(e.starts_at)}</div>
+                  </div>
                 </div>
-                <div style={{ textAlign: "right", fontSize: 13 }}>
+                <div className="text-right text-sm">
                   {e.status !== "published" && (
                     <span className={`badge ${e.status === "draft" ? "warn" : "mut"}`}>
                       {e.status === "draft" ? "Brouillon" : "Archivé"}
                     </span>
                   )}
-                  <div className="muted" style={{ marginTop: 6 }}>
+                  <div className="mt-1.5 text-muted">
                     {e.yes_count}/{e.guest_count} confirmés
                     {e.type === "ticketed" ? ` · ${e.tickets_sold} billets` : ""}
                   </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        </Reveal>
-      ))}
+            </Link>
+          </Reveal>
+        ))}
+      </div>
     </main>
   );
 }
