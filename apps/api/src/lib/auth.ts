@@ -10,6 +10,30 @@ export function sessionKey(token: string): string {
   return `sess:${token}`;
 }
 
+function userSessionsKey(userId: string): string {
+  return `usersessions:${userId}`;
+}
+
+const MAX_TRACKED_SESSIONS = 20;
+
+/** Garde une liste bornée des jetons de session récents d'un utilisateur, pour pouvoir les révoquer d'un coup (suspension). */
+async function trackUserSession(kv: KVNamespace, userId: string, token: string): Promise<void> {
+  const key = userSessionsKey(userId);
+  const raw = await kv.get(key);
+  const tokens: string[] = raw ? JSON.parse(raw) : [];
+  tokens.push(token);
+  await kv.put(key, JSON.stringify(tokens.slice(-MAX_TRACKED_SESSIONS)), { expirationTtl: SESSION_TTL });
+}
+
+/** Révoque immédiatement toutes les sessions connues d'un utilisateur (ex. suspension de compte). */
+export async function revokeUserSessions(kv: KVNamespace, userId: string): Promise<void> {
+  const key = userSessionsKey(userId);
+  const raw = await kv.get(key);
+  const tokens: string[] = raw ? JSON.parse(raw) : [];
+  await Promise.all(tokens.map((t) => kv.delete(sessionKey(t))));
+  await kv.delete(key);
+}
+
 export async function createSession(
   kv: KVNamespace,
   user: AuthedUser,
@@ -17,6 +41,7 @@ export async function createSession(
   ttl: number = SESSION_TTL,
 ): Promise<void> {
   await kv.put(sessionKey(token), JSON.stringify(user), { expirationTtl: ttl });
+  await trackUserSession(kv, user.id, token);
 }
 
 /** Middleware : exige un header Authorization: Bearer <session>. */

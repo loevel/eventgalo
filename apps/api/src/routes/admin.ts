@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, revokeUserSessions } from "../lib/auth";
 import { requireAdmin, requireSuperadmin, logAdminAction, getSetting, setSetting } from "../lib/admin";
 import { nowIso } from "../lib/crypto";
 import { deleteEventCascade } from "../lib/event-delete";
@@ -106,6 +106,7 @@ admin.post("/users/:id/suspend", async (c) => {
     .bind(nowIso(), body.reason ?? null, id)
     .run();
   if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
+  await revokeUserSessions(c.env.KV, id);
   await logAdminAction(c.env, admin_.id, "user.suspend", "user", id, { reason: body.reason ?? null });
   return c.json({ ok: true });
 });
