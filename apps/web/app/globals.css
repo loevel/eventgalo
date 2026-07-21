@@ -319,14 +319,22 @@ tr:last-child td { border-bottom: none; }
 .payments-strip-head svg { width: 24px; height: 24px; flex: none; color: var(--gold); }
 .payments-strip-head strong { display: block; font-size: 15px; }
 .payments-strip-head span { display: block; font-size: 13px; margin-top: 2px; }
-.payments-methods { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
-.payments-methods li {
-  padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
-  font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted);
-  background: rgba(255, 255, 255, 0.03); white-space: nowrap;
+.payments-marquee {
+  flex: 1 1 240px; min-width: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.payments-track { display: flex; align-items: center; gap: 40px; width: max-content; animation: payments-scroll 16s linear infinite; }
+.payments-marquee:hover .payments-track { animation-play-state: paused; }
+.payments-track img { height: 22px; width: auto; flex: none; opacity: 0.6; filter: grayscale(1); transition: opacity 0.2s ease, filter 0.2s ease; }
+.payments-track img:hover { opacity: 1; filter: grayscale(0); }
+@keyframes payments-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 @media (max-width: 720px) {
   .payments-strip { flex-direction: column; align-items: flex-start; }
+  .payments-marquee { width: 100%; }
 }
 
 .btn svg { width: 16px; height: 16px; vertical-align: -3px; margin-left: 2px; }
@@ -1087,6 +1095,7 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 @media (prefers-reduced-motion: reduce) {
   .btn-gold:hover::after { animation: none; }
   .hero-scroll-cue .scroll-chevron { animation: none; }
+  .payments-track { animation: none; }
 }
 
 /* Cascade de lettres (SplitText) : re-applique le dégradé doré sur les lettres du em du hero

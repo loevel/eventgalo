@@ -54,6 +54,14 @@ const STEPS = [
   },
 ];
 
+const PAYMENT_LOGOS = [
+  { src: "/payments/visa.svg", alt: "Visa" },
+  { src: "/payments/mastercard.svg", alt: "Mastercard" },
+  { src: "/payments/americanexpress.svg", alt: "American Express" },
+  { src: "/payments/applepay.svg", alt: "Apple Pay" },
+  { src: "/payments/googlepay.svg", alt: "Google Pay" },
+];
+
 const TESTIMONIALS = [
   {
     rating: 5,
@@ -237,11 +245,14 @@ export default function Home() {
                 <span className="muted">Propulsé par Stripe — vos clients paient comme ils préfèrent.</span>
               </div>
             </div>
-            <ul className="payments-methods">
-              {["Visa", "Mastercard", "American Express", "Apple Pay", "Google Pay"].map((m) => (
-                <li key={m}>{m}</li>
-              ))}
-            </ul>
+            <div className="payments-marquee">
+              <div className="payments-track">
+                {[...PAYMENT_LOGOS, ...PAYMENT_LOGOS].map((p, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element -- logo fixe et léger, next/image est superflu ici
+                  <img key={`${p.alt}-${i}`} src={p.src} alt={i < PAYMENT_LOGOS.length ? p.alt : ""} aria-hidden={i >= PAYMENT_LOGOS.length} />
+                ))}
+              </div>
+            </div>
           </div>
         </Reveal>
 
