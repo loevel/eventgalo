@@ -2049,6 +2049,11 @@ function ReportTab({
 
   return (
     <>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+        <Link href="/dashboard/analytics" className="btn btn-ghost btn-sm">
+          Voir les analyses globales →
+        </Link>
+      </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Billetterie</h3>
         {categories.length === 0 ? (
