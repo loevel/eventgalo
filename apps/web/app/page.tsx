@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store } from "lucide-react";
+import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star } from "lucide-react";
 import { Reveal } from "@/components/reveal";
 import {
   BamilekeDivider, ConstellationBg, GoldDust, HeroFx, LeopardRosettes, SectionDepthFx, SpiderMark,
@@ -51,6 +51,57 @@ const STEPS = [
     num: "3",
     title: "Accueillez sereinement",
     text: "Le jour J, scannez les QR codes à l'entrée. Chaque billet n'est valide qu'une seule fois — zéro fraude, zéro stress.",
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    rating: 5,
+    hook: "Un gain de temps incroyable pour nos événements !",
+    quote:
+      "Nous avons utilisé EventGalo pour l'organisation de notre gala annuel et tout s'est déroulé à merveille. Le suivi par vendeur est hyper pratique, et le système de scan par QR code le jour J nous a évité les files d'attente à l'entrée. Un vrai plus : la recherche de sponsors intégrée !",
+    author: "Marc L.",
+    role: "Président d'association",
+  },
+  {
+    rating: 5,
+    hook: "Fini les relances sans fin pour le RSVP !",
+    quote:
+      "J'ai créé la page de mon anniversaire en moins de 5 minutes. Les invités reçoivent leur propre lien personnalisé avec le lieu et le dress code. Pouvoir suivre en temps réel qui a ouvert et confirmé l'invitation sans avoir à relancer tout le monde sur WhatsApp, c'est tout simplement génial.",
+    author: "Sophie T.",
+    role: "Organisatrice d'anniversaire",
+  },
+  {
+    rating: 5,
+    hook: "Une belle opportunité de visibilité locale.",
+    quote:
+      "En tant que gérant d'entreprise, la marketplace de sponsoring m'a permis de trouver rapidement des événements pertinents à soutenir dans ma région. La création de vitrine est simple et la transaction s'est faite en toute sécurité via Stripe.",
+    author: "Karim B.",
+    role: "Directeur de cabinet conseil",
+  },
+  {
+    rating: 4,
+    hook: "Très pratique pour trouver de nouveaux contrats.",
+    quote:
+      "La plateforme est claire, intuitive et sans prise de tête. Pouvoir s'inscrire dans l'annuaire et proposer ses services directement aux organisateurs simplifie énormément la prospection. Je recommande !",
+    author: "Élodie M.",
+    role: "Photographe événementiel",
+  },
+  {
+    rating: 5,
+    hook: "Simple, fluide et sécurisé.",
+    quote:
+      "J'avais un quota de billets à vendre pour la soirée de mon club étudiant. Le suivi en temps réel sur la plateforme m'a permis de voir mes ventes au jour le jour. Le jour de la soirée, aucun doublon ni problème de fraude grâce au scan unique.",
+    author: "Thomas P.",
+    role: "Responsable billetterie",
+  },
+  {
+    rating: 5,
+    hook: "Achat rapide et expérience fluide.",
+    quote:
+      "J'ai acheté mon billet VIP pour une soirée communautaire via EventGalo. Paiement rapide par Apple Pay, billet avec QR code reçu immédiatement. L'entrée s'est faite en 2 secondes à l'accueil. Top !",
+    author: "Claire D.",
+    role: "Participante",
   },
 ];
 
@@ -193,6 +244,32 @@ export default function Home() {
             </ul>
           </div>
         </Reveal>
+
+        <section className="section">
+          <Reveal>
+            <span className="section-kicker">Avis clients</span>
+            <SplitTitle className="section-title">Ils nous font confiance</SplitTitle>
+            <p className="section-sub">Organisateurs, sponsors, prestataires et invités racontent leur expérience.</p>
+          </Reveal>
+          <div className="grid3">
+            {TESTIMONIALS.map((t, i) => (
+              <Reveal key={t.author} delay={(i % 3) * 90}>
+                <div className="card testimonial depth-fx">
+                  <div className="testimonial-stars">
+                    {Array.from({ length: 5 }, (_, j) => (
+                      <Star key={j} size={15} className={j < t.rating ? "filled" : undefined} fill={j < t.rating ? "currentColor" : "none"} />
+                    ))}
+                  </div>
+                  <p className="testimonial-hook">« {t.hook} »</p>
+                  <p className="testimonial-quote">{t.quote}</p>
+                  <div className="testimonial-author">
+                    <strong>{t.author}</strong> — {t.role}
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
 
         <section className="section marketplace-section">
           <ConstellationBg />
