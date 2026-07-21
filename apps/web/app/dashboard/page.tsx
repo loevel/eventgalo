@@ -113,12 +113,20 @@ export default function Dashboard() {
     <main className="container">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
         <h1 className="font-display text-3xl font-semibold tracking-tight mb-0">Mes événements</h1>
-        <Link
-          href="/dashboard/new"
-          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:-translate-y-0.5"
-        >
-          <Plus size={16} /> Créer un événement
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/analytics"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-line/40"
+          >
+            Analyses
+          </Link>
+          <Link
+            href="/dashboard/new"
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:-translate-y-0.5"
+          >
+            <Plus size={16} /> Créer un événement
+          </Link>
+        </div>
       </div>
 
       {error && <div className="alert err">{error}</div>}
