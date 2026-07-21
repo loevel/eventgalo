@@ -1,3 +1,6 @@
+/** Nombre minimum d'avis avant d'afficher une note moyenne (une note isolée est trop bruitée). */
+export const MIN_REVIEWS_SHOWN = 3;
+
 /** Secteurs proposés dans l'annuaire des sponsors. */
 export const COMPANY_SECTORS = [
   "Restauration & traiteur",

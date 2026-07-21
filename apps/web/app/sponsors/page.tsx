@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { BadgeCheck, Globe, MapPin, Search, Store } from "lucide-react";
-import { COMPANY_SECTORS, parseSocials, type SocialKey } from "@/lib/sponsor";
+import { BadgeCheck, Globe, MapPin, PlayCircle, Store } from "lucide-react";
+import { COMPANY_SECTORS, MIN_REVIEWS_SHOWN, parseSocials, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { ProposeSponsorship } from "@/components/propose-sponsorship";
 import { Stars } from "@/components/star-rating";
-
-/** Note affichée seulement à partir de 3 avis : une note isolée est trop bruitée. */
-const MIN_REVIEWS_SHOWN = 3;
+import { DirectoryFilters } from "@/components/directory-filters";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -32,9 +30,10 @@ interface DirectoryCompany {
   sponsorships: number;
   avg_rating: number | null;
   review_count: number;
+  video_url: string | null;
 }
 
-interface DirectoryFilters {
+interface SponsorFilters {
   q: string;
   sector: string;
   city: string;
@@ -42,7 +41,7 @@ interface DirectoryFilters {
   verified: string;
 }
 
-async function getCompanies(f: DirectoryFilters): Promise<DirectoryCompany[]> {
+async function getCompanies(f: SponsorFilters): Promise<DirectoryCompany[]> {
   const params = new URLSearchParams();
   if (f.q) params.set("q", f.q);
   if (f.sector) params.set("sector", f.sector);
@@ -74,46 +73,30 @@ export default async function SponsorDirectoryPage({
         </p>
       </div>
 
-      <form className="card directory-filters" method="GET">
-        <div className="grid2">
-          <div>
-            <label htmlFor="q">Recherche</label>
-            <input id="q" name="q" defaultValue={q} placeholder="Nom, mots-clés…" />
+      <DirectoryFilters
+        sectors={COMPANY_SECTORS}
+        q={q}
+        sector={sector}
+        city={city}
+        extra={
+          <div className="directory-filters-extra">
+            <div>
+              <label htmlFor="kind">Type de profil</label>
+              <select id="kind" name="kind" defaultValue={kind}>
+                <option value="">Tous</option>
+                <option value="company">Entreprises</option>
+                <option value="professional">Professionnels indépendants</option>
+              </select>
+            </div>
+            <div className="check">
+              <input id="verified" name="verified" type="checkbox" value="1" defaultChecked={verified === "1"} />
+              <label htmlFor="verified" style={{ margin: 0, fontWeight: 400 }}>
+                Profils vérifiés uniquement (domaine ou registre des entreprises)
+              </label>
+            </div>
           </div>
-          <div>
-            <label htmlFor="city">Ville / région</label>
-            <input id="city" name="city" defaultValue={city} placeholder="Montréal" />
-          </div>
-        </div>
-        <div className="grid2">
-          <div>
-            <label htmlFor="sector">Secteur</label>
-            <select id="sector" name="sector" defaultValue={sector}>
-              <option value="">Tous les secteurs</option>
-              {COMPANY_SECTORS.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="kind">Type de profil</label>
-            <select id="kind" name="kind" defaultValue={kind}>
-              <option value="">Tous</option>
-              <option value="company">Entreprises</option>
-              <option value="professional">Professionnels indépendants</option>
-            </select>
-          </div>
-        </div>
-        <div className="check">
-          <input id="verified" name="verified" type="checkbox" value="1" defaultChecked={verified === "1"} />
-          <label htmlFor="verified" style={{ margin: 0, fontWeight: 400 }}>
-            Profils vérifiés uniquement (domaine ou registre des entreprises)
-          </label>
-        </div>
-        <button type="submit" className="btn-accent" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Search size={15} /> Rechercher
-        </button>
-      </form>
+        }
+      />
 
       {companies.length === 0 ? (
         <p className="muted" style={{ textAlign: "center", marginTop: 32 }}>
@@ -179,6 +162,11 @@ export default async function SponsorDirectoryPage({
                   {co.website && (
                     <a href={co.website} target="_blank" rel="noopener noreferrer nofollow" aria-label="Site web" title="Site web">
                       <Globe />
+                    </a>
+                  )}
+                  {co.video_url && (
+                    <a href={co.video_url} target="_blank" rel="noopener noreferrer nofollow" aria-label="Vidéo" title="Voir la vidéo">
+                      <PlayCircle />
                     </a>
                   )}
                   {socials.map(([key, url]) => {

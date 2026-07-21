@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import { BadgeCheck, Globe, MapPin, Search, Store } from "lucide-react";
-import { COMPANY_SECTORS, parseSocials, type SocialKey } from "@/lib/sponsor";
+import { BadgeCheck, Globe, MapPin, PlayCircle, Store } from "lucide-react";
+import { COMPANY_SECTORS, MIN_REVIEWS_SHOWN, parseSocials, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
+import { DirectoryFilters } from "@/components/directory-filters";
+import { Stars } from "@/components/star-rating";
+
+/** Catégories les plus utiles côté prestataires, affichées en pilules rapides. */
+const VENDOR_CHIP_SECTORS = ["Photographe", "Traiteur", "Musicien / DJ", "Décoration", "Fleuriste"] as const;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -24,15 +29,18 @@ interface DirectoryCompany {
   socials: string | null;
   has_logo: number;
   verified: number;
+  avg_rating: number | null;
+  review_count: number;
+  video_url: string | null;
 }
 
-interface DirectoryFilters {
+interface VendorFilters {
   q: string;
   sector: string;
   city: string;
 }
 
-async function getVendors(f: DirectoryFilters): Promise<DirectoryCompany[]> {
+async function getVendors(f: VendorFilters): Promise<DirectoryCompany[]> {
   const params = new URLSearchParams({ vendor: "1" });
   if (f.q) params.set("q", f.q);
   if (f.sector) params.set("sector", f.sector);
@@ -62,28 +70,14 @@ export default async function VendorDirectoryPage({
         </p>
       </div>
 
-      <form className="card directory-filters" method="GET">
-        <div className="grid2">
-          <div>
-            <label htmlFor="q">Recherche</label>
-            <input id="q" name="q" defaultValue={q} placeholder="Nom, mots-clés…" />
-          </div>
-          <div>
-            <label htmlFor="city">Ville / région</label>
-            <input id="city" name="city" defaultValue={city} placeholder="Montréal" />
-          </div>
-        </div>
-        <label htmlFor="sector">Catégorie</label>
-        <select id="sector" name="sector" defaultValue={sector}>
-          <option value="">Toutes les catégories</option>
-          {COMPANY_SECTORS.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <button type="submit" className="btn-accent" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-          <Search size={15} /> Rechercher
-        </button>
-      </form>
+      <DirectoryFilters
+        sectors={COMPANY_SECTORS}
+        q={q}
+        sector={sector}
+        city={city}
+        searchPlaceholder="Lieu, Photographe…"
+        chipSectors={VENDOR_CHIP_SECTORS}
+      />
 
       {vendors.length === 0 ? (
         <p className="muted" style={{ textAlign: "center", marginTop: 32 }}>
@@ -132,11 +126,19 @@ export default async function VendorDirectoryPage({
                     </p>
                   </div>
                 </a>
+                {co.avg_rating != null && co.review_count >= MIN_REVIEWS_SHOWN && (
+                  <Stars value={co.avg_rating} count={co.review_count} />
+                )}
                 {co.description && <p className="sponsor-desc clamp">{co.description}</p>}
                 <div className="sponsor-links">
                   {co.website && (
                     <a href={co.website} target="_blank" rel="noopener noreferrer nofollow" aria-label="Site web" title="Site web">
                       <Globe />
+                    </a>
+                  )}
+                  {co.video_url && (
+                    <a href={co.video_url} target="_blank" rel="noopener noreferrer nofollow" aria-label="Vidéo" title="Voir la vidéo">
+                      <PlayCircle />
                     </a>
                   )}
                   {socials.map(([key, url]) => {

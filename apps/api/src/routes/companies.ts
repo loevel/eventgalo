@@ -481,7 +481,7 @@ directory.get("/", async (c) => {
   }
   const rows = await c.env.DB.prepare(
     `SELECT c.id, c.name, c.kind, c.title, c.affiliation, c.sector, c.city, c.description, c.website,
-            c.socials, c.public_email,
+            c.socials, c.public_email, c.video_url,
             (c.logo_key IS NOT NULL) AS has_logo,
             (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
             (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships,
