@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -12,10 +15,13 @@ if (typeof window !== "undefined") {
 /**
  * Champ de particules dorées dérivant lentement, avec parallax souris, et un
  * anneau 3D signature qui tourne doucement au centre et recule au scroll.
+ * L'anneau a son propre parallax (plus prononcé que les particules, effet de
+ * profondeur), la caméra respire légèrement au repos, et un léger bloom fait
+ * rayonner les zones les plus lumineuses (anneau, particules).
  * Rendu Three.js pur (pas de R3F) pour garder le bundle léger sur la landing.
  * Respecte prefers-reduced-motion : une seule frame statique est alors rendue.
  * Sur mobile / matériel modeste, la scène est allégée (moins de particules,
- * anneau simplifié) pour préserver la fluidité.
+ * anneau simplifié, pas de bloom) pour préserver la fluidité.
  */
 export function ParticleHero() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -37,6 +43,21 @@ export function ParticleHero() {
     renderer.setPixelRatio(lite ? 1 : Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
+
+    // Léger éclat sur l'anneau doré — désactivé en mode allégé (coût GPU).
+    const composer = lite
+      ? null
+      : new EffectComposer(renderer);
+    if (composer) {
+      composer.addPass(new RenderPass(scene, camera));
+      const bloom = new UnrealBloomPass(
+        new THREE.Vector2(mount.clientWidth, mount.clientHeight),
+        0.55, // force
+        0.6, // rayon
+        0.82, // seuil : seuls les points les plus lumineux (anneau, particules) rayonnent
+      );
+      composer.addPass(bloom);
+    }
 
     // Sprite circulaire doux généré en canvas — évite de charger une texture externe.
     const spriteCanvas = document.createElement("canvas");
@@ -121,6 +142,8 @@ export function ParticleHero() {
     let mouseY = 0;
     let targetRotX = 0;
     let targetRotY = 0;
+    let targetRingX = 0;
+    let targetRingY = 0;
 
     function onPointerMove(e: PointerEvent) {
       const rect = mount!.getBoundingClientRect();
@@ -134,6 +157,7 @@ export function ParticleHero() {
       camera.aspect = mount.clientWidth / mount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(mount.clientWidth, mount.clientHeight);
+      composer?.setSize(mount.clientWidth, mount.clientHeight);
     }
     window.addEventListener("resize", onResize);
 
@@ -161,7 +185,21 @@ export function ParticleHero() {
 
       ring.rotation.z = t * 0.08;
 
-      renderer.render(scene, camera);
+      // Parallax de profondeur : l'anneau (premier plan) réagit davantage à la
+      // souris que les particules (arrière-plan), pour un vrai effet de relief.
+      targetRingX += (-mouseX * 0.9 - targetRingX) * 0.04;
+      targetRingY += (-mouseY * 0.6 - targetRingY) * 0.04;
+      ring.position.x = targetRingX;
+      ring.position.y = targetRingY;
+
+      // La caméra « respire » légèrement même sans interaction, pour une scène
+      // qui reste vivante au repos.
+      camera.position.x = Math.sin(t * 0.15) * 0.4;
+      camera.position.y = Math.cos(t * 0.12) * 0.25;
+      camera.lookAt(0, 0, 0);
+
+      if (composer) composer.render();
+      else renderer.render(scene, camera);
       frameId = requestAnimationFrame(renderFrame);
     }
 
@@ -183,7 +221,8 @@ export function ParticleHero() {
         });
 
     if (reduceMotion) {
-      renderer.render(scene, camera);
+      if (composer) composer.render();
+      else renderer.render(scene, camera);
     } else {
       frameId = requestAnimationFrame(renderFrame);
     }
@@ -201,6 +240,7 @@ export function ParticleHero() {
       spriteTexture.dispose();
       ringGeometry.dispose();
       ringMaterial.dispose();
+      composer?.dispose();
       renderer.dispose();
       mount?.removeChild(renderer.domElement);
     };

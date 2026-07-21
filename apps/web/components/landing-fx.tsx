@@ -37,6 +37,33 @@ export function HeroFx() {
     // Boutons magnétiques : les CTA suivent légèrement le curseur.
     const cleanups: Array<() => void> = [];
     if (window.matchMedia("(pointer: fine)").matches) {
+      // Parallax du texte du hero : mouvement très subtil, à l'opposé du curseur —
+      // couche la plus au premier plan, donc celle qui bouge le moins (l'anneau
+      // 3D et les particules, plus en profondeur, réagissent davantage).
+      const heroContent = document.querySelector<HTMLElement>(".landing-hero-content");
+      const heroSection = document.querySelector<HTMLElement>(".landing-hero");
+      if (heroContent && heroSection) {
+        const toTextX = gsap.quickTo(heroContent, "x", { duration: 0.6, ease: "power3.out" });
+        const toTextY = gsap.quickTo(heroContent, "y", { duration: 0.6, ease: "power3.out" });
+        const onHeroMove = (e: PointerEvent) => {
+          const r = heroSection.getBoundingClientRect();
+          const px = (e.clientX - r.left) / r.width - 0.5;
+          const py = (e.clientY - r.top) / r.height - 0.5;
+          toTextX(-px * 12);
+          toTextY(-py * 8);
+        };
+        const onHeroLeave = () => {
+          toTextX(0);
+          toTextY(0);
+        };
+        heroSection.addEventListener("pointermove", onHeroMove);
+        heroSection.addEventListener("pointerleave", onHeroLeave);
+        cleanups.push(() => {
+          heroSection.removeEventListener("pointermove", onHeroMove);
+          heroSection.removeEventListener("pointerleave", onHeroLeave);
+        });
+      }
+
       document.querySelectorAll<HTMLElement>(".cta-row .btn").forEach((btn) => {
         const toX = gsap.quickTo(btn, "x", { duration: 0.35, ease: "power3.out" });
         const toY = gsap.quickTo(btn, "y", { duration: 0.35, ease: "power3.out" });
