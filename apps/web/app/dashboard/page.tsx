@@ -58,7 +58,24 @@ export default function Dashboard() {
       return;
     }
     api<{ events: EventListItem[] }>("/api/events")
-      .then((r) => setEvents(r.events))
+      .then(async (r) => {
+        // Un compte sans événement mais avec un profil entreprise/prestataire
+        // est probablement venu pour le sponsoring ou l'annuaire, pas pour
+        // organiser — on l'amène directement à son profil plutôt que sur un
+        // tableau de bord d'organisateur vide.
+        if (r.events.length === 0) {
+          try {
+            const companyRes = await api<{ company: { id: string } | null }>("/api/company");
+            if (companyRes.company) {
+              router.replace("/entreprise");
+              return;
+            }
+          } catch {
+            // Pas de profil entreprise (ou erreur réseau) : on affiche le tableau de bord normalement.
+          }
+        }
+        setEvents(r.events);
+      })
       .catch((e) => {
         if (e.status === 401) router.replace("/");
         else setError(e.message);
