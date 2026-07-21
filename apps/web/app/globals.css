@@ -391,6 +391,19 @@ tr:last-child td { border-bottom: none; }
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px;
 }
 .testimonial-author strong { color: var(--ink); }
+
+.faq-list { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.faq-item { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); transition: border-color 0.2s ease; }
+.faq-item.open { border-color: rgba(180,84,10,0.35); }
+.faq-question {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: none; border: none; box-shadow: none; margin: 0; padding: 16px 20px;
+  font-size: 15px; font-weight: 600; color: var(--ink); text-align: left; font-family: inherit;
+}
+.faq-question:hover { opacity: 1; box-shadow: none; transform: none; }
+.faq-chevron { flex: none; color: var(--muted); transition: transform 0.2s ease; }
+.faq-item.open .faq-chevron { transform: rotate(180deg); color: var(--accent); }
+.faq-answer { margin: 0; padding: 0 20px 18px; font-size: 14px; color: var(--muted); }
 .step-num {
   width: 34px; height: 34px; border-radius: 99px;
   background: linear-gradient(135deg, var(--ink), #3a2a1d);

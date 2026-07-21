@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star } from "lucide-react";
 import { Reveal } from "@/components/reveal";
@@ -51,6 +52,37 @@ const STEPS = [
     num: "3",
     title: "Accueillez sereinement",
     text: "Le jour J, scannez les QR codes à l'entrée. Chaque billet n'est valide qu'une seule fois — zéro fraude, zéro stress.",
+  },
+];
+
+const FAQS = [
+  {
+    q: "Est-ce gratuit d'utiliser EventGalo ?",
+    a: "Créer un compte et publier un événement est gratuit, sans carte bancaire. Des frais de service s'appliquent uniquement sur les transactions (vente de billets, sponsoring), prélevés automatiquement via Stripe au moment du paiement.",
+  },
+  {
+    q: "Puis-je inviter des gens sans vendre de billets ?",
+    a: "Oui. Pour un anniversaire ou une soirée privée, chaque invité reçoit un lien personnalisé (lieu, dress code, programme) et confirme sa présence en un clic — aucun paiement n'est nécessaire.",
+  },
+  {
+    q: "Comment fonctionne la billetterie et le paiement ?",
+    a: "Vos clients paient en ligne par carte, Apple Pay ou Google Pay via Stripe. Chaque billet est envoyé immédiatement avec un QR code signé à usage unique : impossible à dupliquer, et le scan à l'entrée le jour J invalide définitivement le billet.",
+  },
+  {
+    q: "Comment fonctionne le suivi par vendeur ?",
+    a: "Vous pouvez attribuer des quotas de billets à vos vendeurs et suivre leurs ventes en temps réel depuis votre tableau de bord, puis scanner les billets à l'entrée depuis n'importe quel téléphone.",
+  },
+  {
+    q: "Comment trouver des sponsors pour mon événement ?",
+    a: "Créez vos paliers de sponsoring (Officiel, Or, Argent…) avec avantages et niveaux de visibilité, puis invitez des entreprises depuis l'annuaire ou laissez-les vous proposer un sponsoring. L'encaissement se fait en ligne, et leur vitrine s'affiche automatiquement sur la page de votre événement.",
+  },
+  {
+    q: "Je suis prestataire (photographe, décorateur, traiteur…) : comment être visible ?",
+    a: "Créez gratuitement votre profil depuis « Créer mon profil », que vous soyez une entreprise ou un indépendant. Vous apparaissez ensuite dans l'annuaire des prestataires et pouvez être contacté directement par des organisateurs.",
+  },
+  {
+    q: "Mes paiements et mes données sont-ils sécurisés ?",
+    a: "Tous les paiements sont traités par Stripe, qui gère la conformité PCI-DSS — EventGalo ne stocke aucune donnée de carte bancaire. La connexion se fait sans mot de passe, par lien magique envoyé par email.",
   },
 ];
 
@@ -114,6 +146,8 @@ const TESTIMONIALS = [
 ];
 
 export default function Home() {
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
   return (
     <>
       <div className="landing-hero">
@@ -336,6 +370,34 @@ export default function Home() {
                 </div>
               </div>
             </Reveal>
+          </div>
+        </section>
+
+        <section className="section">
+          <Reveal>
+            <span className="section-kicker">Questions fréquentes</span>
+            <SplitTitle className="section-title">Vous vous posez des questions ?</SplitTitle>
+          </Reveal>
+          <div className="faq-list">
+            {FAQS.map((f, i) => {
+              const open = openFaq === i;
+              return (
+                <Reveal key={f.q} delay={Math.min(i, 6) * 60}>
+                  <div className={`faq-item${open ? " open" : ""}`}>
+                    <button
+                      type="button"
+                      className="faq-question"
+                      aria-expanded={open}
+                      onClick={() => setOpenFaq(open ? null : i)}
+                    >
+                      {f.q}
+                      <ChevronDown className="faq-chevron" size={18} />
+                    </button>
+                    {open && <p className="faq-answer">{f.a}</p>}
+                  </div>
+                </Reveal>
+              );
+            })}
           </div>
         </section>
       </main>
