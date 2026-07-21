@@ -250,16 +250,6 @@ export default function Home() {
             </Reveal>
           </div>
         </section>
-
-        <footer className="landing-footer muted">
-        <p style={{ margin: "0 0 8px" }}>EventGalo — invitations, RSVP et billetterie pour vos événements.</p>
-        <p style={{ margin: "0 0 8px" }}>
-            <a href="/sponsors">Annuaire des sponsors</a> · <a href="/prestataires">Annuaire des prestataires</a> · <a href="/opportunites">Événements à sponsoriser</a> · <a href="/entreprise">Créer mon profil (entreprise ou indépendant)</a> · <a href="/connexion">Connexion</a>
-          </p>
-        <p style={{ margin: 0 }}>
-            <a href="/cgu">Conditions générales d&apos;utilisation</a> · <a href="/confidentialite">Politique de confidentialité</a>
-          </p>
-        </footer>
       </main>
     </>
   );

@@ -3,6 +3,7 @@ import { Fraunces } from "next/font/google";
 import Link from "next/link";
 import { TopbarNav } from "@/components/topbar-nav";
 import { SiteBanner } from "@/components/site-banner";
+import { SiteFooter } from "@/components/site-footer";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -96,6 +97,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <TopbarNav />
         </div>
         {children}
+        <SiteFooter />
       </body>
     </html>
   );
