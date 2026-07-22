@@ -12,6 +12,7 @@ import { getSetting } from "../lib/admin";
 import { triggerWebhooks } from "../lib/webhooks";
 import { organizerDestination, serviceFeeCents } from "../lib/stripe";
 import { createNotification } from "../lib/notifications";
+import { generateEventAnswer } from "../lib/ai";
 
 const pub = new Hono<AppContext>();
 
@@ -93,6 +94,88 @@ pub.get("/events/:slug", async (c) => {
     })),
     performers: performers.results,
   });
+});
+
+/** Assistant IA public : répond aux questions des invités à partir des infos publiées de l'événement. */
+pub.post("/events/:slug/ask", async (c) => {
+  if (await isRateLimited(c.env, "ai-ask", clientIp(c), 15, 3600)) return tooManyRequests(c);
+
+  const body = await c.req.json<{ question?: string }>().catch(() => ({}) as Record<string, never>);
+  const question = (body.question ?? "").trim().slice(0, 300);
+  if (question.length < 3) return c.json({ error: "Question trop courte." }, 400);
+
+  const event = await c.env.DB.prepare(
+    `SELECT title, description, starts_at, ends_at, venue, address, dress_code, type,
+       parking_available, parking_details, accessibility_available, accessibility_details,
+       age_restriction, age_restriction_details, day_of_phone, coat_check_available, coat_check_details, agenda, id
+     FROM events WHERE public_slug = ? AND status = 'published'`,
+  )
+    .bind(c.req.param("slug"))
+    .first<{
+      title: string;
+      description: string | null;
+      starts_at: string | null;
+      ends_at: string | null;
+      venue: string | null;
+      address: string | null;
+      dress_code: string | null;
+      type: string;
+      parking_available: number;
+      parking_details: string | null;
+      accessibility_available: number;
+      accessibility_details: string | null;
+      age_restriction: string;
+      age_restriction_details: string | null;
+      day_of_phone: string | null;
+      coat_check_available: number;
+      coat_check_details: string | null;
+      agenda: string | null;
+      id: string;
+    }>();
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+
+  let agenda: Array<{ time: string; label: string }> = [];
+  if (event.agenda) {
+    try {
+      const parsed = JSON.parse(event.agenda);
+      if (Array.isArray(parsed)) agenda = parsed;
+    } catch {
+      // agenda mal formé : on l'ignore silencieusement dans le contexte fourni à l'IA
+    }
+  }
+
+  const categories = await c.env.DB.prepare(
+    "SELECT name, price_cents, currency FROM ticket_categories WHERE event_id = ? ORDER BY price_cents",
+  )
+    .bind(event.id)
+    .all<{ name: string; price_cents: number; currency: string }>();
+
+  const answer = await generateEventAnswer(
+    c.env,
+    {
+      title: event.title,
+      description: event.description,
+      startsAt: event.starts_at,
+      endsAt: event.ends_at,
+      venue: event.venue,
+      address: event.address,
+      dressCode: event.dress_code,
+      eventType: event.type as "private" | "ticketed",
+      parkingAvailable: Boolean(event.parking_available),
+      parkingDetails: event.parking_details,
+      accessibilityAvailable: Boolean(event.accessibility_available),
+      accessibilityDetails: event.accessibility_details,
+      ageRestriction: event.age_restriction,
+      ageRestrictionDetails: event.age_restriction_details,
+      dayOfPhone: event.day_of_phone,
+      coatCheckAvailable: Boolean(event.coat_check_available),
+      coatCheckDetails: event.coat_check_details,
+      agenda,
+      categories: categories.results.map((cat) => ({ name: cat.name, priceCents: cat.price_cents, currency: cat.currency })),
+    },
+    question,
+  );
+  return c.json({ answer });
 });
 
 /* ------------------------- Espace sponsor (lien privé) --------------------- */

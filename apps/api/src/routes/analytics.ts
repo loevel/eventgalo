@@ -1,6 +1,9 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { AppContext } from "../types";
 import { requireAuth } from "../lib/auth";
+import { generateAnalyticsSummary } from "../lib/ai";
+import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 
 const analytics = new Hono<AppContext>();
 analytics.use("*", requireAuth);
@@ -25,7 +28,7 @@ interface LastSale {
  * existantes (guests, transactions, tickets, sponsors, seller_quotas), sans
  * benchmark ni cible inventés (aucune donnée de comparaison externe disponible).
  */
-analytics.get("/", async (c) => {
+async function computeAnalytics(c: Context<AppContext>) {
   const user = c.get("user");
   const eventsRes = await c.env.DB.prepare(
     `SELECT id FROM events e
@@ -38,7 +41,7 @@ analytics.get("/", async (c) => {
   const eventIds = eventsRes.results.map((r) => r.id);
 
   if (eventIds.length === 0) {
-    return c.json({
+    return {
       currency: "CAD",
       invites: { total: 0, opened: 0 },
       rsvp: { yes: 0, no: 0, pending: 0 },
@@ -46,7 +49,7 @@ analytics.get("/", async (c) => {
       tickets: { sold: 0, used: 0 },
       monthly: [],
       vendors: [],
-    });
+    };
   }
 
   const ph = eventIds.map(() => "?").join(",");
@@ -184,7 +187,7 @@ analytics.get("/", async (c) => {
     .sort((a, b) => b.sold - a.sold)
     .slice(0, 10);
 
-  return c.json({
+  return {
     currency: "CAD",
     invites: { total: invites?.total ?? 0, opened: invites?.opened ?? 0 },
     rsvp: rsvpCounts,
@@ -192,7 +195,36 @@ analytics.get("/", async (c) => {
     tickets: { sold: tickets?.sold ?? 0, used: tickets?.used ?? 0 },
     monthly,
     vendors,
+  };
+}
+
+analytics.get("/", async (c) => {
+  return c.json(await computeAnalytics(c));
+});
+
+/** Résumé en langage naturel des statistiques ci-dessus, généré via Workers AI. */
+analytics.post("/summary", async (c) => {
+  const user = c.get("user");
+  if (await isRateLimited(c.env, "ai-analytics-summary", user.id, 15, 3600)) return tooManyRequests(c);
+
+  const data = await computeAnalytics(c);
+  if (data.invites.total === 0 && data.tickets.sold === 0 && data.revenue_cents === 0) {
+    return c.json({ text: "Pas encore assez de données pour un résumé — revenez après vos premières invitations ou ventes." });
+  }
+  const text = await generateAnalyticsSummary(c.env, {
+    currency: data.currency,
+    invitesTotal: data.invites.total,
+    invitesOpened: data.invites.opened,
+    rsvpYes: data.rsvp.yes,
+    rsvpNo: data.rsvp.no,
+    rsvpPending: data.rsvp.pending,
+    revenueCents: data.revenue_cents,
+    ticketsSold: data.tickets.sold,
+    ticketsUsed: data.tickets.used,
+    monthly: data.monthly.map((m) => ({ month: m.month, revenueCents: m.revenue_cents, attendance: m.attendance })),
+    vendors: data.vendors.map((v) => ({ name: v.name, quota: v.quota, sold: v.sold })),
   });
+  return c.json({ text });
 });
 
 export { analytics as analyticsRoutes };

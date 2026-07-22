@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarCheck, MailOpen, TicketCheck, Wallet } from "lucide-react";
+import { CalendarCheck, MailOpen, Sparkles, TicketCheck, Wallet } from "lucide-react";
 import { api, formatPrice, getToken } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
 
@@ -27,6 +27,48 @@ function fmtPct(n: number | null): string {
 function monthLabel(key: string): string {
   const [y, m] = key.split("-").map(Number);
   return new Intl.DateTimeFormat("fr-CA", { month: "short" }).format(new Date(y, m - 1, 1));
+}
+
+/** Résumé de vos statistiques en langage clair, généré à la demande via Workers AI. */
+function AiSummaryCard() {
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function generate() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ text: string }>("/api/analytics/summary", { method: "POST" });
+      setText(res.text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Une erreur est survenue.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+          <Sparkles size={17} style={{ color: "var(--accent)" }} /> Résumé IA
+        </h3>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={generate} disabled={busy}>
+          {busy ? "Analyse en cours…" : text ? "Régénérer" : "Générer un résumé"}
+        </button>
+      </div>
+      {text && (
+        <div style={{ marginTop: 12, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{text}</div>
+      )}
+      {error && <p className="alert err" style={{ marginTop: 12 }}>{error}</p>}
+      {!text && !error && !busy && (
+        <p className="muted" style={{ marginTop: 8 }}>
+          Obtenez en un clic une lecture rapide de vos tendances et un point d&apos;attention à surveiller.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default function AnalyticsPage() {
@@ -112,6 +154,10 @@ export default function AnalyticsPage() {
                 </div>
               ))}
             </div>
+          </Reveal>
+
+          <Reveal delay={40}>
+            <AiSummaryCard />
           </Reveal>
 
           <div className="grid2" style={{ marginTop: 20, alignItems: "start" }}>

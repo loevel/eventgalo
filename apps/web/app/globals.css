@@ -1322,4 +1322,7 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 .kind-option input { margin-top: 3px; accent-color: var(--accent); }
 .kind-option.kind-selected { border-color: var(--accent); background: rgba(143,64,9,0.05); }
 
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
 .directory-card-head img.pro-photo { border-radius: 50%; object-fit: cover; padding: 0; }

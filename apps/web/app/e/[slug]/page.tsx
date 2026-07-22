@@ -7,6 +7,7 @@ import { CheckoutForm } from "@/components/checkout-form";
 import { Reveal } from "@/components/reveal";
 import { Countdown } from "@/components/countdown";
 import { ShareButton } from "@/components/share-button";
+import { EventAsk } from "@/components/event-ask";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -468,6 +469,9 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                 </div>
               </Reveal>
             )}
+            <Reveal delay={100}>
+              <EventAsk slug={slug} />
+            </Reveal>
           </aside>
         </div>
 
