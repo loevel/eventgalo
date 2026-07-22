@@ -5,6 +5,7 @@ import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { ProposeSponsorship } from "@/components/propose-sponsorship";
 import { Stars } from "@/components/star-rating";
 import { DirectoryFilters } from "@/components/directory-filters";
+import { SmartSearch } from "@/components/smart-search";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -72,6 +73,21 @@ export default async function SponsorDirectoryPage({
           invitez-les depuis l&apos;onglet Sponsors de votre événement.
         </p>
       </div>
+
+      <SmartSearch<{ q: string; sector: string; city: string; kind: string; verified: boolean }>
+        endpoint="/api/public/companies/search-parse"
+        body={{ sectors: COMPANY_SECTORS }}
+        placeholder="Ex. : entreprises vérifiées de Montréal en événementiel…"
+        toParams={(f) => {
+          const p = new URLSearchParams();
+          if (f.q) p.set("q", f.q);
+          if (f.sector) p.set("sector", f.sector);
+          if (f.city) p.set("city", f.city);
+          if (f.kind) p.set("kind", f.kind);
+          if (f.verified) p.set("verified", "1");
+          return p;
+        }}
+      />
 
       <DirectoryFilters
         sectors={COMPANY_SECTORS}

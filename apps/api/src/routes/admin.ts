@@ -4,6 +4,8 @@ import { requireAuth, revokeUserSessions } from "../lib/auth";
 import { requireAdmin, requireSuperadmin, logAdminAction, getSetting, setSetting } from "../lib/admin";
 import { nowIso } from "../lib/crypto";
 import { deleteEventCascade } from "../lib/event-delete";
+import { generateFraudRiskAssessment } from "../lib/ai";
+import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 
 const admin = new Hono<AppContext>();
 admin.use("*", requireAuth, requireAdmin);
@@ -349,6 +351,75 @@ admin.delete("/reviews/:id", async (c) => {
     rated_by: review.rated_by,
     rating: review.rating,
   });
+  return c.json({ ok: true });
+});
+
+/** Recherche/liste des profils de l'annuaire (entreprises + professionnels), pour modération. */
+admin.get("/companies", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().slice(0, 80);
+  const { limit, offset } = page(c);
+  const conditions: string[] = [];
+  const binds: unknown[] = [];
+  if (q) {
+    conditions.push("(c.name LIKE ? OR c.website LIKE ? OR c.public_email LIKE ?)");
+    binds.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = await c.env.DB.prepare(
+    `SELECT c.id, c.name, c.kind, c.sector, c.city, c.website, c.public_email, c.description,
+            c.listed, c.vendor_listed, (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
+            c.created_at,
+            (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships
+     FROM companies c ${where} ORDER BY c.created_at DESC LIMIT ? OFFSET ?`,
+  )
+    .bind(...binds, limit, offset)
+    .all();
+  return c.json({ companies: rows.results });
+});
+
+/** Évalue un profil de l'annuaire pour un signal de faux profil / contenu suspect — aide à la décision, pas un verdict automatique. */
+admin.post("/companies/:id/risk-check", async (c) => {
+  const admin_ = c.get("user");
+  if (await isRateLimited(c.env, "ai-fraud-check", admin_.id, 60, 3600)) return tooManyRequests(c);
+  const co = await c.env.DB.prepare(
+    "SELECT name, kind, title, affiliation, sector, city, description, website, public_email FROM companies WHERE id = ?",
+  )
+    .bind(c.req.param("id"))
+    .first<{
+      name: string;
+      kind: string;
+      title: string | null;
+      affiliation: string | null;
+      sector: string | null;
+      city: string | null;
+      description: string | null;
+      website: string | null;
+      public_email: string | null;
+    }>();
+  if (!co) return c.json({ error: "Introuvable" }, 404);
+  const result = await generateFraudRiskAssessment(c.env, {
+    name: co.name,
+    kind: co.kind === "professional" ? "professional" : "company",
+    title: co.title,
+    affiliation: co.affiliation,
+    sector: co.sector,
+    city: co.city,
+    description: co.description,
+    website: co.website,
+    publicEmail: co.public_email,
+  });
+  return c.json(result);
+});
+
+/** Retire un profil des annuaires publics (modération) — n'efface pas le profil, réversible par le propriétaire. */
+admin.post("/companies/:id/unlist", async (c) => {
+  const admin_ = c.get("user");
+  const id = c.req.param("id");
+  const result = await c.env.DB.prepare("UPDATE companies SET listed = 0, vendor_listed = 0, updated_at = ? WHERE id = ?")
+    .bind(nowIso(), id)
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
+  await logAdminAction(c.env, admin_.id, "company.unlist", "company", id);
   return c.json({ ok: true });
 });
 

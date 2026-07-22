@@ -259,3 +259,170 @@ export async function generateEventAnswer(env: Env, ctx: EventQAContext, questio
   const response = (result as { response?: unknown }).response;
   return typeof response === "string" ? response.trim() : "";
 }
+
+/* ------------------ Utilitaire : réponses JSON structurées ---------------- */
+
+/** Certains modèles renvoient déjà `response` sous forme d'objet/tableau parsé plutôt qu'une chaîne JSON — on gère les deux formes. */
+function parseJsonResponse(raw: unknown): unknown {
+  if (typeof raw !== "string") return raw;
+  const match = raw.match(/[[{][\s\S]*[\]}]/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
+
+/* --------------------- Détection de risque (annuaire, IA) ------------------ */
+
+export interface FraudCheckContext {
+  name: string;
+  kind: "company" | "professional";
+  title: string | null;
+  affiliation: string | null;
+  sector: string | null;
+  city: string | null;
+  description: string | null;
+  website: string | null;
+  publicEmail: string | null;
+}
+
+export interface FraudRiskAssessment {
+  risk: "low" | "medium" | "high";
+  reasons: string;
+}
+
+const FRAUD_SYSTEM_PROMPT = `Tu aides un modérateur humain d'un annuaire d'entreprises partenaires d'événements au Canada francophone à repérer les profils suspects avant validation. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, de la forme {"risk":"low","reasons":"..."} où risk vaut "low", "medium" ou "high". "risk" reflète la probabilité que ce profil soit un faux profil, un profil de test, du contenu générique/copié-collé ou incohérent (site web sans rapport avec le nom, description vide de sens, contact non professionnel, secteur incohérent avec la description). "reasons" est une phrase courte en français justifiant le verdict à partir des données fournies. Ne conclus "high" que si tu identifies un signal concret. En cas de doute ou de données insuffisantes pour juger, réponds "low". C'est une aide à la décision pour un humain, pas une accusation.`;
+
+function buildFraudPrompt(ctx: FraudCheckContext): string {
+  const lines = [
+    `Nom : ${ctx.name}`,
+    `Type de profil : ${ctx.kind === "professional" ? "professionnel indépendant" : "entreprise"}`,
+    ctx.title ? `Titre / métier : ${ctx.title}` : null,
+    ctx.affiliation ? `Affiliation : ${ctx.affiliation}` : null,
+    ctx.sector ? `Secteur : ${ctx.sector}` : null,
+    ctx.city ? `Ville : ${ctx.city}` : null,
+    `Site web : ${ctx.website || "aucun"}`,
+    `Email public : ${ctx.publicEmail || "aucun"}`,
+    `Description : ${ctx.description || "aucune"}`,
+  ].filter(Boolean).join("\n");
+  return `Évalue ce profil avant validation dans l'annuaire :\n${lines}`;
+}
+
+function parseFraudResponse(raw: unknown): FraudRiskAssessment {
+  const fallback: FraudRiskAssessment = { risk: "low", reasons: "Analyse indisponible — réessayez." };
+  const obj = parseJsonResponse(raw);
+  if (typeof obj !== "object" || obj === null) return fallback;
+  const r = obj as Record<string, unknown>;
+  const risk = r.risk === "medium" || r.risk === "high" ? r.risk : "low";
+  const reasons = typeof r.reasons === "string" && r.reasons.trim() ? r.reasons.trim() : fallback.reasons;
+  return { risk, reasons };
+}
+
+/** Évalue le risque qu'un profil de l'annuaire soit un faux profil ou du contenu suspect, via Workers AI — une aide à la modération, pas une décision automatique. */
+export async function generateFraudRiskAssessment(env: Env, ctx: FraudCheckContext): Promise<FraudRiskAssessment> {
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: FRAUD_SYSTEM_PROMPT },
+      { role: "user", content: buildFraudPrompt(ctx) },
+    ],
+    max_tokens: 200,
+  });
+  return parseFraudResponse((result as { response?: unknown }).response);
+}
+
+/* --------------------- Recherche en langage naturel (IA) ------------------- */
+
+export interface DirectorySearchFilters {
+  q: string;
+  sector: string;
+  city: string;
+  kind: "" | "company" | "professional";
+  verified: boolean;
+}
+
+const DIRECTORY_SEARCH_SYSTEM_PROMPT = `Tu convertis une recherche en langage naturel en filtres structurés pour un annuaire d'entreprises partenaires d'événements au Canada francophone. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, de la forme {"q":"...","sector":"...","city":"...","kind":"company"|"professional"|null,"verified":true|false}. "sector" doit être repris EXACTEMENT tel quel dans la liste fournie s'il correspond clairement, sinon "". "q" contient les mots-clés libres restants (nom, activité précise) une fois la ville, le secteur et le type extraits de la requête — "" si rien de pertinent ne reste. "kind" ne vaut "professional" que si l'utilisateur cherche explicitement un indépendant/pigiste, "company" que s'il exclut explicitement les indépendants, sinon null. "verified" vaut true seulement si l'utilisateur demande explicitement des profils vérifiés/certifiés. N'invente rien d'absent de la requête.`;
+
+function parseDirectorySearchResponse(raw: unknown, sectors: string[]): DirectorySearchFilters {
+  const fallback: DirectorySearchFilters = { q: "", sector: "", city: "", kind: "", verified: false };
+  const obj = parseJsonResponse(raw);
+  if (typeof obj !== "object" || obj === null) return fallback;
+  const r = obj as Record<string, unknown>;
+  const sector = typeof r.sector === "string" && sectors.includes(r.sector) ? r.sector : "";
+  const kind = r.kind === "company" || r.kind === "professional" ? r.kind : "";
+  return {
+    q: typeof r.q === "string" ? r.q.trim().slice(0, 80) : "",
+    sector,
+    city: typeof r.city === "string" ? r.city.trim().slice(0, 80) : "",
+    kind,
+    verified: r.verified === true,
+  };
+}
+
+/** Convertit une recherche libre ("entreprises vérifiées de Montréal en événementiel") en filtres structurés pour l'annuaire, via Workers AI. */
+export async function parseDirectorySearch(env: Env, query: string, sectors: string[]): Promise<DirectorySearchFilters> {
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: DIRECTORY_SEARCH_SYSTEM_PROMPT },
+      { role: "user", content: `Secteurs disponibles : ${sectors.join(", ")}\n\nRequête : ${query}` },
+    ],
+    max_tokens: 200,
+  });
+  return parseDirectorySearchResponse((result as { response?: unknown }).response, sectors);
+}
+
+export interface OpportunitySearchFilters {
+  q: string;
+  from: string;
+  to: string;
+}
+
+const OPPORTUNITY_SEARCH_SYSTEM_PROMPT = `Tu convertis une recherche en langage naturel en filtres pour une liste d'événements publics qui recherchent des sponsors, au Canada francophone. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, de la forme {"q":"...","from":"AAAA-MM-JJ"|null,"to":"AAAA-MM-JJ"|null}. "q" contient les mots-clés libres restants (ville, nom, type d'événement) une fois la période extraite de la requête — "" si rien de pertinent ne reste. "from"/"to" ne sont renseignés QUE si l'utilisateur mentionne une période (ex. "en septembre", "cet été", "avant Noël", "ce mois-ci") ; résous-les par rapport à la date d'aujourd'hui fournie, en couvrant toute la période mentionnée (ex. le mois entier). Sinon null. N'invente rien d'absent de la requête.`;
+
+function parseOpportunitySearchResponse(raw: unknown): OpportunitySearchFilters {
+  const fallback: OpportunitySearchFilters = { q: "", from: "", to: "" };
+  const obj = parseJsonResponse(raw);
+  if (typeof obj !== "object" || obj === null) return fallback;
+  const r = obj as Record<string, unknown>;
+  const dateOk = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  return {
+    q: typeof r.q === "string" ? r.q.trim().slice(0, 80) : "",
+    from: dateOk(r.from) ? r.from : "",
+    to: dateOk(r.to) ? r.to : "",
+  };
+}
+
+/** Convertit une recherche libre ("galas à Montréal en septembre") en mots-clés + période pour la liste d'opportunités de sponsoring, via Workers AI. */
+export async function parseOpportunitySearch(env: Env, query: string): Promise<OpportunitySearchFilters> {
+  const today = new Intl.DateTimeFormat("fr-CA", { dateStyle: "full" }).format(new Date());
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: OPPORTUNITY_SEARCH_SYSTEM_PROMPT },
+      { role: "user", content: `Aujourd'hui : ${today} (${new Date().toISOString().slice(0, 10)})\n\nRequête : ${query}` },
+    ],
+    max_tokens: 200,
+  });
+  return parseOpportunitySearchResponse((result as { response?: unknown }).response);
+}
+
+/* ------------------------ Résumé de notifications (IA) --------------------- */
+
+const NOTIFICATION_DIGEST_SYSTEM_PROMPT = `Tu résumes une liste de notifications d'un organisateur d'événements au Canada francophone en un court paragraphe. Réponds en français, 2 à 4 phrases, ton direct, en regroupant les notifications similaires plutôt qu'en les énumérant une à une. Pas de markdown, pas de préambule, base-toi uniquement sur les notifications fournies.`;
+
+/** Résume une liste de notifications (titre + corps) en un court paragraphe via Workers AI. */
+export async function generateNotificationDigest(
+  env: Env,
+  items: Array<{ title: string; body: string | null }>,
+): Promise<string> {
+  const list = items.slice(0, 30).map((n, i) => `${i + 1}. ${n.title}${n.body ? ` — ${n.body}` : ""}`).join("\n");
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: NOTIFICATION_DIGEST_SYSTEM_PROMPT },
+      { role: "user", content: `Notifications récentes :\n${list}` },
+    ],
+    max_tokens: 250,
+  });
+  const response = (result as { response?: unknown }).response;
+  return typeof response === "string" ? response.trim() : "";
+}

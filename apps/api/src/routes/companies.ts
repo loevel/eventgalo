@@ -7,7 +7,7 @@ import { createNotification } from "../lib/notifications";
 import { validateMediaFile } from "../lib/media";
 import { clampText, sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
-import { generateReviewSummary } from "../lib/ai";
+import { generateReviewSummary, parseDirectorySearch, parseOpportunitySearch } from "../lib/ai";
 import {
   companyNamesMatch, domainOfEmail, domainOfUrl, findRegistryRecord,
   isFreeMailDomain, searchBusinessRegistry,
@@ -511,9 +511,34 @@ directory.get("/", async (c) => {
   return c.json({ companies: rows.results });
 });
 
+/** Convertit une recherche en langage naturel en filtres structurés pour l'annuaire (GET / juste au-dessus). */
+directory.post("/search-parse", async (c) => {
+  if (await isRateLimited(c.env, "ai-search-parse", clientIp(c), 30, 3600)) return tooManyRequests(c);
+  const body = await c.req.json<{ query?: string; sectors?: string[] }>().catch(() => ({}) as Record<string, never>);
+  const query = (body.query ?? "").trim().slice(0, 200);
+  if (!query) return c.json({ error: "Requête vide" }, 400);
+  const sectors = Array.isArray(body.sectors) ? body.sectors.filter((s): s is string => typeof s === "string").slice(0, 40) : [];
+  const filters = await parseDirectorySearch(c.env, query, sectors);
+  return c.json(filters);
+});
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Convertit une recherche en langage naturel en mots-clés + période pour les opportunités de sponsoring. */
+directory.post("/opportunities/search-parse", async (c) => {
+  if (await isRateLimited(c.env, "ai-search-parse", clientIp(c), 30, 3600)) return tooManyRequests(c);
+  const body = await c.req.json<{ query?: string }>().catch(() => ({}) as Record<string, never>);
+  const query = (body.query ?? "").trim().slice(0, 200);
+  if (!query) return c.json({ error: "Requête vide" }, 400);
+  const filters = await parseOpportunitySearch(c.env, query);
+  return c.json(filters);
+});
+
 /** Événements publiés à venir qui cherchent des sponsors (ont au moins un palier). */
 directory.get("/opportunities", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 80);
+  const from = (c.req.query("from") ?? "").trim();
+  const to = (c.req.query("to") ?? "").trim();
   const conditions = [
     "e.status = 'published'",
     "COALESCE(e.starts_at, '9999') > ?",
@@ -523,6 +548,14 @@ directory.get("/opportunities", async (c) => {
   if (q) {
     conditions.push("(e.title LIKE ? OR e.venue LIKE ? OR e.address LIKE ?)");
     binds.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (ISO_DATE_RE.test(from)) {
+    conditions.push("e.starts_at >= ?");
+    binds.push(`${from}T00:00:00.000Z`);
+  }
+  if (ISO_DATE_RE.test(to)) {
+    conditions.push("e.starts_at <= ?");
+    binds.push(`${to}T23:59:59.999Z`);
   }
   const events = await c.env.DB.prepare(
     `SELECT e.id, e.title, e.starts_at, e.venue, e.address, e.public_slug, e.logo_media_id, e.cover_media_id

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Notification {
@@ -31,7 +31,21 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  const [digest, setDigest] = useState<string | null>(null);
+  const [digestBusy, setDigestBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  async function generateDigest() {
+    setDigestBusy(true);
+    try {
+      const res = await api<{ text: string | null }>("/api/notifications/digest", { method: "POST" });
+      setDigest(res.text);
+    } catch {
+      // Silencieux : le résumé est un bonus, la liste brute reste disponible.
+    } finally {
+      setDigestBusy(false);
+    }
+  }
 
   async function load() {
     try {
@@ -77,6 +91,7 @@ export function NotificationBell() {
   async function markAllRead() {
     setItems((prev) => prev.map((it) => ({ ...it, read_at: it.read_at ?? new Date().toISOString() })));
     setUnread(0);
+    setDigest(null);
     api("/api/notifications/read-all", { method: "POST" }).catch(() => {});
   }
 
@@ -100,6 +115,18 @@ export function NotificationBell() {
             <button type="button" className="notif-markall" onClick={markAllRead}>
               Tout marquer comme lu
             </button>
+          )}
+          {unread >= 3 && (
+            digest ? (
+              <p className="notif-digest">
+                <Sparkles size={13} style={{ flexShrink: 0, marginTop: 1, color: "var(--accent)" }} />
+                <span>{digest}</span>
+              </p>
+            ) : (
+              <button type="button" className="notif-digest-btn" disabled={digestBusy} onClick={generateDigest}>
+                <Sparkles size={13} /> {digestBusy ? "Résumé en cours…" : "Résumer avec l'IA"}
+              </button>
+            )
           )}
           {items.length === 0 ? (
             <p className="notif-empty">Rien de nouveau.</p>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CalendarDays, MapPin, Search, Ticket } from "lucide-react";
 import { ApplySponsorship } from "@/components/apply-sponsorship";
+import { SmartSearch } from "@/components/smart-search";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -29,9 +30,11 @@ interface Opportunity {
   }>;
 }
 
-async function getOpportunities(q: string): Promise<Opportunity[]> {
+async function getOpportunities(q: string, from: string, to: string): Promise<Opportunity[]> {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
   const res = await fetch(`${API_BASE}/api/public/companies/opportunities?${params}`, { cache: "no-store" });
   if (!res.ok) return [];
   const data = (await res.json()) as { events: Opportunity[] };
@@ -50,10 +53,10 @@ function formatPrice(cents: number, currency: string): string {
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; from?: string; to?: string }>;
 }) {
-  const { q = "" } = await searchParams;
-  const events = await getOpportunities(q);
+  const { q = "", from = "", to = "" } = await searchParams;
+  const events = await getOpportunities(q, from, to);
 
   return (
     <main className="container">
@@ -66,6 +69,18 @@ export default async function OpportunitiesPage({
         </p>
       </div>
 
+      <SmartSearch<{ q: string; from: string; to: string }>
+        endpoint="/api/public/companies/opportunities/search-parse"
+        placeholder="Ex. : galas à Montréal en septembre…"
+        toParams={(f) => {
+          const p = new URLSearchParams();
+          if (f.q) p.set("q", f.q);
+          if (f.from) p.set("from", f.from);
+          if (f.to) p.set("to", f.to);
+          return p;
+        }}
+      />
+
       <form className="card directory-filters" method="GET">
         <label htmlFor="q">Recherche</label>
         <div className="copy-row">
@@ -76,9 +91,19 @@ export default async function OpportunitiesPage({
         </div>
       </form>
 
+      {(from || to) && (
+        <p className="muted" style={{ textAlign: "center", marginTop: -6, marginBottom: 12, fontSize: 13 }}>
+          Période : {from ? new Intl.DateTimeFormat("fr-CA", { dateStyle: "long" }).format(new Date(`${from}T00:00:00`)) : "…"}
+          {" → "}
+          {to ? new Intl.DateTimeFormat("fr-CA", { dateStyle: "long" }).format(new Date(`${to}T00:00:00`)) : "…"}
+          {" "}
+          <a href="/opportunites" style={{ marginLeft: 6 }}>Réinitialiser</a>
+        </p>
+      )}
+
       {events.length === 0 ? (
         <p className="muted" style={{ textAlign: "center", marginTop: 32 }}>
-          Aucun événement en recherche de sponsors{q ? " pour ces critères" : " pour le moment"}.
+          Aucun événement en recherche de sponsors{q || from || to ? " pour ces critères" : " pour le moment"}.
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720, margin: "20px auto 0" }}>
