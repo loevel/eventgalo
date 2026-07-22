@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { api, getToken, setToken } from "@/lib/api";
+import { NotificationBell } from "@/components/notification-bell";
 
 const PUBLIC_LINKS = [
   { href: "/sponsors", label: "Sponsors" },
@@ -49,6 +50,7 @@ export function TopbarNav() {
 
   const authLinks = connected ? (
     <>
+      <NotificationBell />
       <Link href="/dashboard">Mon espace</Link>
       {isAdmin && <Link href="/admin">Administration</Link>}
       <button className="btn-sm btn-ghost" onClick={logout}>
@@ -91,6 +93,7 @@ export function TopbarNav() {
           <hr />
           {connected ? (
             <>
+              <NotificationBell />
               <Link href="/dashboard">Mon espace</Link>
               {isAdmin && <Link href="/admin">Administration</Link>}
               <button className="btn-sm btn-ghost" onClick={logout}>

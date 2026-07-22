@@ -9,6 +9,7 @@ import connectRoutes from "./routes/connect";
 import adminRoutes from "./routes/admin";
 import { companyRoutes, companyDirectoryRoutes } from "./routes/companies";
 import { analyticsRoutes } from "./routes/analytics";
+import { notificationRoutes } from "./routes/notifications";
 import { nowIso } from "./lib/crypto";
 import { eventLogoUrl, layout, sendEmail } from "./lib/email";
 
@@ -32,6 +33,7 @@ app.route("/api/webhooks", webhookRoutes);
 app.route("/api/connect", connectRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/analytics", analyticsRoutes);
+app.route("/api/notifications", notificationRoutes);
 
 app.onError((err, c) => {
   console.error("unhandled", err);

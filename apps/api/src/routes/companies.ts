@@ -3,6 +3,7 @@ import type { AppContext } from "../types";
 import { nowIso, randomToken, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
+import { createNotification } from "../lib/notifications";
 import { validateMediaFile } from "../lib/media";
 import { clampText, sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
@@ -195,11 +196,12 @@ company.post("/apply", async (c) => {
   if (!b.event_id || !b.tier_id) return c.json({ error: "Événement et palier requis" }, 400);
 
   const event = await c.env.DB.prepare(
-    `SELECT e.id, e.title, u.email AS organizer_email FROM events e JOIN users u ON u.id = e.organizer_id
+    `SELECT e.id, e.title, u.id AS organizer_id, u.email AS organizer_email
+     FROM events e JOIN users u ON u.id = e.organizer_id
      WHERE e.id = ? AND e.status = 'published'`,
   )
     .bind(b.event_id)
-    .first<{ id: string; title: string; organizer_email: string }>();
+    .first<{ id: string; title: string; organizer_id: string; organizer_email: string }>();
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const tier = await c.env.DB.prepare("SELECT * FROM sponsor_tiers WHERE id = ? AND event_id = ?")
     .bind(b.tier_id, event.id)
@@ -271,6 +273,14 @@ company.post("/apply", async (c) => {
           { logoUrl: await eventLogoUrl(c.env, event.id), eventTitle: event.title },
         ),
       )))(),
+  );
+  c.executionCtx.waitUntil(
+    createNotification(c.env, event.organizer_id, {
+      type: "sponsor_apply",
+      title: `${co.name} veut sponsoriser ${event.title}`,
+      body: `Palier ${tier.name} (${amount} $)`,
+      link: `/dashboard/e/${event.id}`,
+    }),
   );
   return c.json({ ok: true, token, status: "pending" }, 201);
 });

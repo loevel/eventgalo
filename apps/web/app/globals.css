@@ -162,6 +162,47 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); ou
 }
 .address-autocomplete-item:hover { background: var(--bg); }
 
+.notif-bell { position: relative; display: inline-flex; }
+.notif-bell-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; margin: 0; border-radius: 99px;
+  background: transparent; color: var(--muted); box-shadow: none;
+}
+.notif-bell-btn:hover { background: var(--bg); color: var(--ink); box-shadow: none; transform: none; }
+.notif-badge {
+  position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 3px;
+  border-radius: 99px; background: var(--err); color: #fff; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.notif-dropdown {
+  position: absolute; top: 100%; right: 0; z-index: 30; margin: 8px 0 0; width: 320px; max-width: 90vw;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 16px 32px -16px rgba(28,26,23,0.35); max-height: 360px; overflow-y: auto; padding: 6px;
+}
+.notif-markall {
+  display: block; width: 100%; text-align: right; background: none; padding: 6px 8px; margin: 0;
+  font-size: 12.5px; font-weight: 600; color: var(--accent); box-shadow: none;
+}
+.notif-markall:hover { background: var(--bg); box-shadow: none; transform: none; }
+.notif-empty { padding: 16px 10px; margin: 0; font-size: 13.5px; color: var(--muted); text-align: center; }
+.notif-item {
+  display: block; width: 100%; text-align: left; background: none; padding: 10px; margin: 0;
+  border-radius: 8px; box-shadow: none; font-weight: 400;
+}
+.notif-item:hover { background: var(--bg); box-shadow: none; transform: none; }
+.notif-item.unread { background: rgba(143,64,9,0.06); }
+.notif-item-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.notif-item.unread .notif-item-title { font-weight: 700; }
+.notif-item-body { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.notif-item-time { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.topbar-mobile-panel .notif-bell { align-self: flex-start; }
+.topbar-mobile-panel .notif-dropdown { left: 0; right: auto; width: 100%; }
+.topbar-mobile-panel .notif-bell-btn { padding: 0; width: 34px; height: 34px; text-align: center; }
+.topbar-mobile-panel .notif-item,
+.topbar-mobile-panel .notif-markall { padding: 10px; text-align: left; font-size: 13.5px; }
+.topbar-mobile-panel .notif-markall { text-align: right; padding: 6px 8px; }
+
 button, .btn {
   display: inline-block; cursor: pointer; border: none; border-radius: 8px;
   background: var(--ink); color: #fff; font-size: 15px; font-weight: 600;

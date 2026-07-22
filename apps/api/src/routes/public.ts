@@ -11,6 +11,7 @@ import { buildIcsEvent, icsResponse } from "../lib/ics";
 import { getSetting } from "../lib/admin";
 import { triggerWebhooks } from "../lib/webhooks";
 import { organizerDestination, serviceFeeCents } from "../lib/stripe";
+import { createNotification } from "../lib/notifications";
 
 const pub = new Hono<AppContext>();
 
@@ -274,10 +275,11 @@ pub.post("/sponsor/:token", async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       const org = await c.env.DB.prepare(
-        `SELECT u.email, e.title, e.id AS event_id FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?`,
+        `SELECT u.id AS user_id, u.email, e.title, e.id AS event_id
+         FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?`,
       )
         .bind(sponsor.event_id)
-        .first<{ email: string; title: string; event_id: string }>();
+        .first<{ user_id: string; email: string; title: string; event_id: string }>();
       if (!org) return;
       const amount = (tier.price_cents / 100).toFixed(2);
       await sendEmail(
@@ -299,6 +301,12 @@ pub.post("/sponsor/:token", async (c) => {
           { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: org.title },
         ),
       );
+      await createNotification(c.env, org.user_id, {
+        type: "sponsor_engagement",
+        title: `${companyName} veut sponsoriser ${org.title}`,
+        body: `Palier ${tier.name} (${amount} $)`,
+        link: `/dashboard/e/${org.event_id}`,
+      });
     })(),
   );
   return c.json({ ok: true, status: "pending", tier_name: tier.name, amount_cents: tier.price_cents });
@@ -416,10 +424,10 @@ pub.post("/sponsor/:token/propose", async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       const org = await c.env.DB.prepare(
-        "SELECT u.email FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?",
+        "SELECT u.id AS user_id, u.email FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?",
       )
         .bind(sponsor.event_id)
-        .first<{ email: string }>();
+        .first<{ user_id: string; email: string }>();
       if (!org) return;
       const company = sponsor.company_name ?? "Une entreprise";
       await sendEmail(
@@ -438,6 +446,12 @@ pub.post("/sponsor/:token/propose", async (c) => {
           { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: sponsor.event_title },
         ),
       );
+      await createNotification(c.env, org.user_id, {
+        type: "sponsor_proposal",
+        title: `${company} propose un autre montant — ${sponsor.event_title}`,
+        body: `${(proposed / 100).toFixed(2)} $ proposé (palier ${sponsor.tier_name ?? ""})`,
+        link: `/dashboard/e/${sponsor.event_id}`,
+      });
     })(),
   );
   return c.json({ ok: true, proposal_status: "pending", proposed_cents: proposed });
@@ -487,10 +501,10 @@ pub.post("/sponsor/:token/decline", async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       const org = await c.env.DB.prepare(
-        `SELECT u.email FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?`,
+        `SELECT u.id AS user_id, u.email FROM events e JOIN users u ON u.id = e.organizer_id WHERE e.id = ?`,
       )
         .bind(sponsor.event_id)
-        .first<{ email: string }>();
+        .first<{ user_id: string; email: string }>();
       if (!org) return;
       await sendEmail(
         c.env,
@@ -505,6 +519,12 @@ pub.post("/sponsor/:token/decline", async (c) => {
           { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: sponsor.event_title },
         ),
       );
+      await createNotification(c.env, org.user_id, {
+        type: "sponsor_declined",
+        title: `Proposition déclinée — ${sponsor.event_title}`,
+        body: sponsor.company_name ? `${sponsor.company_name} a décliné.` : "L'entreprise contactée a décliné.",
+        link: `/dashboard/e/${sponsor.event_id}`,
+      });
     })(),
   );
   c.executionCtx.waitUntil(
