@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, PartyPopper, Plus, Ticket, Users } from "lucide-react";
+import { CalendarDays, PartyPopper, Plus, Search, Ticket, Users } from "lucide-react";
 import { api, formatDate, getToken } from "@/lib/api";
 import { Reveal } from "@/components/reveal";
 import { ConnectPaymentsCard } from "@/components/connect-payments";
@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [events, setEvents] = useState<EventListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>("upcoming");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!getToken()) {
@@ -95,7 +96,9 @@ export default function Dashboard() {
   const filtered = useMemo(() => {
     if (!events) return null;
     const now = Date.now();
-    const sorted = [...events].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    const q = search.trim().toLowerCase();
+    const base = q ? events.filter((e) => e.title.toLowerCase().includes(q)) : events;
+    const sorted = [...base].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
     switch (filter) {
       case "upcoming":
         return sorted.filter((e) => e.status !== "archived" && new Date(e.starts_at).getTime() >= now);
@@ -107,7 +110,7 @@ export default function Dashboard() {
       default:
         return sorted;
     }
-  }, [events, filter]);
+  }, [events, filter, search]);
 
   return (
     <main className="container">
@@ -167,7 +170,21 @@ export default function Dashboard() {
       )}
 
       {events && events.length > 0 && (
-        <div className="mt-5 flex flex-wrap gap-2 border-b border-line pb-3">
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher un événement…"
+              className="w-full rounded-full border border-line bg-surface py-2 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+        </div>
+      )}
+
+      {events && events.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2 border-b border-line pb-3">
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -202,7 +219,7 @@ export default function Dashboard() {
 
       {filtered && filtered.length === 0 && events && events.length > 0 && (
         <div className="mt-4 rounded-xl border border-line bg-surface p-5 text-sm text-muted">
-          Aucun événement dans cette catégorie.
+          {search.trim() ? `Aucun événement ne correspond à « ${search.trim()} ».` : "Aucun événement dans cette catégorie."}
         </div>
       )}
 
