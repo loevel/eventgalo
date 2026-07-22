@@ -2591,6 +2591,22 @@ function DirectoryPicker({
   const [message, setMessage] = useState("");
   const [results, setResults] = useState<Array<Record<string, any>> | null>(null);
   const [searching, setSearching] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function generateMessage(companyName?: string) {
+    setAiBusy(true);
+    try {
+      const res = await api<{ text: string }>(`/api/events/${eventId}/ai/draft`, {
+        method: "POST",
+        body: { target: "sponsor_pitch", hint: message, companyName },
+      });
+      setMessage(res.text);
+    } catch {
+      // Échec silencieux : le champ reste tel quel, l'organisateur peut réessayer.
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   async function search() {
     setSearching(true);
@@ -2653,7 +2669,12 @@ function DirectoryPicker({
       )}
       {results !== null && results.length > 0 && (
         <>
-          <label style={{ marginTop: 10 }}>Un mot pour l&apos;entreprise (optionnel, commun aux demandes)</label>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <label style={{ margin: 0 }}>Un mot pour l&apos;entreprise (optionnel, commun aux demandes)</label>
+            <button type="button" className="btn-ghost btn-sm" disabled={aiBusy} onClick={() => generateMessage()}>
+              {aiBusy ? "Rédaction…" : "✨ Générer avec l'IA"}
+            </button>
+          </div>
           <textarea
             rows={2}
             maxLength={800}

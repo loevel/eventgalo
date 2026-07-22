@@ -269,8 +269,11 @@ events.post("/:id/ai/draft", async (c) => {
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   if (await isRateLimited(c.env, "ai-draft", user.id, 20, 3600)) return tooManyRequests(c);
 
-  const body = await c.req.json<{ target?: string; hint?: string }>().catch(() => ({}) as Record<string, never>);
-  if (body.target !== "description" && body.target !== "announcement") {
+  const body = await c
+    .req
+    .json<{ target?: string; hint?: string; companyName?: string; tierName?: string }>()
+    .catch(() => ({}) as Record<string, never>);
+  if (body.target !== "description" && body.target !== "announcement" && body.target !== "sponsor_pitch") {
     return c.json({ error: "Cible invalide" }, 400);
   }
   const text = await generateDraft(c.env, {
@@ -281,6 +284,8 @@ events.post("/:id/ai/draft", async (c) => {
     venue: (event.venue as string | null) ?? null,
     dressCode: (event.dress_code as string | null) ?? null,
     hint: body.hint?.slice(0, 300),
+    companyName: body.companyName?.slice(0, 120),
+    tierName: body.tierName?.slice(0, 60),
   });
   return c.json({ text });
 });

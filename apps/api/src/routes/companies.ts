@@ -6,11 +6,14 @@ import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { createNotification } from "../lib/notifications";
 import { validateMediaFile } from "../lib/media";
 import { clampText, sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
-import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import { generateReviewSummary } from "../lib/ai";
 import {
   companyNamesMatch, domainOfEmail, domainOfUrl, findRegistryRecord,
   isFreeMailDomain, searchBusinessRegistry,
 } from "../lib/verification";
+
+const MIN_REVIEWS_FOR_AI_SUMMARY = 3;
 
 /* ---------------------- Espace entreprise (authentifié) -------------------- */
 
@@ -585,6 +588,31 @@ directory.get("/:id", async (c) => {
     .all();
 
   return c.json({ company: co, events: events.results });
+});
+
+/** Résumé IA des avis (≥3) laissés par des organisateurs sur cette entreprise — calculé à la demande. */
+directory.get("/:id/review-summary", async (c) => {
+  if (await isRateLimited(c.env, "ai-review-summary", clientIp(c), 30, 3600)) return tooManyRequests(c);
+
+  const co = await c.env.DB.prepare(
+    "SELECT name FROM companies WHERE id = ? AND (listed = 1 OR vendor_listed = 1)",
+  )
+    .bind(c.req.param("id"))
+    .first<{ name: string }>();
+  if (!co) return c.json({ error: "Profil introuvable" }, 404);
+
+  const reviews = await c.env.DB.prepare(
+    `SELECT r.comment FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+     WHERE s.company_id = ? AND r.rated_by = 'organizer' AND r.comment IS NOT NULL AND TRIM(r.comment) <> ''
+     ORDER BY r.created_at DESC LIMIT 15`,
+  )
+    .bind(c.req.param("id"))
+    .all<{ comment: string }>();
+  const comments = reviews.results.map((r) => r.comment);
+  if (comments.length < MIN_REVIEWS_FOR_AI_SUMMARY) return c.json({ summary: null });
+
+  const summary = await generateReviewSummary(c.env, co.name, comments);
+  return c.json({ summary });
 });
 
 // Pas de condition `listed` : l'id UUID n'est pas devinable (même modèle que /media/:id/file),

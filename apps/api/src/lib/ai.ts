@@ -3,13 +3,15 @@ import type { Env } from "../types";
 const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 export interface DraftContext {
-  target: "description" | "announcement";
+  target: "description" | "announcement" | "sponsor_pitch";
   title: string;
   eventType: "private" | "ticketed";
   startsAt: string | null;
   venue: string | null;
   dressCode: string | null;
   hint?: string;
+  companyName?: string;
+  tierName?: string;
 }
 
 const SYSTEM_PROMPT = `Tu es un rédacteur qui aide des organisateurs d'événements (mariages, anniversaires, galas, conférences) au Canada francophone à écrire des textes chaleureux et professionnels en français. Réponds uniquement avec le texte demandé, sans titre, sans guillemets, sans markdown, sans préambule ni explication.`;
@@ -28,6 +30,10 @@ function buildUserPrompt(ctx: DraftContext): string {
 
   if (ctx.target === "description") {
     return `Écris une description accueillante pour la page publique de cet événement (80 à 130 mots, ton chaleureux et professionnel, pas de markdown, pas d'emoji excessif) :\n${facts}${ctx.hint ? `\nPrécisions de l'organisateur : ${ctx.hint}` : ""}`;
+  }
+  if (ctx.target === "sponsor_pitch") {
+    const target = ctx.companyName ? `l'entreprise ${ctx.companyName}` : "une entreprise partenaire potentielle";
+    return `Écris un court message personnalisé (60 à 100 mots) envoyé par l'organisateur pour solliciter ${target} comme sponsor de cet événement${ctx.tierName ? ` (palier proposé : ${ctx.tierName})` : ""}. Ton professionnel et direct, met en avant la visibilité offerte au sponsor, se termine par une invitation à en discuter. Pas de formule d'appel ni de signature (le message s'insère dans un email déjà adressé).\nContexte de l'événement :\n${facts}${ctx.hint ? `\nPrécisions de l'organisateur sur pourquoi ce partenariat a du sens : ${ctx.hint}` : ""}`;
   }
   return `Écris une courte annonce (40 à 80 mots) envoyée par email aux invités de cet événement, à propos de : ${ctx.hint || "une information importante"}.\nContexte :\n${facts}`;
 }
@@ -94,6 +100,24 @@ export async function generateAnalyticsSummary(env: Env, facts: AnalyticsFacts):
       { role: "user", content: buildAnalyticsPrompt(facts) },
     ],
     max_tokens: 350,
+  });
+  const text = (result as { response?: string }).response ?? "";
+  return text.trim();
+}
+
+/* ---------------------- Résumé des avis d'un partenaire (IA) --------------- */
+
+const REVIEW_SUMMARY_SYSTEM_PROMPT = `Tu résumes des avis laissés par des organisateurs d'événements à propos d'une entreprise partenaire (sponsor ou prestataire), pour un annuaire public au Canada francophone. Réponds en français, en 1 à 2 phrases neutres et factuelles, en te basant uniquement sur les avis fournis, sans inventer de détail, sans citer d'organisateur nommément. Pas de markdown, pas de préambule.`;
+
+/** Résume en 1-2 phrases un ensemble de commentaires d'avis (≥3) laissés par des organisateurs, via Workers AI. */
+export async function generateReviewSummary(env: Env, companyName: string, comments: string[]): Promise<string> {
+  const list = comments.slice(0, 15).map((c, i) => `${i + 1}. ${c}`).join("\n");
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: REVIEW_SUMMARY_SYSTEM_PROMPT },
+      { role: "user", content: `Avis reçus par « ${companyName} » :\n${list}` },
+    ],
+    max_tokens: 150,
   });
   const text = (result as { response?: string }).response ?? "";
   return text.trim();
