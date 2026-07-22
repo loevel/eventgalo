@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { CalendarDays, MapPin } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
 import { MediaGallery, type MediaItem } from "@/components/media-gallery";
@@ -1607,28 +1608,36 @@ function SponsorsTab({
             entreprises ne peuvent pas vous faire de propositions. Créez votre premier palier ci-dessous.
           </div>
         )}
-        {tiers.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Palier</th>
-                <th>Montant</th>
-                <th>Places</th>
-                <th>Rang</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        {tiers.length > 0 && (() => {
+          const minRank = Math.min(...tiers.map((t) => Number(t.rank)));
+          return (
+            <div className="tier-cards">
               {tiers.map((t) => {
                 const engaged = sponsors.filter((s) => s.tier_id === t.id && ["pending", "confirmed"].includes(s.status)).length;
-                return editingTier && editingTier.id === t.id ? (
-                  <React.Fragment key={t.id}>
-                    <tr>
-                      <td><input value={editingTier.name} onChange={(e) => setEditingTier({ ...editingTier, name: e.target.value })} /></td>
-                      <td><input type="number" min={0} step="0.01" value={editingTier.price} onChange={(e) => setEditingTier({ ...editingTier, price: e.target.value })} /></td>
-                      <td><input type="number" min={1} style={{ width: 70 }} value={editingTier.quantity} onChange={(e) => setEditingTier({ ...editingTier, quantity: e.target.value })} /></td>
-                      <td><input type="number" min={0} style={{ width: 60 }} value={editingTier.rank} onChange={(e) => setEditingTier({ ...editingTier, rank: e.target.value })} /></td>
-                      <td>
+                if (editingTier && editingTier.id === t.id) {
+                  return (
+                    <div key={t.id} className="card tier-card tier-card-editing">
+                      <label style={{ marginTop: 0 }}>Nom</label>
+                      <input value={editingTier.name} onChange={(e) => setEditingTier({ ...editingTier, name: e.target.value })} />
+                      <div className="grid2">
+                        <div>
+                          <label>Montant (CAD)</label>
+                          <input type="number" min={0} step="0.01" value={editingTier.price} onChange={(e) => setEditingTier({ ...editingTier, price: e.target.value })} />
+                        </div>
+                        <div>
+                          <label>Places</label>
+                          <input type="number" min={1} value={editingTier.quantity} onChange={(e) => setEditingTier({ ...editingTier, quantity: e.target.value })} />
+                        </div>
+                      </div>
+                      <label>Rang d&apos;affichage (0 = principal)</label>
+                      <input type="number" min={0} value={editingTier.rank} onChange={(e) => setEditingTier({ ...editingTier, rank: e.target.value })} />
+                      <label>Description courte</label>
+                      <input value={editingTier.description} onChange={(e) => setEditingTier({ ...editingTier, description: e.target.value })} />
+                      <label>Niveau de vitrine sur la page publique</label>
+                      {showcaseSelect(editingTier.showcase, (v) => setEditingTier({ ...editingTier, showcase: v }))}
+                      <label>Avantages offerts (un par ligne)</label>
+                      <textarea rows={4} value={editingTier.perks} onChange={(e) => setEditingTier({ ...editingTier, perks: e.target.value })} />
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                         <button
                           className="btn-sm btn-accent"
                           onClick={() => {
@@ -1640,35 +1649,28 @@ function SponsorsTab({
                           }}
                         >
                           Enregistrer
-                        </button>{" "}
+                        </button>
                         <button className="btn-sm btn-ghost" onClick={() => setEditingTier(null)}>Annuler</button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={5}>
-                        <label style={{ marginTop: 0 }}>Description courte</label>
-                        <input value={editingTier.description} onChange={(e) => setEditingTier({ ...editingTier, description: e.target.value })} />
-                        <label>Niveau de vitrine sur la page publique</label>
-                        {showcaseSelect(editingTier.showcase, (v) => setEditingTier({ ...editingTier, showcase: v }))}
-                        <label>Avantages offerts (un par ligne)</label>
-                        <textarea rows={4} value={editingTier.perks} onChange={(e) => setEditingTier({ ...editingTier, perks: e.target.value })} />
-                      </td>
-                    </tr>
-                  </React.Fragment>
-                ) : (
-                  <tr key={t.id}>
-                    <td>
-                      {t.name}
-                      {parsePerks(t.perks).length > 0 && (
-                        <span className="muted" style={{ display: "block", fontSize: 12 }}>
-                          {parsePerks(t.perks).length} avantage{parsePerks(t.perks).length > 1 ? "s" : ""}
-                        </span>
-                      )}
-                    </td>
-                    <td>{formatPrice(t.price_cents, t.currency)}</td>
-                    <td>{engaged}/{t.quantity}</td>
-                    <td>{t.rank}</td>
-                    <td>
+                      </div>
+                    </div>
+                  );
+                }
+                const isPrimary = Number(t.rank) === minRank;
+                const perks = parsePerks(t.perks);
+                return (
+                  <div key={t.id} className={`card tier-card${isPrimary ? " tier-card-primary" : ""}`}>
+                    {isPrimary && <span className="badge warn tier-card-badge">Palier principal</span>}
+                    <h4 className="tier-card-name">{t.name}</h4>
+                    <div className="tier-card-price">{formatPrice(t.price_cents, t.currency)}</div>
+                    <p className="muted" style={{ fontSize: 13, margin: "2px 0 12px" }}>
+                      {engaged}/{t.quantity} place{t.quantity > 1 ? "s" : ""} engagée{engaged > 1 ? "s" : ""}
+                    </p>
+                    {perks.length > 0 && (
+                      <ul className="tier-card-perks">
+                        {perks.map((p, i) => <li key={i}>{p}</li>)}
+                      </ul>
+                    )}
+                    <div className="tier-card-actions">
                       <button
                         className="btn-sm btn-ghost"
                         onClick={() =>
@@ -1679,13 +1681,13 @@ function SponsorsTab({
                             quantity: String(t.quantity),
                             rank: String(t.rank),
                             description: t.description ?? "",
-                            perks: parsePerks(t.perks).join("\n"),
+                            perks: perks.join("\n"),
                             showcase: t.showcase ?? "logo",
                           })
                         }
                       >
                         Modifier
-                      </button>{" "}
+                      </button>
                       <button
                         className="btn-sm btn-ghost"
                         onClick={() => {
@@ -1696,13 +1698,13 @@ function SponsorsTab({
                       >
                         Supprimer
                       </button>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        )}
+            </div>
+          );
+        })()}
         <h4 style={{ marginBottom: 4 }}>Ajouter un palier</h4>
         <div className="grid2">
           <div>
@@ -1750,6 +1752,52 @@ function SponsorsTab({
           Créer le palier
         </button>
       </div>
+
+      {tiers.length > 0 && (() => {
+        return (
+          <div className="card">
+            <h3 style={{ marginTop: 0 }}>Aperçu marketplace</h3>
+            <p className="muted">
+              Voici comment votre événement apparaît pour les entreprises qui cherchent un sponsoring.
+            </p>
+            <div className="card" style={{ margin: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                {ev.logo_media_id && (
+                  <img
+                    src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+                    alt=""
+                    style={{ width: 58, height: 58, objectFit: "contain", borderRadius: 12, border: "1px solid var(--line)", background: "#fff", padding: 5, flex: "none" }}
+                  />
+                )}
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <h3 style={{ margin: "0 0 4px", fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 19 }}>
+                    {ev.title}
+                  </h3>
+                  <p className="muted directory-meta" style={{ fontSize: 13 }}>
+                    <span><CalendarDays size={13} /> {formatDate(ev.starts_at)}</span>
+                    {ev.venue && <span><MapPin size={13} /> {ev.venue}</span>}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+                {tiers.map((t) => {
+                  const engaged = sponsors.filter((s) => s.tier_id === t.id && ["pending", "confirmed"].includes(s.status)).length;
+                  const remaining = t.quantity - engaged;
+                  return (
+                    <span key={t.id} className={`badge ${remaining > 0 ? "warn" : "mut"}`}>
+                      {t.name} · {formatPrice(t.price_cents, t.currency)}
+                      {remaining > 0 ? ` · ${remaining} place${remaining > 1 ? "s" : ""}` : " · complet"}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            <a href="/opportunites" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ marginTop: 12 }}>
+              Voir la page publique des opportunités
+            </a>
+          </div>
+        );
+      })()}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Inviter un sponsor</h3>

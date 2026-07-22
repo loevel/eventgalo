@@ -180,6 +180,21 @@ tr:last-child td { border-bottom: none; }
 .badge.err { background: #fbe9e7; color: var(--err); }
 .badge.mut { background: #efece6; color: var(--muted); }
 
+/* Cartes de paliers de sponsoring */
+.tier-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+.tier-card { position: relative; margin: 0; display: flex; flex-direction: column; }
+.tier-card-primary { border-color: rgba(143,64,9,0.4); box-shadow: 0 0 0 1px rgba(143,64,9,0.15); }
+.tier-card-badge { position: absolute; top: -10px; right: 16px; }
+.tier-card-name { margin: 4px 0 2px; font-family: var(--font-display); font-weight: 600; }
+.tier-card-price { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
+.tier-card-perks { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.tier-card-perks li { padding-left: 20px; position: relative; }
+.tier-card-perks li::before {
+  content: "✓"; position: absolute; left: 0; top: 0; color: var(--ok); font-weight: 700;
+}
+.tier-card-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+.tier-card-editing label:first-child { margin-top: 0; }
+
 .alert { padding: 12px 16px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
 .alert.ok { background: #e2f3ea; color: var(--ok); }
 .alert.err { background: #fbe9e7; color: var(--err); }
