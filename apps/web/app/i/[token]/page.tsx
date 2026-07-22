@@ -101,6 +101,12 @@ export default function InvitePage() {
           {guest.table_name ? <><br />🪑 Votre table : <strong>{guest.table_name}</strong></> : null}
           {ev.dress_code ? <><br />👗 Dress code : {ev.dress_code}</> : null}
           {ev.parking_available ? <><br />🅿️ {ev.parking_details || "Stationnement disponible"}</> : null}
+          {ev.accessibility_available ? <><br />♿ {ev.accessibility_details || "Accès PMR"}</> : null}
+          {ev.coat_check_available ? <><br />🧥 {ev.coat_check_details || "Vestiaire disponible"}</> : null}
+          {ev.age_restriction && ev.age_restriction !== "all" ? (
+            <><br />🔞 {ev.age_restriction === "18+" ? "18 ans et plus" : ev.age_restriction_details || "Restriction d'âge"}</>
+          ) : null}
+          {ev.day_of_phone ? <><br />📞 Contact jour J : {ev.day_of_phone}</> : null}
         </p>
         {ev.description && <p style={{ whiteSpace: "pre-wrap" }}>{ev.description}</p>}
         {ev.seating_plan && (

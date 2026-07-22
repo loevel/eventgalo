@@ -12,6 +12,13 @@ export interface EventFormPayload {
   dress_code: string | null;
   parking_available: boolean;
   parking_details: string | null;
+  accessibility_available: boolean;
+  accessibility_details: string | null;
+  age_restriction: string;
+  age_restriction_details: string | null;
+  day_of_phone: string | null;
+  coat_check_available: boolean;
+  coat_check_details: string | null;
   rsvp_question: string | null;
   seating_plan: string | null;
   capacity: number;
@@ -59,6 +66,13 @@ export function EventForm({
     dress_code: initial?.dress_code ?? "",
     parking_available: Boolean(initial?.parking_available),
     parking_details: initial?.parking_details ?? "",
+    accessibility_available: Boolean(initial?.accessibility_available),
+    accessibility_details: initial?.accessibility_details ?? "",
+    age_restriction: initial?.age_restriction ?? "all",
+    age_restriction_details: initial?.age_restriction_details ?? "",
+    day_of_phone: initial?.day_of_phone ?? "",
+    coat_check_available: Boolean(initial?.coat_check_available),
+    coat_check_details: initial?.coat_check_details ?? "",
     rsvp_question: initial?.rsvp_question ?? "",
     seating_plan: initial?.seating_plan ?? "",
     capacity: String(initial?.capacity ?? "100"),
@@ -91,6 +105,13 @@ export function EventForm({
         dress_code: form.dress_code || null,
         parking_available: form.parking_available,
         parking_details: form.parking_available ? form.parking_details || null : null,
+        accessibility_available: form.accessibility_available,
+        accessibility_details: form.accessibility_available ? form.accessibility_details || null : null,
+        age_restriction: form.age_restriction,
+        age_restriction_details: form.age_restriction === "other" ? form.age_restriction_details || null : null,
+        day_of_phone: form.day_of_phone || null,
+        coat_check_available: form.coat_check_available,
+        coat_check_details: form.coat_check_available ? form.coat_check_details || null : null,
         rsvp_question: form.type === "private" ? form.rsvp_question || null : null,
         seating_plan: form.seating_plan || null,
         capacity: Number(form.capacity),
@@ -159,6 +180,75 @@ export function EventForm({
             value={form.parking_details}
             onChange={(e) => set("parking_details", e.target.value)}
             placeholder="Gratuit, 50 places à l'arrière de la salle"
+          />
+        </>
+      )}
+
+      <div className="check">
+        <input
+          id="accessibility"
+          type="checkbox"
+          checked={form.accessibility_available}
+          onChange={(e) => set("accessibility_available", e.target.checked)}
+        />
+        <label htmlFor="accessibility" style={{ margin: 0, fontWeight: 400 }}>
+          Accès PMR (fauteuil roulant)
+        </label>
+      </div>
+      {form.accessibility_available && (
+        <>
+          <label>Détails d&apos;accessibilité (optionnel)</label>
+          <input
+            value={form.accessibility_details}
+            onChange={(e) => set("accessibility_details", e.target.value)}
+            placeholder="Entrée accessible côté rue, ascenseur disponible"
+          />
+        </>
+      )}
+
+      <div className="check">
+        <input
+          id="coat-check"
+          type="checkbox"
+          checked={form.coat_check_available}
+          onChange={(e) => set("coat_check_available", e.target.checked)}
+        />
+        <label htmlFor="coat-check" style={{ margin: 0, fontWeight: 400 }}>
+          Vestiaire disponible
+        </label>
+      </div>
+      {form.coat_check_available && (
+        <>
+          <label>Détails du vestiaire (optionnel)</label>
+          <input
+            value={form.coat_check_details}
+            onChange={(e) => set("coat_check_details", e.target.value)}
+            placeholder="Gratuit, à l'entrée"
+          />
+        </>
+      )}
+
+      <div className="grid2">
+        <div>
+          <label>Restriction d&apos;âge</label>
+          <select value={form.age_restriction} onChange={(e) => set("age_restriction", e.target.value)}>
+            <option value="all">Tous publics</option>
+            <option value="18+">18 ans et plus</option>
+            <option value="other">Autre</option>
+          </select>
+        </div>
+        <div>
+          <label>Téléphone de contact le jour J (optionnel)</label>
+          <input value={form.day_of_phone} onChange={(e) => set("day_of_phone", e.target.value)} placeholder="514 555-0123" />
+        </div>
+      </div>
+      {form.age_restriction === "other" && (
+        <>
+          <label>Précisez la restriction d&apos;âge</label>
+          <input
+            value={form.age_restriction_details}
+            onChange={(e) => set("age_restriction_details", e.target.value)}
+            placeholder="Accompagnement parental requis avant 16 ans"
           />
         </>
       )}

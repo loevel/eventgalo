@@ -61,6 +61,7 @@ events.post("/", async (c) => {
   const capacity = Math.max(0, Number(b.capacity ?? 0) | 0);
   const type = b.type === "ticketed" ? "ticketed" : "private";
   const status = b.status === "draft" ? "draft" : "published";
+  const ageRestriction = ["all", "18+", "other"].includes(String(b.age_restriction)) ? String(b.age_restriction) : "all";
 
   const id = uuid();
   const slug = slugify(title);
@@ -68,8 +69,10 @@ events.post("/", async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO events (id, organizer_id, title, description, starts_at, ends_at, venue, address,
        dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, rsvp_question,
-       parking_available, parking_details, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       parking_available, parking_details, accessibility_available, accessibility_details,
+       age_restriction, age_restriction_details, day_of_phone, coat_check_available, coat_check_details,
+       created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id, user.id, title,
@@ -81,6 +84,13 @@ events.post("/", async (c) => {
       (b.rsvp_question as string) || null,
       b.parking_available ? 1 : 0,
       (b.parking_details as string) || null,
+      b.accessibility_available ? 1 : 0,
+      (b.accessibility_details as string) || null,
+      ageRestriction,
+      (b.age_restriction_details as string) || null,
+      (b.day_of_phone as string) || null,
+      b.coat_check_available ? 1 : 0,
+      (b.coat_check_details as string) || null,
       nowIso(), nowIso(),
     )
     .run();
@@ -198,6 +208,7 @@ events.patch("/:id", async (c) => {
   const allowed = [
     "title", "description", "starts_at", "ends_at", "venue", "address",
     "dress_code", "seating_plan", "capacity", "type", "status", "rsvp_question", "parking_details",
+    "accessibility_details", "age_restriction_details", "day_of_phone", "coat_check_details",
   ] as const;
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -210,6 +221,18 @@ events.patch("/:id", async (c) => {
   if (b.parking_available !== undefined) {
     sets.push("parking_available = ?");
     values.push(b.parking_available ? 1 : 0);
+  }
+  if (b.accessibility_available !== undefined) {
+    sets.push("accessibility_available = ?");
+    values.push(b.accessibility_available ? 1 : 0);
+  }
+  if (b.coat_check_available !== undefined) {
+    sets.push("coat_check_available = ?");
+    values.push(b.coat_check_available ? 1 : 0);
+  }
+  if (b.age_restriction !== undefined) {
+    sets.push("age_restriction = ?");
+    values.push(["all", "18+", "other"].includes(String(b.age_restriction)) ? String(b.age_restriction) : "all");
   }
   if (b.refund_policy !== undefined) {
     sets.push("refund_policy = ?");

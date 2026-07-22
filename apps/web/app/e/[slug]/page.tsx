@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock, SquareParking } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock, SquareParking, Accessibility, BadgeAlert, PackageCheck } from "lucide-react";
 import { parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { CheckoutForm } from "@/components/checkout-form";
@@ -20,6 +20,13 @@ interface PublicEvent {
   dress_code: string | null;
   parking_available: number;
   parking_details: string | null;
+  accessibility_available: number;
+  accessibility_details: string | null;
+  age_restriction: string;
+  age_restriction_details: string | null;
+  day_of_phone: string | null;
+  coat_check_available: number;
+  coat_check_details: string | null;
   type: string;
   public_slug: string;
   cover_media_id: string | null;
@@ -301,6 +308,30 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             <div className="event-info-item">
               <SquareParking />
               <span>{ev.parking_details || "Stationnement disponible"}</span>
+            </div>
+          )}
+          {Boolean(ev.accessibility_available) && (
+            <div className="event-info-item">
+              <Accessibility />
+              <span>{ev.accessibility_details || "Accès PMR"}</span>
+            </div>
+          )}
+          {Boolean(ev.coat_check_available) && (
+            <div className="event-info-item">
+              <PackageCheck />
+              <span>{ev.coat_check_details || "Vestiaire disponible"}</span>
+            </div>
+          )}
+          {ev.age_restriction !== "all" && (
+            <div className="event-info-item">
+              <BadgeAlert />
+              <span>{ev.age_restriction === "18+" ? "18 ans et plus" : ev.age_restriction_details || "Restriction d'âge"}</span>
+            </div>
+          )}
+          {ev.day_of_phone && (
+            <div className="event-info-item">
+              <Phone />
+              <span>{ev.day_of_phone}</span>
             </div>
           )}
         </div>

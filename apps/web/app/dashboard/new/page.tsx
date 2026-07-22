@@ -132,6 +132,13 @@ export default function NewEvent() {
   const [capacity, setCapacity] = useState("100");
   const [parkingAvailable, setParkingAvailable] = useState(false);
   const [parkingDetails, setParkingDetails] = useState("");
+  const [accessibilityAvailable, setAccessibilityAvailable] = useState(false);
+  const [accessibilityDetails, setAccessibilityDetails] = useState("");
+  const [ageRestriction, setAgeRestriction] = useState<"all" | "18+" | "other">("all");
+  const [ageRestrictionDetails, setAgeRestrictionDetails] = useState("");
+  const [dayOfPhone, setDayOfPhone] = useState("");
+  const [coatCheckAvailable, setCoatCheckAvailable] = useState(false);
+  const [coatCheckDetails, setCoatCheckDetails] = useState("");
 
   // Étape 2 — billetterie
   const [categories, setCategories] = useState<Category[]>([]);
@@ -244,6 +251,13 @@ export default function NewEvent() {
         capacity: Number(capacity),
         parking_available: parkingAvailable,
         parking_details: parkingAvailable ? parkingDetails || null : null,
+        accessibility_available: accessibilityAvailable,
+        accessibility_details: accessibilityAvailable ? accessibilityDetails || null : null,
+        age_restriction: ageRestriction,
+        age_restriction_details: ageRestriction === "other" ? ageRestrictionDetails || null : null,
+        day_of_phone: dayOfPhone || null,
+        coat_check_available: coatCheckAvailable,
+        coat_check_details: coatCheckAvailable ? coatCheckDetails || null : null,
       };
       if (!eventId) {
         const res = await api<{ event: { id: string } }>("/api/events", {
@@ -415,6 +429,75 @@ export default function NewEvent() {
                 value={parkingDetails}
                 onChange={(e) => setParkingDetails(e.target.value)}
                 placeholder="Gratuit, 50 places à l'arrière de la salle"
+              />
+            </>
+          )}
+
+          <div className="check">
+            <input
+              id="accessibility"
+              type="checkbox"
+              checked={accessibilityAvailable}
+              onChange={(e) => setAccessibilityAvailable(e.target.checked)}
+            />
+            <label htmlFor="accessibility" style={{ margin: 0, fontWeight: 400 }}>
+              Accès PMR (fauteuil roulant)
+            </label>
+          </div>
+          {accessibilityAvailable && (
+            <>
+              <label>Détails d&apos;accessibilité (optionnel)</label>
+              <input
+                value={accessibilityDetails}
+                onChange={(e) => setAccessibilityDetails(e.target.value)}
+                placeholder="Entrée accessible côté rue, ascenseur disponible"
+              />
+            </>
+          )}
+
+          <div className="check">
+            <input
+              id="coat-check"
+              type="checkbox"
+              checked={coatCheckAvailable}
+              onChange={(e) => setCoatCheckAvailable(e.target.checked)}
+            />
+            <label htmlFor="coat-check" style={{ margin: 0, fontWeight: 400 }}>
+              Vestiaire disponible
+            </label>
+          </div>
+          {coatCheckAvailable && (
+            <>
+              <label>Détails du vestiaire (optionnel)</label>
+              <input
+                value={coatCheckDetails}
+                onChange={(e) => setCoatCheckDetails(e.target.value)}
+                placeholder="Gratuit, à l'entrée"
+              />
+            </>
+          )}
+
+          <div className="grid2">
+            <div>
+              <label>Restriction d&apos;âge</label>
+              <select value={ageRestriction} onChange={(e) => setAgeRestriction(e.target.value as "all" | "18+" | "other")}>
+                <option value="all">Tous publics</option>
+                <option value="18+">18 ans et plus</option>
+                <option value="other">Autre</option>
+              </select>
+            </div>
+            <div>
+              <label>Téléphone de contact le jour J (optionnel)</label>
+              <input value={dayOfPhone} onChange={(e) => setDayOfPhone(e.target.value)} placeholder="514 555-0123" />
+            </div>
+          </div>
+          {ageRestriction === "other" && (
+            <>
+              <label>Précisez la restriction d&apos;âge</label>
+              <input
+                value={ageRestrictionDetails}
+                onChange={(e) => setAgeRestrictionDetails(e.target.value)}
+                placeholder="Accompagnement parental requis avant 16 ans"
               />
             </>
           )}
