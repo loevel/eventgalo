@@ -74,19 +74,10 @@ export default async function SponsorDirectoryPage({
         </p>
       </div>
 
-      <SmartSearch<{ q: string; sector: string; city: string; kind: string; verified: boolean }>
-        endpoint="/api/public/companies/search-parse"
-        body={{ sectors: COMPANY_SECTORS }}
+      <SmartSearch
+        variant="directory"
+        sectors={COMPANY_SECTORS}
         placeholder="Ex. : entreprises vérifiées de Montréal en événementiel…"
-        toParams={(f) => {
-          const p = new URLSearchParams();
-          if (f.q) p.set("q", f.q);
-          if (f.sector) p.set("sector", f.sector);
-          if (f.city) p.set("city", f.city);
-          if (f.kind) p.set("kind", f.kind);
-          if (f.verified) p.set("verified", "1");
-          return p;
-        }}
       />
 
       <DirectoryFilters

@@ -69,17 +69,7 @@ export default async function OpportunitiesPage({
         </p>
       </div>
 
-      <SmartSearch<{ q: string; from: string; to: string }>
-        endpoint="/api/public/companies/opportunities/search-parse"
-        placeholder="Ex. : galas à Montréal en septembre…"
-        toParams={(f) => {
-          const p = new URLSearchParams();
-          if (f.q) p.set("q", f.q);
-          if (f.from) p.set("from", f.from);
-          if (f.to) p.set("to", f.to);
-          return p;
-        }}
-      />
+      <SmartSearch variant="opportunities" placeholder="Ex. : galas à Montréal en septembre…" />
 
       <form className="card directory-filters" method="GET">
         <label htmlFor="q">Recherche</label>

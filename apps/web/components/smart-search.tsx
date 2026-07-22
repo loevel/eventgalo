@@ -5,20 +5,36 @@ import { useRouter, usePathname } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 
+interface DirectoryFilters {
+  q: string;
+  sector: string;
+  city: string;
+  kind: string;
+  verified: boolean;
+}
+
+interface OpportunityFilters {
+  q: string;
+  from: string;
+  to: string;
+}
+
 /**
  * Barre de recherche en langage naturel : envoie la requête à un endpoint IA qui la
  * convertit en filtres structurés, puis navigue vers la même page avec ces filtres
  * en query params — la recherche déterministe existante (SQL) fait le reste.
+ *
+ * `variant` (et non une fonction de mapping) car ce composant est rendu depuis des
+ * Server Components : seules des props sérialisables peuvent leur être passées.
  */
-export function SmartSearch<T extends Record<string, unknown>>({
-  endpoint,
-  body,
-  toParams,
+export function SmartSearch({
+  variant,
+  sectors,
   placeholder,
 }: {
-  endpoint: string;
-  body?: Record<string, unknown>;
-  toParams: (filters: T) => URLSearchParams;
+  variant: "directory" | "opportunities";
+  /** Secteurs de l'annuaire, pour ancrer la classification IA — uniquement pour variant="directory". */
+  sectors?: readonly string[];
   placeholder: string;
 }) {
   const router = useRouter();
@@ -34,8 +50,28 @@ export function SmartSearch<T extends Record<string, unknown>>({
     setBusy(true);
     setError(null);
     try {
-      const filters = await api<T>(endpoint, { method: "POST", body: { query: q, ...body }, auth: false });
-      const params = toParams(filters);
+      const params = new URLSearchParams();
+      if (variant === "directory") {
+        const filters = await api<DirectoryFilters>("/api/public/companies/search-parse", {
+          method: "POST",
+          body: { query: q, sectors },
+          auth: false,
+        });
+        if (filters.q) params.set("q", filters.q);
+        if (filters.sector) params.set("sector", filters.sector);
+        if (filters.city) params.set("city", filters.city);
+        if (filters.kind) params.set("kind", filters.kind);
+        if (filters.verified) params.set("verified", "1");
+      } else {
+        const filters = await api<OpportunityFilters>("/api/public/companies/opportunities/search-parse", {
+          method: "POST",
+          body: { query: q },
+          auth: false,
+        });
+        if (filters.q) params.set("q", filters.q);
+        if (filters.from) params.set("from", filters.from);
+        if (filters.to) params.set("to", filters.to);
+      }
       router.push(params.toString() ? `${pathname}?${params.toString()}` : pathname);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");
