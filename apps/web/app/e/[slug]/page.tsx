@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock, SquareParking } from "lucide-react";
 import { parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { CheckoutForm } from "@/components/checkout-form";
@@ -18,6 +18,8 @@ interface PublicEvent {
   venue: string | null;
   address: string | null;
   dress_code: string | null;
+  parking_available: number;
+  parking_details: string | null;
   type: string;
   public_slug: string;
   cover_media_id: string | null;
@@ -293,6 +295,12 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             <div className="event-info-item">
               <Shirt />
               <span>{ev.dress_code}</span>
+            </div>
+          )}
+          {Boolean(ev.parking_available) && (
+            <div className="event-info-item">
+              <SquareParking />
+              <span>{ev.parking_details || "Stationnement disponible"}</span>
             </div>
           )}
         </div>

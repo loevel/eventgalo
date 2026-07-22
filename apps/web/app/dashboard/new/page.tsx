@@ -130,6 +130,8 @@ export default function NewEvent() {
   const [venue, setVenue] = useState("");
   const [address, setAddress] = useState("");
   const [capacity, setCapacity] = useState("100");
+  const [parkingAvailable, setParkingAvailable] = useState(false);
+  const [parkingDetails, setParkingDetails] = useState("");
 
   // Étape 2 — billetterie
   const [categories, setCategories] = useState<Category[]>([]);
@@ -240,6 +242,8 @@ export default function NewEvent() {
         venue: venue || null,
         address: address || null,
         capacity: Number(capacity),
+        parking_available: parkingAvailable,
+        parking_details: parkingAvailable ? parkingDetails || null : null,
       };
       if (!eventId) {
         const res = await api<{ event: { id: string } }>("/api/events", {
@@ -392,6 +396,28 @@ export default function NewEvent() {
               <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 rue…, Montréal" />
             </div>
           </div>
+
+          <div className="check">
+            <input
+              id="parking"
+              type="checkbox"
+              checked={parkingAvailable}
+              onChange={(e) => setParkingAvailable(e.target.checked)}
+            />
+            <label htmlFor="parking" style={{ margin: 0, fontWeight: 400 }}>
+              Stationnement disponible sur place
+            </label>
+          </div>
+          {parkingAvailable && (
+            <>
+              <label>Détails du stationnement (optionnel)</label>
+              <input
+                value={parkingDetails}
+                onChange={(e) => setParkingDetails(e.target.value)}
+                placeholder="Gratuit, 50 places à l'arrière de la salle"
+              />
+            </>
+          )}
 
           <label>Capacité totale de la salle *</label>
           <input required type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />

@@ -100,6 +100,7 @@ export default function InvitePage() {
           {ev.venue ? <><br />📍 {ev.venue}{ev.address ? `, ${ev.address}` : ""}</> : null}
           {guest.table_name ? <><br />🪑 Votre table : <strong>{guest.table_name}</strong></> : null}
           {ev.dress_code ? <><br />👗 Dress code : {ev.dress_code}</> : null}
+          {ev.parking_available ? <><br />🅿️ {ev.parking_details || "Stationnement disponible"}</> : null}
         </p>
         {ev.description && <p style={{ whiteSpace: "pre-wrap" }}>{ev.description}</p>}
         {ev.seating_plan && (

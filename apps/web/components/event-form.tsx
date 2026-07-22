@@ -10,6 +10,8 @@ export interface EventFormPayload {
   address: string | null;
   description: string | null;
   dress_code: string | null;
+  parking_available: boolean;
+  parking_details: string | null;
   rsvp_question: string | null;
   seating_plan: string | null;
   capacity: number;
@@ -55,6 +57,8 @@ export function EventForm({
     address: initial?.address ?? "",
     description: initial?.description ?? "",
     dress_code: initial?.dress_code ?? "",
+    parking_available: Boolean(initial?.parking_available),
+    parking_details: initial?.parking_details ?? "",
     rsvp_question: initial?.rsvp_question ?? "",
     seating_plan: initial?.seating_plan ?? "",
     capacity: String(initial?.capacity ?? "100"),
@@ -85,6 +89,8 @@ export function EventForm({
         address: form.address || null,
         description: form.description || null,
         dress_code: form.dress_code || null,
+        parking_available: form.parking_available,
+        parking_details: form.parking_available ? form.parking_details || null : null,
         rsvp_question: form.type === "private" ? form.rsvp_question || null : null,
         seating_plan: form.seating_plan || null,
         capacity: Number(form.capacity),
@@ -134,6 +140,28 @@ export function EventForm({
           <input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="123 rue…, Montréal" />
         </div>
       </div>
+
+      <div className="check">
+        <input
+          id="parking"
+          type="checkbox"
+          checked={form.parking_available}
+          onChange={(e) => set("parking_available", e.target.checked)}
+        />
+        <label htmlFor="parking" style={{ margin: 0, fontWeight: 400 }}>
+          Stationnement disponible sur place
+        </label>
+      </div>
+      {form.parking_available && (
+        <>
+          <label>Détails du stationnement (optionnel)</label>
+          <input
+            value={form.parking_details}
+            onChange={(e) => set("parking_details", e.target.value)}
+            placeholder="Gratuit, 50 places à l'arrière de la salle"
+          />
+        </>
+      )}
 
       <label>Description / programme</label>
       <textarea rows={4} value={form.description} onChange={(e) => set("description", e.target.value)} />

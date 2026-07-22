@@ -67,8 +67,9 @@ events.post("/", async (c) => {
   const scannerKey = randomToken(12);
   await c.env.DB.prepare(
     `INSERT INTO events (id, organizer_id, title, description, starts_at, ends_at, venue, address,
-       dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, rsvp_question, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, rsvp_question,
+       parking_available, parking_details, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id, user.id, title,
@@ -78,6 +79,8 @@ events.post("/", async (c) => {
       capacity, slug, scannerKey, type, status,
       b.refund_policy ? JSON.stringify(b.refund_policy) : null,
       (b.rsvp_question as string) || null,
+      b.parking_available ? 1 : 0,
+      (b.parking_details as string) || null,
       nowIso(), nowIso(),
     )
     .run();
@@ -194,7 +197,7 @@ events.patch("/:id", async (c) => {
 
   const allowed = [
     "title", "description", "starts_at", "ends_at", "venue", "address",
-    "dress_code", "seating_plan", "capacity", "type", "status", "rsvp_question",
+    "dress_code", "seating_plan", "capacity", "type", "status", "rsvp_question", "parking_details",
   ] as const;
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -203,6 +206,10 @@ events.patch("/:id", async (c) => {
       sets.push(`${key} = ?`);
       values.push(b[key]);
     }
+  }
+  if (b.parking_available !== undefined) {
+    sets.push("parking_available = ?");
+    values.push(b.parking_available ? 1 : 0);
   }
   if (b.refund_policy !== undefined) {
     sets.push("refund_policy = ?");

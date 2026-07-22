@@ -16,7 +16,7 @@ const pub = new Hono<AppContext>();
 
 const PUBLIC_EVENT_FIELDS = `id, title, description, starts_at, ends_at, venue, address,
   dress_code, capacity, public_slug, type, status, refund_policy, rsvp_question, cover_media_id, logo_media_id,
-  agenda, created_at`;
+  agenda, created_at, parking_available, parking_details`;
 
 /* ---------------------------- Page publique ------------------------------ */
 
