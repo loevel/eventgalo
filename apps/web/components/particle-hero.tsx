@@ -80,7 +80,7 @@ export function ParticleHero() {
     const sizes = new Float32Array(COUNT);
 
     const warm = new THREE.Color("#ffb37a");
-    const gold = new THREE.Color("#f2c078");
+    const gold = new THREE.Color("#d9a662");
     const cream = new THREE.Color("#fff3e0");
 
     for (let i = 0; i < COUNT; i++) {
@@ -121,7 +121,7 @@ export function ParticleHero() {
     const ring = new THREE.Group();
     const ringGeometry = new THREE.TorusGeometry(4.2, 0.18, lite ? 10 : 24, lite ? 48 : 120);
     const ringMaterial = new THREE.MeshPhysicalMaterial({
-      color: "#f2c078",
+      color: "#d9a662",
       metalness: 0.75,
       roughness: 0.28,
       clearcoat: lite ? 0 : 0.4,

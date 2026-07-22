@@ -303,7 +303,7 @@ export function StepsPath() {
       <defs>
         <linearGradient id="steps-gold" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0" stopColor="#c9761f" stopOpacity="0.25" />
-          <stop offset="0.5" stopColor="#f2c078" />
+          <stop offset="0.5" stopColor="#d9a662" />
           <stop offset="1" stopColor="#c9761f" stopOpacity="0.25" />
         </linearGradient>
       </defs>

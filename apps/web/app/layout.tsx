@@ -78,7 +78,7 @@ const jsonLd = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#b4540a",
+  themeColor: "#8f4009",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
