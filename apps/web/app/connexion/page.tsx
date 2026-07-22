@@ -1,14 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 
+const COPY = {
+  entreprise: {
+    title: "Connexion — Espace entreprise & prestataires",
+    subtitle: "Créez votre profil entreprise ou prestataire, sans mot de passe : recevez un lien magique par email.",
+  },
+  default: {
+    title: "Connexion / Inscription",
+    subtitle: "Pas de mot de passe : recevez un lien magique par email.",
+  },
+};
+
 export default function Connexion() {
+  return (
+    <Suspense fallback={null}>
+      <ConnexionForm />
+    </Suspense>
+  );
+}
+
+function ConnexionForm() {
+  const searchParams = useSearchParams();
+  const intent = searchParams.get("intent") === "entreprise" ? "entreprise" : "default";
+  const next = searchParams.get("next");
+  const copy = COPY[intent];
+
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "err" | "info"; text: string; url?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (next) sessionStorage.setItem("eg_login_next", next);
+  }, [next]);
 
   async function requestLink(e: React.FormEvent) {
     e.preventDefault();
@@ -32,8 +61,8 @@ export default function Connexion() {
     <main className="container">
       <section className="section login-section">
         <div className="card login-card">
-          <h2 style={{ marginTop: 0 }}>Connexion / Inscription</h2>
-          <p className="muted">Pas de mot de passe : recevez un lien magique par email.</p>
+          <h2 style={{ marginTop: 0 }}>{copy.title}</h2>
+          <p className="muted">{copy.subtitle}</p>
           <form onSubmit={requestLink}>
             <label htmlFor="email">Votre email</label>
             <input

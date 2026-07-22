@@ -17,7 +17,9 @@ export default function AuthCallback() {
     api<{ token: string }>("/api/auth/verify", { method: "POST", body: { token }, auth: false })
       .then((res) => {
         setToken(res.token);
-        router.replace("/dashboard");
+        const next = sessionStorage.getItem("eg_login_next");
+        sessionStorage.removeItem("eg_login_next");
+        router.replace(next || "/dashboard");
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Erreur"));
   }, [router]);
