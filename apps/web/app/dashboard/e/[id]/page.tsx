@@ -225,6 +225,71 @@ export default function EventAdmin() {
 
       {tab === "apercu" && (
         <>
+          {(() => {
+            const steps = [
+              {
+                done: Boolean(ev.description),
+                label: "Ajoutez une description et un programme",
+                action: () => router.push(`/dashboard/e/${ev.id}/edit`),
+                actionLabel: "Modifier",
+              },
+              {
+                done: Boolean(ev.cover_media_id),
+                label: "Ajoutez une photo de couverture",
+                action: () => setTab("photos"),
+                actionLabel: "Ajouter une photo",
+              },
+              ev.type === "ticketed"
+                ? {
+                    done: categories.length > 0,
+                    label: "Configurez au moins une catégorie de billets",
+                    action: () => setTab("billets"),
+                    actionLabel: "Configurer",
+                  }
+                : {
+                    done: guests.length > 0,
+                    label: "Invitez vos premiers invités",
+                    action: () => setTab("invites"),
+                    actionLabel: "Inviter",
+                  },
+              {
+                done: ev.status === "published",
+                label: "Publiez votre événement",
+                action: () => act(() => api(`/api/events/${ev.id}`, { method: "PATCH", body: { status: "published" } }), "Événement publié"),
+                actionLabel: "Publier",
+              },
+            ];
+            const remaining = steps.filter((s) => !s.done);
+            if (remaining.length === 0) return null;
+            return (
+              <div className="card">
+                <h3 style={{ marginTop: 0 }}>Prochaines étapes</h3>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Complétez ces quelques points pour que votre événement soit prêt.
+                </p>
+                <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                  {steps.map((s, i) => (
+                    <li
+                      key={i}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                        padding: "10px 0", borderBottom: i < steps.length - 1 ? "1px solid var(--line)" : "none",
+                      }}
+                    >
+                      <span style={{ color: s.done ? "var(--muted)" : "var(--ink)", textDecoration: s.done ? "line-through" : "none" }}>
+                        {s.done ? "✓" : "○"} {s.label}
+                      </span>
+                      {!s.done && (
+                        <button type="button" className="btn-sm btn-ghost" onClick={s.action}>
+                          {s.actionLabel}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
           <div className="grid2">
             <div className="card stat">
               <div className="num">{yes}</div>
