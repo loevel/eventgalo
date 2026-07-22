@@ -197,6 +197,22 @@ export default function NewEvent() {
     }
   }
 
+  const [agendaAiBusy, setAgendaAiBusy] = useState(false);
+
+  async function generateAgenda() {
+    if (!eventId) return;
+    setAgendaAiBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ agenda: AgendaItem[] }>(`/api/events/${eventId}/ai/agenda`, { method: "POST" });
+      if (res.agenda.length > 0) setAgenda(res.agenda);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setAgendaAiBusy(false);
+    }
+  }
+
   const allocated = categories.reduce((s, c) => s + c.quantity, 0);
 
   const loadCategories = useCallback(async (id: string) => {
@@ -687,7 +703,12 @@ export default function NewEvent() {
             <label>Dress code</label>
             <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />
 
-            <label style={{ marginTop: 14 }}>Programme de la soirée (optionnel)</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+              <label style={{ margin: 0 }}>Programme de la soirée (optionnel)</label>
+              <button type="button" className="btn-sm btn-ghost" onClick={generateAgenda} disabled={agendaAiBusy}>
+                {agendaAiBusy ? "Génération…" : "✨ Suggérer avec l'IA"}
+              </button>
+            </div>
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
               Heure par heure — affiché comme une frise sur la page publique.
             </p>

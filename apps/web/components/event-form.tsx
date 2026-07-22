@@ -125,6 +125,23 @@ export function EventForm({
     }
   }
 
+  const [agendaAiBusy, setAgendaAiBusy] = useState(false);
+
+  async function generateAgenda() {
+    if (!initial?.id) return;
+    setAgendaAiBusy(true);
+    try {
+      const res = await api<{ agenda: Array<{ time: string; label: string }> }>(`/api/events/${initial.id}/ai/agenda`, {
+        method: "POST",
+      });
+      if (res.agenda.length > 0) setAgenda(res.agenda);
+    } catch {
+      // silencieux : l'organisateur peut réessayer ou construire son programme manuellement
+    } finally {
+      setAgendaAiBusy(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -302,7 +319,14 @@ export function EventForm({
       </div>
       <textarea rows={4} value={form.description} onChange={(e) => set("description", e.target.value)} />
 
-      <label style={{ marginTop: 14 }}>Programme de la soirée</label>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+        <label style={{ margin: 0 }}>Programme de la soirée</label>
+        {isEdit && (
+          <button type="button" className="btn-sm btn-ghost" onClick={generateAgenda} disabled={agendaAiBusy}>
+            {agendaAiBusy ? "Génération…" : "✨ Suggérer avec l'IA"}
+          </button>
+        )}
+      </div>
       {agenda.length > 0 && (
         <div style={{ marginBottom: 10 }}>
           {agenda.map((item, i) => (

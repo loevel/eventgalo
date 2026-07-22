@@ -10,7 +10,7 @@ import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
 import { triggerWebhooks } from "../lib/webhooks";
 import { deleteEventCascade } from "../lib/event-delete";
-import { generateDraft } from "../lib/ai";
+import { generateAgendaSuggestion, generateDraft } from "../lib/ai";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 
 const events = new Hono<AppContext>();
@@ -288,6 +288,22 @@ events.post("/:id/ai/draft", async (c) => {
     tierName: body.tierName?.slice(0, 60),
   });
   return c.json({ text });
+});
+
+events.post("/:id/ai/agenda", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  if (await isRateLimited(c.env, "ai-draft", user.id, 20, 3600)) return tooManyRequests(c);
+
+  const agenda = await generateAgendaSuggestion(c.env, {
+    title: event.title,
+    eventType: event.type as "private" | "ticketed",
+    startsAt: event.starts_at,
+    endsAt: (event.ends_at as string | null) ?? null,
+    venue: (event.venue as string | null) ?? null,
+  });
+  return c.json({ agenda });
 });
 
 /* --------------------------- Co-organisateurs ----------------------------- */

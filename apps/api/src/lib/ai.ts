@@ -47,8 +47,70 @@ export async function generateDraft(env: Env, ctx: DraftContext): Promise<string
     ],
     max_tokens: 400,
   });
-  const text = (result as { response?: string }).response ?? "";
-  return text.trim();
+  const response = (result as { response?: unknown }).response;
+  return typeof response === "string" ? response.trim() : "";
+}
+
+/* ----------------------- Suggestion de programme (IA) ---------------------- */
+
+export interface AgendaSuggestionContext {
+  title: string;
+  eventType: "private" | "ticketed";
+  startsAt: string | null;
+  endsAt: string | null;
+  venue: string | null;
+}
+
+const AGENDA_SYSTEM_PROMPT = `Tu aides des organisateurs d'événements au Canada francophone à bâtir le déroulé de leur événement. Réponds UNIQUEMENT avec un tableau JSON valide, sans aucun texte autour, sans markdown, de la forme [{"time":"19 h 00","label":"Accueil des invités"}, ...]. 5 à 8 étapes, "time" au format "H h MM" ou une plage courte, "label" court (5 mots max) et concret pour ce type d'événement précis.`;
+
+function buildAgendaPrompt(ctx: AgendaSuggestionContext): string {
+  const date = ctx.startsAt
+    ? new Intl.DateTimeFormat("fr-CA", { dateStyle: "full", timeStyle: "short" }).format(new Date(ctx.startsAt))
+    : null;
+  const facts = [
+    `Titre : ${ctx.title}`,
+    `Type : ${ctx.eventType === "ticketed" ? "événement avec billetterie" : "événement privé sur invitation"}`,
+    date ? `Début : ${date}` : null,
+    ctx.venue ? `Lieu : ${ctx.venue}` : null,
+  ].filter(Boolean).join("\n");
+  return `Propose un déroulé/programme pour cet événement :\n${facts}`;
+}
+
+function normalizeAgendaItems(items: unknown[]): Array<{ time: string; label: string }> {
+  return items
+    .filter((item): item is { time: unknown; label: unknown } => typeof item === "object" && item !== null)
+    .map((item) => ({ time: String((item as Record<string, unknown>).time ?? "").trim(), label: String((item as Record<string, unknown>).label ?? "").trim() }))
+    .filter((item) => item.time && item.label)
+    .slice(0, 10);
+}
+
+/** Certains modèles Workers AI détectent une demande de JSON et renvoient déjà `response` sous forme de tableau parsé plutôt qu'une chaîne — on gère les deux formes. */
+function parseAgendaResponse(raw: unknown): Array<{ time: string; label: string }> {
+  if (Array.isArray(raw)) return normalizeAgendaItems(raw);
+  if (typeof raw !== "string") return [];
+  const match = raw.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[0]);
+    return Array.isArray(parsed) ? normalizeAgendaItems(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Suggère un programme (liste d'étapes horodatées) pour un événement via Workers AI. Tableau vide si l'IA ne répond pas un JSON exploitable. */
+export async function generateAgendaSuggestion(
+  env: Env,
+  ctx: AgendaSuggestionContext,
+): Promise<Array<{ time: string; label: string }>> {
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: AGENDA_SYSTEM_PROMPT },
+      { role: "user", content: buildAgendaPrompt(ctx) },
+    ],
+    max_tokens: 400,
+  });
+  return parseAgendaResponse((result as { response?: unknown }).response);
 }
 
 /* ------------------------- Résumé analytique (IA) ------------------------- */
@@ -101,8 +163,8 @@ export async function generateAnalyticsSummary(env: Env, facts: AnalyticsFacts):
     ],
     max_tokens: 350,
   });
-  const text = (result as { response?: string }).response ?? "";
-  return text.trim();
+  const response = (result as { response?: unknown }).response;
+  return typeof response === "string" ? response.trim() : "";
 }
 
 /* ---------------------- Résumé des avis d'un partenaire (IA) --------------- */
@@ -119,8 +181,8 @@ export async function generateReviewSummary(env: Env, companyName: string, comme
     ],
     max_tokens: 150,
   });
-  const text = (result as { response?: string }).response ?? "";
-  return text.trim();
+  const response = (result as { response?: unknown }).response;
+  return typeof response === "string" ? response.trim() : "";
 }
 
 /* --------------------------- Assistant invités (IA) ------------------------ */
@@ -194,6 +256,6 @@ export async function generateEventAnswer(env: Env, ctx: EventQAContext, questio
     ],
     max_tokens: 250,
   });
-  const text = (result as { response?: string }).response ?? "";
-  return text.trim();
+  const response = (result as { response?: unknown }).response;
+  return typeof response === "string" ? response.trim() : "";
 }
