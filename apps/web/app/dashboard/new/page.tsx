@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, formatPrice } from "@/lib/api";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 
 interface Category {
   id: string;
@@ -407,7 +408,7 @@ export default function NewEvent() {
             </div>
             <div>
               <label>Adresse</label>
-              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 rue…, Montréal" />
+              <AddressAutocomplete value={address} onChange={setAddress} />
             </div>
           </div>
 

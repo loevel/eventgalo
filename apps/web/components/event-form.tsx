@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 
 export interface EventFormPayload {
   title: string;
@@ -158,7 +159,7 @@ export function EventForm({
         </div>
         <div>
           <label>Adresse</label>
-          <input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="123 rue…, Montréal" />
+          <AddressAutocomplete value={form.address} onChange={(v) => set("address", v)} />
         </div>
       </div>
 
