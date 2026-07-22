@@ -197,20 +197,45 @@ export default function Home() {
 
       <main className="container landing">
         <SectionDepthFx />
-        <div className="grid3 features-grid">
-          {FEATURES.map((f, i) => (
-            <Reveal key={f.title} delay={i * 90}>
-              <TiltCard>
-                <div className="card feature depth-fx">
-                  <div className="glass-icon feature-icon">
-                    <f.icon />
-                  </div>
-                  <h3>{f.title}</h3>
-                  <p className="muted">{f.text}</p>
+        <div className="grid-bento features-grid">
+          <Reveal className="bento-span-8">
+            <TiltCard>
+              <div className="card feature depth-fx">
+                <div className="glass-icon feature-icon">
+                  <Ticket />
                 </div>
-              </TiltCard>
-            </Reveal>
-          ))}
+                <h3>{FEATURES[1].title}</h3>
+                <p className="muted">{FEATURES[1].text}</p>
+              </div>
+            </TiltCard>
+          </Reveal>
+          <Reveal delay={90} className="bento-span-4">
+            <TiltCard>
+              <div className="card feature feature-accent depth-fx">
+                <div className="glass-icon feature-icon feature-icon-accent">
+                  <BarChart3 />
+                </div>
+                <h3>{FEATURES[2].title}</h3>
+                <p>{FEATURES[2].text}</p>
+                <div className="feature-bars">
+                  {[0.5, 0.75, 1, 0.65, 0.85].map((h, i) => (
+                    <div key={i} className="feature-bar" style={{ height: `${h * 100}%` }} />
+                  ))}
+                </div>
+              </div>
+            </TiltCard>
+          </Reveal>
+          <Reveal delay={180} className="bento-span-12">
+            <TiltCard>
+              <div className="card feature feature-wide depth-fx">
+                <div className="glass-icon feature-icon">
+                  <Mail />
+                </div>
+                <h3>{FEATURES[0].title}</h3>
+                <p className="muted">{FEATURES[0].text}</p>
+              </div>
+            </TiltCard>
+          </Reveal>
         </div>
 
         <section id="how" className="section">
