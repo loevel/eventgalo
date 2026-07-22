@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { api } from "@/lib/api";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 
 export interface EventFormPayload {
@@ -22,6 +23,7 @@ export interface EventFormPayload {
   coat_check_details: string | null;
   rsvp_question: string | null;
   seating_plan: string | null;
+  agenda: Array<{ time: string; label: string }>;
   capacity: number;
   type?: string;
   status?: string;
@@ -43,6 +45,16 @@ function parsePolicy(raw: unknown): { kind?: string; days_before?: number; perce
   }
 }
 
+function parseAgenda(raw: unknown): Array<{ time: string; label: string }> {
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function EventForm({
   initial,
   submitLabel,
@@ -57,6 +69,9 @@ export function EventForm({
   const initialPolicy = parsePolicy(initial?.refund_policy);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agenda, setAgenda] = useState<Array<{ time: string; label: string }>>(() => parseAgenda(initial?.agenda));
+  const [agendaForm, setAgendaForm] = useState({ time: "", label: "" });
+  const [aiBusy, setAiBusy] = useState(false);
   const [form, setForm] = useState({
     title: initial?.title ?? "",
     starts_at: initial?.starts_at ? toLocalInput(initial.starts_at) : "",
@@ -88,6 +103,28 @@ export function EventForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  function addAgendaItem() {
+    if (!agendaForm.time || !agendaForm.label) return;
+    setAgenda((a) => [...a, agendaForm]);
+    setAgendaForm({ time: "", label: "" });
+  }
+
+  async function generateDescription() {
+    if (!initial?.id) return;
+    setAiBusy(true);
+    try {
+      const res = await api<{ text: string }>(`/api/events/${initial.id}/ai/draft`, {
+        method: "POST",
+        body: { target: "description" },
+      });
+      set("description", res.text);
+    } catch {
+      // silencieux : l'organisateur peut réessayer ou écrire lui-même
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -115,6 +152,7 @@ export function EventForm({
         coat_check_details: form.coat_check_available ? form.coat_check_details || null : null,
         rsvp_question: form.type === "private" ? form.rsvp_question || null : null,
         seating_plan: form.seating_plan || null,
+        agenda,
         capacity: Number(form.capacity),
         refund_policy:
           form.type === "ticketed"
@@ -254,8 +292,46 @@ export function EventForm({
         </>
       )}
 
-      <label>Description / programme</label>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <label style={{ margin: 0 }}>Description</label>
+        {isEdit && (
+          <button type="button" className="btn-sm btn-ghost" onClick={generateDescription} disabled={aiBusy}>
+            {aiBusy ? "Génération…" : "✨ Générer avec l'IA"}
+          </button>
+        )}
+      </div>
       <textarea rows={4} value={form.description} onChange={(e) => set("description", e.target.value)} />
+
+      <label style={{ marginTop: 14 }}>Programme de la soirée</label>
+      {agenda.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          {agenda.map((item, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+              <span><strong>{item.time}</strong> — {item.label}</span>
+              <button
+                type="button"
+                className="btn-sm btn-ghost"
+                onClick={() => setAgenda((a) => a.filter((_, idx) => idx !== i))}
+              >
+                Retirer
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="grid2">
+        <div>
+          <label>Heure</label>
+          <input value={agendaForm.time} onChange={(e) => setAgendaForm({ ...agendaForm, time: e.target.value })} placeholder="19 h 00" />
+        </div>
+        <div>
+          <label>Ce qui se passe</label>
+          <input value={agendaForm.label} onChange={(e) => setAgendaForm({ ...agendaForm, label: e.target.value })} placeholder="Cocktail de bienvenue" />
+        </div>
+      </div>
+      <button type="button" className="btn-sm btn-ghost" onClick={addAgendaItem} disabled={!agendaForm.time || !agendaForm.label}>
+        + Ajouter au programme
+      </button>
 
       <div className="grid2">
         <div>

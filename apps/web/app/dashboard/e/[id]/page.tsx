@@ -319,7 +319,7 @@ export default function EventAdmin() {
               </button>
             )}
           </div>
-          <DetailsCard ev={ev} act={act} />
+          <DetailsCard ev={ev} />
           <CollaboratorsCard ev={ev} isOwner={is_owner} collaborators={collaborators} act={act} />
         </>
       )}
@@ -690,139 +690,52 @@ function MediaTab({
   );
 }
 
-function DetailsCard({ ev, act }: { ev: Record<string, any>; act: (fn: () => Promise<unknown>, ok?: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [description, setDescription] = useState(ev.description ?? "");
-  const [dressCode, setDressCode] = useState(ev.dress_code ?? "");
-  const [agenda, setAgenda] = useState<Array<{ time: string; label: string }>>(() => {
+function DetailsCard({ ev }: { ev: Record<string, any> }) {
+  const agenda: Array<{ time: string; label: string }> = (() => {
     try {
       return ev.agenda ? JSON.parse(ev.agenda) : [];
     } catch {
       return [];
     }
-  });
-  const [agendaForm, setAgendaForm] = useState({ time: "", label: "" });
-  const [aiBusy, setAiBusy] = useState(false);
-
-  async function generateDescription() {
-    setAiBusy(true);
-    try {
-      const res = await api<{ text: string }>(`/api/events/${ev.id}/ai/draft`, {
-        method: "POST",
-        body: { target: "description" },
-      });
-      setDescription(res.text);
-    } catch {
-      // silencieux : l'organisateur peut réessayer ou écrire lui-même
-    } finally {
-      setAiBusy(false);
-    }
-  }
-
-  function addAgendaItem() {
-    if (!agendaForm.time || !agendaForm.label) return;
-    setAgenda((a) => [...a, agendaForm]);
-    setAgendaForm({ time: "", label: "" });
-  }
-
-  function save() {
-    act(
-      () => api(`/api/events/${ev.id}`, { method: "PATCH", body: { description: description || null, dress_code: dressCode || null, agenda } }),
-      "Détails enregistrés",
-    );
-    setEditing(false);
-  }
-
-  if (!editing) {
-    return (
-      <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <h3 style={{ marginTop: 0 }}>Détails</h3>
-          <button className="btn-sm btn-ghost" onClick={() => setEditing(true)}>Modifier</button>
-        </div>
-        <p className="muted">
-          {ev.description || "Pas de description."}
-          {ev.dress_code ? ` · Dress code : ${ev.dress_code}` : ""}
-        </p>
-        {agenda.length > 0 && (
-          <ul style={{ margin: "0 0 12px", padding: 0, listStyle: "none" }}>
-            {agenda.map((item, i) => (
-              <li key={i} className="muted" style={{ fontSize: 13, padding: "3px 0" }}>
-                <strong style={{ color: "var(--ink)" }}>{item.time}</strong> — {item.label}
-              </li>
-            ))}
-          </ul>
-        )}
-        <a
-          className="btn btn-ghost btn-sm"
-          href={`${API_BASE}/api/events/${ev.id}/export`}
-          onClick={(e) => {
-            e.preventDefault();
-            fetch(`${API_BASE}/api/events/${ev.id}/export`, { headers: { Authorization: `Bearer ${getToken()}` } })
-              .then((r) => r.blob())
-              .then((b) => {
-                const url = URL.createObjectURL(b);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `eventgalo-export-${ev.public_slug}.json`;
-                a.click();
-              });
-          }}
-        >
-          ⬇ Exporter les données (JSON)
-        </a>
-      </div>
-    );
-  }
+  })();
 
   return (
     <div className="card">
-      <h3 style={{ marginTop: 0 }}>Modifier les détails</h3>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <label style={{ margin: 0 }}>Description</label>
-        <button type="button" className="btn-sm btn-ghost" onClick={generateDescription} disabled={aiBusy}>
-          {aiBusy ? "Génération…" : "✨ Générer avec l'IA"}
-        </button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <h3 style={{ marginTop: 0 }}>Détails</h3>
+        <Link href={`/dashboard/e/${ev.id}/edit`} className="btn-sm btn-ghost">Modifier</Link>
       </div>
-      <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
-      <label>Dress code</label>
-      <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />
-
-      <label style={{ marginTop: 14 }}>Programme de la soirée</label>
+      <p className="muted">
+        {ev.description || "Pas de description."}
+        {ev.dress_code ? ` · Dress code : ${ev.dress_code}` : ""}
+      </p>
       {agenda.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
+        <ul style={{ margin: "0 0 12px", padding: 0, listStyle: "none" }}>
           {agenda.map((item, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
-              <span><strong>{item.time}</strong> — {item.label}</span>
-              <button
-                type="button"
-                className="btn-sm btn-ghost"
-                onClick={() => setAgenda((a) => a.filter((_, idx) => idx !== i))}
-              >
-                Retirer
-              </button>
-            </div>
+            <li key={i} className="muted" style={{ fontSize: 13, padding: "3px 0" }}>
+              <strong style={{ color: "var(--ink)" }}>{item.time}</strong> — {item.label}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-      <div className="grid2">
-        <div>
-          <label>Heure</label>
-          <input value={agendaForm.time} onChange={(e) => setAgendaForm({ ...agendaForm, time: e.target.value })} placeholder="19 h 00" />
-        </div>
-        <div>
-          <label>Ce qui se passe</label>
-          <input value={agendaForm.label} onChange={(e) => setAgendaForm({ ...agendaForm, label: e.target.value })} placeholder="Cocktail de bienvenue" />
-        </div>
-      </div>
-      <button type="button" className="btn-sm btn-ghost" onClick={addAgendaItem} disabled={!agendaForm.time || !agendaForm.label}>
-        + Ajouter au programme
-      </button>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        <button className="btn-ghost btn-sm" onClick={() => setEditing(false)}>Annuler</button>
-        <button className="btn-accent btn-sm" onClick={save}>Enregistrer</button>
-      </div>
+      <a
+        className="btn btn-ghost btn-sm"
+        href={`${API_BASE}/api/events/${ev.id}/export`}
+        onClick={(e) => {
+          e.preventDefault();
+          fetch(`${API_BASE}/api/events/${ev.id}/export`, { headers: { Authorization: `Bearer ${getToken()}` } })
+            .then((r) => r.blob())
+            .then((b) => {
+              const url = URL.createObjectURL(b);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `eventgalo-export-${ev.public_slug}.json`;
+              a.click();
+            });
+        }}
+      >
+        ⬇ Exporter les données (JSON)
+      </a>
     </div>
   );
 }
