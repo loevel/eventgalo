@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star,
@@ -177,11 +177,19 @@ const TESTIMONIALS = [
 
 export default function Home() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  // La scène 3D (Three.js + postprocessing) est un gros bundle et une boucle de
+  // rendu continue : on la monte après le premier rendu pour ne pas concurrencer
+  // le chemin critique (FCP/TTI) avec un chargement/calcul purement décoratif.
+  const [showParticles, setShowParticles] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShowParticles(true), 400);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <>
       <div className="landing-hero">
-        <ParticleHero />
+        {showParticles && <ParticleHero />}
         <HeroFx />
         <div className="landing-hero-content">
           <span className="hero-badge">

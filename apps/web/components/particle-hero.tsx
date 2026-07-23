@@ -200,8 +200,19 @@ export function ParticleHero() {
 
       if (composer) composer.render();
       else renderer.render(scene, camera);
-      frameId = requestAnimationFrame(renderFrame);
+      if (!document.hidden) frameId = requestAnimationFrame(renderFrame);
     }
+
+    // Coupe la boucle de rendu quand l'onglet est en arrière-plan (économie
+    // CPU/batterie), et la relance à la reprise.
+    function onVisibilityChange() {
+      if (document.hidden) {
+        cancelAnimationFrame(frameId);
+      } else if (!reduceMotion) {
+        frameId = requestAnimationFrame(renderFrame);
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     // L'anneau recule et pivote légèrement à mesure qu'on quitte le hero au
     // scroll — même logique que le parallax du contenu texte dans HeroFx.
@@ -229,6 +240,7 @@ export function ParticleHero() {
 
     return () => {
       cancelAnimationFrame(frameId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("resize", onResize);
       mount?.removeEventListener("pointermove", onPointerMove);
       scrollTween?.scrollTrigger?.kill();
