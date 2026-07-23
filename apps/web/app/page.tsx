@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star } from "lucide-react";
+import {
+  Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star,
+  Search, Wand2, Camera,
+} from "lucide-react";
 import { Reveal } from "@/components/reveal";
 import { AdBand } from "@/components/ad-band";
 import {
@@ -56,6 +59,24 @@ const STEPS = [
   },
 ];
 
+const AI_FEATURES = [
+  {
+    icon: Search,
+    title: "Recherche en langage naturel",
+    text: "Décrivez ce que vous cherchez — « entreprises vérifiées de Montréal en événementiel » ou « galas en septembre » — l'IA traduit votre phrase en filtres, dans l'annuaire comme dans les opportunités de sponsoring.",
+  },
+  {
+    icon: Wand2,
+    title: "Programme suggéré par l'IA",
+    text: "Un bouton « Suggérer avec l'IA » propose un déroulé complet à partir du thème et de l'horaire de votre événement — à ajuster librement ou publier tel quel.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Confiance vérifiée",
+    text: "Badge « Vérifiée » par email professionnel ou registre canadien des entreprises, et détection assistée par IA des profils suspects côté modération.",
+  },
+];
+
 const FAQS = [
   {
     q: "Est-ce gratuit d'utiliser EventGalo ?",
@@ -80,6 +101,14 @@ const FAQS = [
   {
     q: "Je suis prestataire (photographe, décorateur, traiteur…) : comment être visible ?",
     a: "Créez gratuitement votre profil depuis « Créer mon profil », que vous soyez une entreprise ou un indépendant. Vous apparaissez ensuite dans l'annuaire des prestataires et pouvez être contacté directement par des organisateurs.",
+  },
+  {
+    q: "Comment savoir si un sponsor ou un prestataire est fiable ?",
+    a: "Les profils vérifiés portent un badge « Vérifiée » : validation par email au domaine du site web de l'entreprise, ou concordance avec le registre canadien des entreprises. Notre équipe s'appuie aussi sur une détection assistée par IA pour repérer les profils suspects avant qu'ils ne posent problème.",
+  },
+  {
+    q: "Puis-je mettre mon entreprise en avant sur la page d'accueil ?",
+    a: "Oui : depuis votre espace entreprise, achetez un créneau dans le bandeau publicitaire de la page d'accueil, à la semaine, avec ciblage optionnel par secteur d'activité ou par région.",
   },
   {
     q: "Mes paiements et mes données sont-ils sécurisés ?",
@@ -261,6 +290,32 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="section">
+          <Reveal>
+            <span className="section-kicker">Intelligence artificielle</span>
+            <SplitTitle className="section-title">L&apos;IA travaille pour vous</SplitTitle>
+            <p className="section-sub">
+              Recherche, rédaction, vérification : Workers AI accélère la plateforme sans jamais remplacer votre
+              jugement.
+            </p>
+          </Reveal>
+          <div className="grid3">
+            {AI_FEATURES.map((f, i) => (
+              <Reveal key={f.title} delay={i * 90}>
+                <div className="card usecase depth-fx">
+                  <div className="usecase-head">
+                    <div className="glass-icon">
+                      <f.icon />
+                    </div>
+                    <h3 style={{ margin: 0 }}>{f.title}</h3>
+                  </div>
+                  <p className="muted">{f.text}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
         <Reveal>
           <BamilekeDivider />
         </Reveal>
@@ -351,13 +406,13 @@ export default function Home() {
           <Reveal>
             <SpiderMark />
             <span className="section-kicker">Place de marché</span>
-            <SplitTitle className="section-title">Le sponsoring, simplifié</SplitTitle>
+            <SplitTitle className="section-title">La marketplace, simplifiée</SplitTitle>
             <p className="section-sub">
-              Les associations trouvent des sponsors, les entreprises gagnent en visibilité — tout se passe sur
-              EventGalo, de la mise en relation au paiement.
+              Les associations trouvent des sponsors et des prestataires, les entreprises gagnent en visibilité —
+              tout se passe sur EventGalo, de la mise en relation au paiement.
             </p>
           </Reveal>
-          <div className="grid2">
+          <div className="grid3">
             <Reveal>
               <div className="card usecase depth-fx">
                 <div className="usecase-head">
@@ -377,18 +432,35 @@ export default function Home() {
               </div>
             </Reveal>
             <Reveal delay={90}>
+              <div className="card usecase depth-fx">
+                <div className="usecase-head">
+                  <div className="glass-icon">
+                    <Camera />
+                  </div>
+                  <h3 style={{ margin: 0 }}>Organisateurs : trouvez vos prestataires</h3>
+                </div>
+                <p className="muted">
+                  Photographe, traiteur, DJ, décoration, salle de réception… parcourez l&apos;annuaire des
+                  prestataires, filtrez par secteur et par ville, et contactez-les directement.
+                </p>
+                <a href="/prestataires" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
+                  Parcourir l&apos;annuaire des prestataires
+                </a>
+              </div>
+            </Reveal>
+            <Reveal delay={180}>
               <div className="card usecase depth-fx" style={{ position: "relative", overflow: "hidden" }}>
                 <LeopardRosettes />
                 <div className="usecase-head">
                   <div className="glass-icon">
                     <Store />
                   </div>
-                  <h3 style={{ margin: 0 }}>Entreprises : gagnez en visibilité</h3>
+                  <h3 style={{ margin: 0 }}>Entreprises &amp; prestataires : gagnez en visibilité</h3>
                 </div>
                 <p className="muted">
-                  Créez votre profil gratuit, apparaissez dans l&apos;annuaire, recevez des propositions — ou
-                  choisissez vous-même les événements à sponsoriser. Votre vitrine (logo, photos, vidéo, liens)
-                  vous met en valeur auprès du public.
+                  Créez votre profil gratuit, apparaissez dans l&apos;annuaire des sponsors et/ou des prestataires,
+                  recevez des propositions, et décrochez un badge « Vérifiée ». Vous pouvez aussi acheter un
+                  créneau dans le bandeau publicitaire de la page d&apos;accueil, ciblé par secteur ou par région.
                 </p>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
                   <a href="/entreprise" className="btn btn-ghost btn-sm">
