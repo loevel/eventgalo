@@ -470,12 +470,15 @@ directory.post("/verify/confirm", async (c) => {
   return c.json({ ok: true, company_name: co?.name ?? "", domain });
 });
 
+const DIRECTORY_PAGE_SIZE = 24;
+
 directory.get("/", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 80);
   const sector = (c.req.query("sector") ?? "").trim().slice(0, 80);
   const city = (c.req.query("city") ?? "").trim().slice(0, 80);
   const kind = (c.req.query("kind") ?? "").trim();
   const vendorMode = c.req.query("vendor") === "1";
+  const page = Math.max(1, Number(c.req.query("page") ?? "1") | 0);
   const conditions = [vendorMode ? "vendor_listed = 1" : "listed = 1"];
   const binds: unknown[] = [];
   if (q) {
@@ -497,23 +500,30 @@ directory.get("/", async (c) => {
   if (c.req.query("verified") === "1") {
     conditions.push("(verified_at IS NOT NULL OR registry_verified_at IS NOT NULL)");
   }
-  const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.name, c.kind, c.title, c.affiliation, c.sector, c.city, c.description, c.website,
-            c.socials, c.public_email, c.video_url,
-            (c.logo_key IS NOT NULL) AS has_logo,
-            (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
-            (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships,
-            (SELECT ROUND(AVG(r.rating), 1) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
-             WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS avg_rating,
-            (SELECT COUNT(*) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
-             WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS review_count
-     FROM companies c
-     WHERE ${conditions.join(" AND ")}
-     ORDER BY verified DESC, ${vendorMode ? "" : "sponsorships DESC, "}c.updated_at DESC LIMIT 60`,
-  )
-    .bind(...binds)
-    .all();
-  return c.json({ companies: rows.results });
+  const where = conditions.join(" AND ");
+  const [rows, count] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT c.id, c.name, c.kind, c.title, c.affiliation, c.sector, c.city, c.description, c.website,
+              c.socials, c.public_email, c.video_url,
+              (c.logo_key IS NOT NULL) AS has_logo,
+              (c.verified_at IS NOT NULL OR c.registry_verified_at IS NOT NULL) AS verified,
+              (SELECT COUNT(*) FROM sponsors s WHERE s.company_id = c.id AND s.status = 'confirmed') AS sponsorships,
+              (SELECT ROUND(AVG(r.rating), 1) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+               WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS avg_rating,
+              (SELECT COUNT(*) FROM sponsor_reviews r JOIN sponsors s ON s.id = r.sponsor_id
+               WHERE s.company_id = c.id AND r.rated_by = 'organizer') AS review_count
+       FROM companies c
+       WHERE ${where}
+       ORDER BY verified DESC, ${vendorMode ? "" : "sponsorships DESC, "}c.updated_at DESC
+       LIMIT ? OFFSET ?`,
+    )
+      .bind(...binds, DIRECTORY_PAGE_SIZE, (page - 1) * DIRECTORY_PAGE_SIZE)
+      .all(),
+    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM companies c WHERE ${where}`)
+      .bind(...binds)
+      .first<{ n: number }>(),
+  ]);
+  return c.json({ companies: rows.results, total: count?.n ?? 0, page, pageSize: DIRECTORY_PAGE_SIZE });
 });
 
 /** Convertit une recherche en langage naturel en filtres structurés pour l'annuaire (GET / juste au-dessus). */
@@ -539,11 +549,14 @@ directory.post("/opportunities/search-parse", async (c) => {
   return c.json(filters);
 });
 
+const OPPORTUNITIES_PAGE_SIZE = 12;
+
 /** Événements publiés à venir qui cherchent des sponsors (ont au moins un palier). */
 directory.get("/opportunities", async (c) => {
   const q = (c.req.query("q") ?? "").trim().slice(0, 80);
   const from = (c.req.query("from") ?? "").trim();
   const to = (c.req.query("to") ?? "").trim();
+  const page = Math.max(1, Number(c.req.query("page") ?? "1") | 0);
   const conditions = [
     "e.status = 'published'",
     "COALESCE(e.starts_at, '9999') > ?",
@@ -562,13 +575,20 @@ directory.get("/opportunities", async (c) => {
     conditions.push("e.starts_at <= ?");
     binds.push(`${to}T23:59:59.999Z`);
   }
-  const events = await c.env.DB.prepare(
-    `SELECT e.id, e.title, e.starts_at, e.venue, e.address, e.public_slug, e.logo_media_id, e.cover_media_id
-     FROM events e WHERE ${conditions.join(" AND ")}
-     ORDER BY e.starts_at ASC LIMIT 40`,
-  )
-    .bind(...binds)
-    .all<{ id: string; [k: string]: unknown }>();
+  const where = conditions.join(" AND ");
+  const [events, count] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT e.id, e.title, e.starts_at, e.venue, e.address, e.public_slug, e.logo_media_id, e.cover_media_id
+       FROM events e WHERE ${where}
+       ORDER BY e.starts_at ASC
+       LIMIT ? OFFSET ?`,
+    )
+      .bind(...binds, OPPORTUNITIES_PAGE_SIZE, (page - 1) * OPPORTUNITIES_PAGE_SIZE)
+      .all<{ id: string; [k: string]: unknown }>(),
+    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM events e WHERE ${where}`)
+      .bind(...binds)
+      .first<{ n: number }>(),
+  ]);
   const ids = events.results.map((e) => e.id);
   let tiers: Array<{ event_id: string; [k: string]: unknown }> = [];
   if (ids.length) {
@@ -584,6 +604,9 @@ directory.get("/opportunities", async (c) => {
   }
   return c.json({
     events: events.results.map((e) => ({ ...e, tiers: tiers.filter((t) => t.event_id === e.id) })),
+    total: count?.n ?? 0,
+    page,
+    pageSize: OPPORTUNITIES_PAGE_SIZE,
   });
 });
 

@@ -6,6 +6,7 @@ import { ProposeSponsorship } from "@/components/propose-sponsorship";
 import { Stars } from "@/components/star-rating";
 import { DirectoryFilters } from "@/components/directory-filters";
 import { SmartSearch } from "@/components/smart-search";
+import { Pagination } from "@/components/pagination";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -40,28 +41,38 @@ interface SponsorFilters {
   city: string;
   kind: string;
   verified: string;
+  page: number;
 }
 
-async function getCompanies(f: SponsorFilters): Promise<DirectoryCompany[]> {
+interface CompaniesResponse {
+  companies: DirectoryCompany[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+async function getCompanies(f: SponsorFilters): Promise<CompaniesResponse> {
   const params = new URLSearchParams();
   if (f.q) params.set("q", f.q);
   if (f.sector) params.set("sector", f.sector);
   if (f.city) params.set("city", f.city);
   if (f.kind) params.set("kind", f.kind);
   if (f.verified) params.set("verified", "1");
+  if (f.page > 1) params.set("page", String(f.page));
   const res = await fetch(`${API_BASE}/api/public/companies?${params}`, { cache: "no-store" });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { companies: DirectoryCompany[] };
-  return data.companies ?? [];
+  if (!res.ok) return { companies: [], total: 0, page: 1, pageSize: 24 };
+  const data = (await res.json()) as CompaniesResponse;
+  return { companies: data.companies ?? [], total: data.total ?? 0, page: data.page ?? 1, pageSize: data.pageSize ?? 24 };
 }
 
 export default async function SponsorDirectoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sector?: string; city?: string; kind?: string; verified?: string }>;
+  searchParams: Promise<{ q?: string; sector?: string; city?: string; kind?: string; verified?: string; page?: string }>;
 }) {
-  const { q = "", sector = "", city = "", kind = "", verified = "" } = await searchParams;
-  const companies = await getCompanies({ q, sector, city, kind, verified });
+  const { q = "", sector = "", city = "", kind = "", verified = "", page: pageParam = "" } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+  const { companies, total, pageSize } = await getCompanies({ q, sector, city, kind, verified, page });
 
   return (
     <main className="container">
@@ -191,6 +202,14 @@ export default async function SponsorDirectoryPage({
           })}
         </div>
       )}
+
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={pageSize}
+        basePath="/sponsors"
+        params={{ q, sector, city, kind, verified }}
+      />
 
       <div className="card directory-cta">
         <Store size={26} style={{ color: "var(--accent)" }} />

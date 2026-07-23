@@ -966,6 +966,22 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 @media (max-width: 480px) {
   .directory-filters-row { grid-template-columns: 1fr; }
 }
+
+.pagination {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin: 32px auto 8px; flex-wrap: wrap;
+}
+.pagination-nav { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pagination-nav.disabled { opacity: 0.4; pointer-events: none; }
+.pagination-pages { display: flex; align-items: center; gap: 4px; }
+.pagination-page {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 34px; height: 34px; border-radius: 8px; font-size: 13.5px; font-weight: 600;
+  color: var(--ink); text-decoration: none; border: 1px solid transparent;
+}
+.pagination-page:hover { background: var(--bg); }
+.pagination-page.active { background: var(--accent); color: #fff; }
+.pagination-ellipsis { padding: 0 4px; color: var(--muted); font-size: 13px; }
 .directory-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .directory-chip {
   display: inline-flex; align-items: center; gap: 6px;

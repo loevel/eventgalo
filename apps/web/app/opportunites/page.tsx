@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CalendarDays, MapPin, Search, Ticket } from "lucide-react";
 import { ApplySponsorship } from "@/components/apply-sponsorship";
 import { SmartSearch } from "@/components/smart-search";
+import { Pagination } from "@/components/pagination";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -30,15 +31,23 @@ interface Opportunity {
   }>;
 }
 
-async function getOpportunities(q: string, from: string, to: string): Promise<Opportunity[]> {
+interface OpportunitiesResponse {
+  events: Opportunity[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+async function getOpportunities(q: string, from: string, to: string, page: number): Promise<OpportunitiesResponse> {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (page > 1) params.set("page", String(page));
   const res = await fetch(`${API_BASE}/api/public/companies/opportunities?${params}`, { cache: "no-store" });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { events: Opportunity[] };
-  return data.events ?? [];
+  if (!res.ok) return { events: [], total: 0, page: 1, pageSize: 12 };
+  const data = (await res.json()) as OpportunitiesResponse;
+  return { events: data.events ?? [], total: data.total ?? 0, page: data.page ?? 1, pageSize: data.pageSize ?? 12 };
 }
 
 function formatDate(iso: string | null): string {
@@ -53,10 +62,11 @@ function formatPrice(cents: number, currency: string): string {
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ q?: string; from?: string; to?: string; page?: string }>;
 }) {
-  const { q = "", from = "", to = "" } = await searchParams;
-  const events = await getOpportunities(q, from, to);
+  const { q = "", from = "", to = "", page: pageParam = "" } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+  const { events, total, pageSize } = await getOpportunities(q, from, to, page);
 
   return (
     <main className="container">
@@ -139,6 +149,8 @@ export default async function OpportunitiesPage({
           ))}
         </div>
       )}
+
+      <Pagination page={page} total={total} pageSize={pageSize} basePath="/opportunites" params={{ q, from, to }} />
 
       <div className="card directory-cta">
         <div>

@@ -4,6 +4,7 @@ import { COMPANY_SECTORS, MIN_REVIEWS_SHOWN, parseSocials, type SocialKey } from
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { DirectoryFilters } from "@/components/directory-filters";
 import { Stars } from "@/components/star-rating";
+import { Pagination } from "@/components/pagination";
 
 /** Catégories les plus utiles côté prestataires, affichées en pilules rapides. */
 const VENDOR_CHIP_SECTORS = ["Photographe", "Traiteur", "Musicien / DJ", "Décoration", "Fleuriste"] as const;
@@ -38,26 +39,36 @@ interface VendorFilters {
   q: string;
   sector: string;
   city: string;
+  page: number;
 }
 
-async function getVendors(f: VendorFilters): Promise<DirectoryCompany[]> {
+interface VendorsResponse {
+  companies: DirectoryCompany[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+async function getVendors(f: VendorFilters): Promise<VendorsResponse> {
   const params = new URLSearchParams({ vendor: "1" });
   if (f.q) params.set("q", f.q);
   if (f.sector) params.set("sector", f.sector);
   if (f.city) params.set("city", f.city);
+  if (f.page > 1) params.set("page", String(f.page));
   const res = await fetch(`${API_BASE}/api/public/companies?${params}`, { cache: "no-store" });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { companies: DirectoryCompany[] };
-  return data.companies ?? [];
+  if (!res.ok) return { companies: [], total: 0, page: 1, pageSize: 24 };
+  const data = (await res.json()) as VendorsResponse;
+  return { companies: data.companies ?? [], total: data.total ?? 0, page: data.page ?? 1, pageSize: data.pageSize ?? 24 };
 }
 
 export default async function VendorDirectoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sector?: string; city?: string }>;
+  searchParams: Promise<{ q?: string; sector?: string; city?: string; page?: string }>;
 }) {
-  const { q = "", sector = "", city = "" } = await searchParams;
-  const vendors = await getVendors({ q, sector, city });
+  const { q = "", sector = "", city = "", page: pageParam = "" } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+  const { companies: vendors, total, pageSize } = await getVendors({ q, sector, city, page });
 
   return (
     <main className="container">
@@ -158,6 +169,8 @@ export default async function VendorDirectoryPage({
           })}
         </div>
       )}
+
+      <Pagination page={page} total={total} pageSize={pageSize} basePath="/prestataires" params={{ q, sector, city }} />
 
       <div className="card directory-cta">
         <Store size={26} style={{ color: "var(--accent)" }} />
