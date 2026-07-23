@@ -11,6 +11,7 @@ interface Settings {
   banner_kind: string;
   banner_text: string;
   banner_link: string;
+  ad_slot_price_cents_per_week: string;
 }
 
 export default function AdminSettingsPage() {
@@ -22,6 +23,7 @@ export default function AdminSettingsPage() {
   const [bannerKind, setBannerKind] = useState("info");
   const [bannerText, setBannerText] = useState("");
   const [bannerLink, setBannerLink] = useState("");
+  const [adPrice, setAdPrice] = useState("");
   const [status, setStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,6 +37,7 @@ export default function AdminSettingsPage() {
       setBannerKind(r.settings.banner_kind || "info");
       setBannerText(r.settings.banner_text || "");
       setBannerLink(r.settings.banner_link || "");
+      setAdPrice((Number(r.settings.ad_slot_price_cents_per_week) / 100).toFixed(2));
     });
   }, []);
 
@@ -53,6 +56,7 @@ export default function AdminSettingsPage() {
           banner_kind: bannerKind,
           banner_text: bannerText,
           banner_link: bannerLink,
+          ad_slot_price_cents_per_week: String(Math.round(Number(adPrice) * 100)),
         },
       });
       setStatus({ kind: "ok", text: "Paramètres enregistrés." });
@@ -81,6 +85,13 @@ export default function AdminSettingsPage() {
           Montant fixe par billet/palier (CAD)
         </label>
         <input id="fixed" type="number" min="0" step="0.01" value={fixed} onChange={(e) => setFixed(e.target.value)} />
+      </div>
+
+      <div className="card" style={{ maxWidth: 480 }}>
+        <h3 style={{ marginTop: 0 }}>Bandeau publicitaire</h3>
+        <p className="muted">Prix facturé aux entreprises pour un créneau dans le bandeau de la page d&apos;accueil.</p>
+        <label htmlFor="adPrice">Prix par semaine (CAD)</label>
+        <input id="adPrice" type="number" min="0" step="0.01" value={adPrice} onChange={(e) => setAdPrice(e.target.value)} />
       </div>
 
       <div className="card" style={{ maxWidth: 480 }}>

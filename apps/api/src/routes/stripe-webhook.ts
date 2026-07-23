@@ -7,6 +7,7 @@ import { nowIso } from "../lib/crypto";
 import { sendTicketsEmail } from "./public";
 import { triggerWebhooks } from "../lib/webhooks";
 import { syncAccountStatus } from "../lib/stripe";
+import { finalizeAdPayment } from "./ads";
 
 /** Paiement de sponsoring reçu : confirmation automatique + emails aux deux parties. */
 async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: string): Promise<void> {
@@ -108,8 +109,11 @@ webhook.post("/stripe", async (c) => {
     const sponsorId = session.metadata?.sponsor_id;
     const txId = session.metadata?.transaction_id;
     const eventId = session.metadata?.event_id;
+    const adSlotId = session.metadata?.ad_slot_id;
     if (sponsorId && eventId) {
       await finalizeSponsorPayment(c.env, sponsorId, eventId);
+    } else if (adSlotId) {
+      await finalizeAdPayment(c.env, adSlotId);
     } else if (txId && eventId) {
       const result = await callEventDO<{ tickets: Array<{ id: string; serial: string }> }>(c.env, eventId, {
         action: "finalize",

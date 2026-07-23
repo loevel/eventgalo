@@ -50,6 +50,7 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   banner_kind: "info",
   banner_text: "",
   banner_link: "",
+  ad_slot_price_cents_per_week: "2000",
 };
 
 /** Lit un paramètre plateforme : base D1 (modifiable en admin) → variable d'env → défaut codé en dur. */

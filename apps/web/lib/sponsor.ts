@@ -23,6 +23,27 @@ export const COMPANY_SECTORS = [
   "Autre",
 ] as const;
 
+/**
+ * Provinces/territoires canadiens, pour le ciblage régional du bandeau publicitaire.
+ * Valeurs alignées sur le nom anglais retourné par la géolocalisation Cloudflare
+ * (`request.cf.region`) — à vérifier en environnement de preview avant mise en prod.
+ */
+export const CANADIAN_REGIONS = [
+  "Alberta",
+  "British Columbia",
+  "Manitoba",
+  "New Brunswick",
+  "Newfoundland and Labrador",
+  "Northwest Territories",
+  "Nova Scotia",
+  "Nunavut",
+  "Ontario",
+  "Prince Edward Island",
+  "Quebec",
+  "Saskatchewan",
+  "Yukon",
+] as const;
+
 /** Suggestions de rôle pour les artistes/intervenants — champ libre, pas une liste fermée. */
 export const PERFORMER_ROLES = [
   "Musicien / DJ",

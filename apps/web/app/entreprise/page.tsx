@@ -236,7 +236,8 @@ export default function CompanyPage() {
         pas votre activité principale. Créez votre profil public pour apparaître dans l&apos;
         <a href="/sponsors">annuaire des sponsors</a> et/ou l&apos;<a href="/prestataires">annuaire des
         prestataires</a> : les organisateurs d&apos;événements sur EventGalo pourront vous découvrir et vous
-        contacter.
+        contacter. Vous pouvez aussi <a href="/entreprise/pub">acheter un créneau dans le bandeau publicitaire</a> de
+        la page d&apos;accueil.
       </p>
 
       {flash && <div className="alert ok">{flash}</div>}

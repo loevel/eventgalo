@@ -4,6 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star } from "lucide-react";
 import { Reveal } from "@/components/reveal";
+import { AdBand } from "@/components/ad-band";
 import {
   BamilekeDivider, ConstellationBg, GoldDust, HeroFx, LeopardRosettes, SectionDepthFx, SpiderMark,
   SplitTitle, StatNumber, StepsPath, TiltCard,
@@ -313,6 +314,10 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </Reveal>
+
+        <Reveal>
+          <AdBand />
         </Reveal>
 
         <section className="section">

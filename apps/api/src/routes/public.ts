@@ -38,6 +38,12 @@ pub.get("/settings/banner", async (c) => {
   return c.json({ enabled: true, kind, text, link: link || null });
 });
 
+/** Prix courant du bandeau publicitaire (par semaine), pour l'affichage côté espace entreprise. */
+pub.get("/settings/ad-price", async (c) => {
+  const priceCentsPerWeek = Number(await getSetting(c.env, "ad_slot_price_cents_per_week"));
+  return c.json({ price_cents_per_week: priceCentsPerWeek, currency: "CAD" });
+});
+
 // Liste des événements publiés (slug + date de mise à jour) — utilisée par le sitemap du site web
 pub.get("/events", async (c) => {
   const events = await c.env.DB.prepare(

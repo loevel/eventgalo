@@ -283,7 +283,7 @@ admin.get("/connect-accounts", async (c) => {
 
 const SETTINGS_KEYS = [
   "platform_fee_percent", "platform_fee_fixed_cents", "feature_signups_enabled",
-  "banner_enabled", "banner_kind", "banner_text", "banner_link",
+  "banner_enabled", "banner_kind", "banner_text", "banner_link", "ad_slot_price_cents_per_week",
 ] as const;
 
 /** Paramètres de la plateforme (frais de service, feature flags, bannière). */
@@ -292,7 +292,7 @@ admin.get("/settings", async (c) => {
   return c.json({ settings: Object.fromEntries(entries) });
 });
 
-const NUMERIC_SETTINGS = new Set(["platform_fee_percent", "platform_fee_fixed_cents"]);
+const NUMERIC_SETTINGS = new Set(["platform_fee_percent", "platform_fee_fixed_cents", "ad_slot_price_cents_per_week"]);
 const BOOLEAN_SETTINGS = new Set(["feature_signups_enabled", "banner_enabled"]);
 
 admin.patch("/settings", async (c) => {
@@ -420,6 +420,42 @@ admin.post("/companies/:id/unlist", async (c) => {
     .run();
   if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
   await logAdminAction(c.env, admin_.id, "company.unlist", "company", id);
+  return c.json({ ok: true });
+});
+
+/** Liste des créneaux publicitaires (bandeau homepage), pour modération. */
+admin.get("/ads", async (c) => {
+  const status = (c.req.query("status") ?? "").trim();
+  const { limit, offset } = page(c);
+  const conditions: string[] = [];
+  const binds: unknown[] = [];
+  if (status) {
+    conditions.push("a.status = ?");
+    binds.push(status);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rows = await c.env.DB.prepare(
+    `SELECT a.id, a.title, a.link_url, a.sector, a.region, a.weeks, a.starts_at, a.ends_at,
+            a.amount_cents, a.currency, a.status, a.paid_at, a.created_at, co.name AS company_name
+     FROM ad_slots a JOIN companies co ON co.id = a.company_id
+     ${where} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
+  )
+    .bind(...binds, limit, offset)
+    .all();
+  return c.json({ ads: rows.results });
+});
+
+/** Rejette un créneau publicitaire (retiré du bandeau, réversible en base uniquement). */
+admin.post("/ads/:id/reject", async (c) => {
+  const admin_ = c.get("user");
+  const id = c.req.param("id");
+  const result = await c.env.DB.prepare(
+    "UPDATE ad_slots SET status = 'rejected' WHERE id = ? AND status != 'rejected'",
+  )
+    .bind(id)
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
+  await logAdminAction(c.env, admin_.id, "ad.reject", "ad_slot", id);
   return c.json({ ok: true });
 });
 
