@@ -258,7 +258,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
           {ev.logo_media_id && (
             <img
               className="event-logo"
-              src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+              src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file?thumb=1`}
               alt={`Logo — ${ev.title}`}
             />
           )}
@@ -377,7 +377,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                     {data.gallery.map((m) => (
                       <img
                         key={m.id}
-                        src={`${API_BASE}/api/public/media/${m.id}/file`}
+                        src={`${API_BASE}/api/public/media/${m.id}/file?thumb=1`}
                         alt=""
                         loading="lazy"
                       />
@@ -489,7 +489,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                       <div className={`performer-photos${photos.length <= 1 ? " single" : ""}`}>
                         {photos.length > 0 ? (
                           photos.map((id) => (
-                            <img key={id} src={`${API_BASE}/api/public/media/${id}/file`} alt={p.name} loading="lazy" />
+                            <img key={id} src={`${API_BASE}/api/public/media/${id}/file?thumb=1`} alt={p.name} loading="lazy" />
                           ))
                         ) : (
                           <span className="sponsor-name-fallback">{p.name.charAt(0).toUpperCase()}</span>
@@ -528,7 +528,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                       <article key={`full-${i}`} className="sponsor-spotlight">
                         <div className="sponsor-spotlight-head">
                           {s.logo_media_id ? (
-                            <img className="sponsor-spotlight-logo" src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
+                            <img className="sponsor-spotlight-logo" src={`${API_BASE}/api/public/media/${s.logo_media_id}/file?thumb=1`} alt={s.company_name} loading="lazy" />
                           ) : (
                             <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
                           )}
@@ -541,7 +541,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                         {s.photos.length > 0 && (
                           <div className="sponsor-carousel">
                             {s.photos.map((pid) => (
-                              <img key={pid} src={`${API_BASE}/api/public/media/${pid}/file`} alt="" loading="lazy" />
+                              <img key={pid} src={`${API_BASE}/api/public/media/${pid}/file?thumb=1`} alt="" loading="lazy" />
                             ))}
                           </div>
                         )}
@@ -567,7 +567,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                       {list.filter((s) => s.showcase === "standard").map((s, i) => (
                         <div key={`std-${i}`} className="sponsor-mid-card">
                           {s.logo_media_id ? (
-                            <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
+                            <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file?thumb=1`} alt={s.company_name} loading="lazy" />
                           ) : (
                             <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
                           )}
@@ -588,7 +588,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
                         const inner = (
                           <>
                             {s.logo_media_id ? (
-                              <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file`} alt={s.company_name} loading="lazy" />
+                              <img src={`${API_BASE}/api/public/media/${s.logo_media_id}/file?thumb=1`} alt={s.company_name} loading="lazy" />
                             ) : (
                               <span className="sponsor-name-fallback">{s.company_name.charAt(0).toUpperCase()}</span>
                             )}

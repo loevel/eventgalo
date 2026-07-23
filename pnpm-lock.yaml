@@ -14,6 +14,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@cf-wasm/photon':
+        specifier: ^0.3.7
+        version: 0.3.7
       '@eventgalo/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -352,6 +355,12 @@ packages:
   '@aws/lambda-invoke-store@0.3.0':
     resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
     engines: {node: '>=18.0.0'}
+
+  '@cf-wasm/internals@0.1.2':
+    resolution: {integrity: sha512-9d/I3JFv1IpQFYOrIw5RQShQPyuZRw9DyeBylF39Uj/MH7my8+EzKDPpUCHiqZ5O7tZS/A6zwP08egpeI5NBhA==}
+
+  '@cf-wasm/photon@0.3.7':
+    resolution: {integrity: sha512-rMPUUuiIgXVNJFPIexU9aKCudVrsxMmaknmEqY6x9/apcjoHR8im1T+V6USnhy3wDVVtlZZb6z9+ZlHRk+pX2w==}
 
   '@cloudflare/kv-asset-handler@0.5.0':
     resolution: {integrity: sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg==}
@@ -3346,6 +3355,12 @@ snapshots:
       tslib: 2.8.1
 
   '@aws/lambda-invoke-store@0.3.0': {}
+
+  '@cf-wasm/internals@0.1.2': {}
+
+  '@cf-wasm/photon@0.3.7':
+    dependencies:
+      '@cf-wasm/internals': 0.1.2
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
 

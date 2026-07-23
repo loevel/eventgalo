@@ -12,6 +12,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply eventgalo-db --remote"
   },
   "dependencies": {
+    "@cf-wasm/photon": "^0.3.7",
     "@eventgalo/shared": "workspace:*",
     "hono": "^4.12.30",
     "stripe": "^22.3.2"

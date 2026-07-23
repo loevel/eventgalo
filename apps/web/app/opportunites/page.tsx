@@ -102,7 +102,7 @@ export default async function OpportunitiesPage({
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 {ev.logo_media_id && (
                   <img
-                    src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+                    src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file?thumb=1`}
                     alt=""
                     loading="lazy"
                     style={{ width: 58, height: 58, objectFit: "contain", borderRadius: 12, border: "1px solid var(--line)", background: "#fff", padding: 5, flex: "none" }}

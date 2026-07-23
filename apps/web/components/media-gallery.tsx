@@ -49,7 +49,7 @@ export function MediaGallery({
               {isFeatured && <span className="badge mut">Page publique</span>}
             </div>
             <img
-              src={`${API_BASE}/api/public/media/${m.id}/file`}
+              src={`${API_BASE}/api/public/media/${m.id}/file?thumb=1`}
               alt={`Photo de ${m.guest_name ?? "l'organisateur"}`}
               loading="lazy"
               style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8 }}

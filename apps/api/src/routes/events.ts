@@ -4,7 +4,7 @@ import type { AppContext, Env } from "../types";
 import { nowIso, randomToken, slugify, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
-import { MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
+import { deleteProcessedImage, MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, putProcessedImage, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
@@ -922,13 +922,13 @@ events.post("/:id/media", async (c) => {
   }
   const id = uuid();
   const key = `events/${event.id}/${id}`;
-  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  const contentType = await putProcessedImage(c.env, key, file);
   await c.env.DB.prepare(
     "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)",
   )
-    .bind(id, event.id, key, file.type)
+    .bind(id, event.id, key, contentType)
     .run();
-  return c.json({ media: { id, guest_id: null, content_type: file.type } }, 201);
+  return c.json({ media: { id, guest_id: null, content_type: contentType } }, 201);
 });
 
 events.delete("/:id/media/:mid", async (c) => {
@@ -939,7 +939,7 @@ events.delete("/:id/media/:mid", async (c) => {
     .bind(c.req.param("mid"), event.id)
     .first<{ id: string; r2_key: string }>();
   if (!media) return c.json({ error: "Photo introuvable" }, 404);
-  await c.env.MEDIA.delete(media.r2_key);
+  await deleteProcessedImage(c.env, media.r2_key);
   await c.env.DB.batch([
     c.env.DB.prepare("UPDATE events SET cover_media_id = NULL WHERE id = ? AND cover_media_id = ?").bind(event.id, media.id),
     c.env.DB.prepare("UPDATE events SET logo_media_id = NULL WHERE id = ? AND logo_media_id = ?").bind(event.id, media.id),
@@ -1392,7 +1392,7 @@ events.delete("/:id/performers/:pid", async (c) => {
     )
       .bind(...photoIds)
       .all<{ r2_key: string }>();
-    await Promise.all(keys.results.map((m) => c.env.MEDIA.delete(m.r2_key)));
+    await Promise.all(keys.results.map((m) => deleteProcessedImage(c.env, m.r2_key)));
   }
   // La ligne event_performers doit disparaître avant les lignes media qu'elle référence.
   await c.env.DB.batch([
@@ -1426,11 +1426,11 @@ events.post("/:id/performers/:pid/photo", async (c) => {
 
   const id = uuid();
   const key = `events/${event.id}/${id}`;
-  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  const contentType = await putProcessedImage(c.env, key, file);
   await c.env.DB.prepare(
     "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)",
   )
-    .bind(id, event.id, key, file.type)
+    .bind(id, event.id, key, contentType)
     .run();
   await c.env.DB.prepare(`UPDATE event_performers SET ${column} = ? WHERE id = ?`)
     .bind(id, performer.id)
@@ -1441,7 +1441,7 @@ events.post("/:id/performers/:pid/photo", async (c) => {
       .bind(performer.current_media_id)
       .first<{ r2_key: string }>();
     if (old) {
-      await c.env.MEDIA.delete(old.r2_key);
+      await deleteProcessedImage(c.env, old.r2_key);
       await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(performer.current_media_id).run();
     }
   }
@@ -1463,7 +1463,7 @@ events.delete("/:id/performers/:pid/photo", async (c) => {
   const media = await c.env.DB.prepare("SELECT r2_key FROM media WHERE id = ?")
     .bind(performer.current_media_id)
     .first<{ r2_key: string }>();
-  if (media) await c.env.MEDIA.delete(media.r2_key);
+  if (media) await deleteProcessedImage(c.env, media.r2_key);
   await c.env.DB.batch([
     c.env.DB.prepare(`UPDATE event_performers SET ${column} = NULL WHERE id = ?`).bind(c.req.param("pid")),
     c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(performer.current_media_id),

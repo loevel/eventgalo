@@ -84,7 +84,7 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
   const pro = co.kind === "professional";
   const socials = Object.entries(parseSocials(co.socials)) as Array<[SocialKey, string]>;
   const embed = videoEmbedUrl(co.video_url);
-  const logoUrl = co.has_logo ? `${API_BASE}/api/public/companies/${co.id}/logo` : null;
+  const logoUrl = co.has_logo ? `${API_BASE}/api/public/companies/${co.id}/logo?thumb=1` : null;
   const showRating = co.avg_rating != null && co.review_count >= MIN_REVIEWS_SHOWN;
 
   const jsonLd = {

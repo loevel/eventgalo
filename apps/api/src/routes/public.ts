@@ -3,7 +3,10 @@ import Stripe from "stripe";
 import type { AppContext } from "../types";
 import { buildTicketPayload, nowIso, uuid, verifyTicketPayload } from "../lib/crypto";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
-import { MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, validateMediaFile } from "../lib/media";
+import {
+  deleteProcessedImage, MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, putProcessedImage, THUMB_SUFFIX,
+  validateMediaFile,
+} from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
@@ -273,11 +276,11 @@ pub.post("/sponsor/:token/media", async (c) => {
   }
   const id = uuid();
   const key = `events/${sponsor.event_id}/${id}`;
-  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  const contentType = await putProcessedImage(c.env, key, file);
   await c.env.DB.prepare(
     "INSERT INTO media (id, event_id, guest_id, sponsor_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?, ?)",
   )
-    .bind(id, sponsor.event_id, sponsor.id, key, file.type)
+    .bind(id, sponsor.event_id, sponsor.id, key, contentType)
     .run();
   return c.json({ media_id: id }, 201);
 });
@@ -291,7 +294,7 @@ pub.delete("/sponsor/:token/media/:mid", async (c) => {
     .bind(c.req.param("mid"), sponsor.id)
     .first<{ id: string; r2_key: string }>();
   if (!media) return c.json({ error: "Photo introuvable" }, 404);
-  await c.env.MEDIA.delete(media.r2_key);
+  await deleteProcessedImage(c.env, media.r2_key);
   await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id).run();
   return c.json({ ok: true });
 });
@@ -632,10 +635,10 @@ pub.post("/sponsor/:token/logo", async (c) => {
   if (invalid) return c.json({ error: invalid }, 400);
   const id = uuid();
   const key = `events/${sponsor.event_id}/${id}`;
-  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  const contentType = await putProcessedImage(c.env, key, file);
   await c.env.DB.batch([
     c.env.DB.prepare("INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)")
-      .bind(id, sponsor.event_id, key, file.type),
+      .bind(id, sponsor.event_id, key, contentType),
     c.env.DB.prepare("UPDATE sponsors SET logo_media_id = ? WHERE id = ?").bind(id, sponsor.id),
   ]);
   return c.json({ media_id: id }, 201);
@@ -803,13 +806,13 @@ pub.post("/invite/:token/media", async (c) => {
 
   const id = uuid();
   const key = `events/${guest.event_id}/${id}`;
-  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+  const contentType = await putProcessedImage(c.env, key, file);
   await c.env.DB.prepare(
     "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, ?, ?, ?)",
   )
-    .bind(id, guest.event_id, guest.id, key, file.type)
+    .bind(id, guest.event_id, guest.id, key, contentType)
     .run();
-  return c.json({ media: { id, guest_id: guest.id, content_type: file.type } }, 201);
+  return c.json({ media: { id, guest_id: guest.id, content_type: contentType } }, 201);
 });
 
 pub.get("/invite/:token/media", async (c) => {
@@ -826,23 +829,30 @@ pub.delete("/invite/:token/media/:mid", async (c) => {
     .bind(c.req.param("mid"), guest.id)
     .first<{ id: string; r2_key: string }>();
   if (!media) return c.json({ error: "Photo introuvable" }, 404);
-  await c.env.MEDIA.delete(media.r2_key);
+  await deleteProcessedImage(c.env, media.r2_key);
   await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(media.id).run();
   return c.json({ ok: true });
 });
 
-/** Sert le fichier depuis R2 (id UUID non devinable, même modèle que les tokens). */
+/**
+ * Sert le fichier depuis R2 (id UUID non devinable, même modèle que les tokens).
+ * `?thumb=1` sert la vignette (480px WebP) si elle existe, sinon retombe sur l'original —
+ * utile pour les grilles/logos qui n'ont pas besoin de la pleine résolution.
+ */
 pub.get("/media/:id/file", async (c) => {
   const media = await c.env.DB.prepare("SELECT r2_key, content_type FROM media WHERE id = ?")
     .bind(c.req.param("id"))
     .first<{ r2_key: string; content_type: string }>();
   if (!media) return c.json({ error: "Photo introuvable" }, 404);
-  const obj = await c.env.MEDIA.get(media.r2_key);
+  const wantsThumb = c.req.query("thumb") === "1";
+  const thumbKey = `${media.r2_key}${THUMB_SUFFIX}`;
+  const obj = (wantsThumb ? await c.env.MEDIA.get(thumbKey) : null) ?? (await c.env.MEDIA.get(media.r2_key));
   if (!obj) return c.json({ error: "Photo introuvable" }, 404);
+  const isThumb = wantsThumb && obj.key === thumbKey;
   return new Response(obj.body, {
     headers: {
-      "Content-Type": media.content_type,
-      "Cache-Control": "private, max-age=3600",
+      "Content-Type": isThumb ? "image/webp" : media.content_type,
+      "Cache-Control": "public, max-age=31536000, immutable",
       ETag: obj.httpEtag,
     },
   });

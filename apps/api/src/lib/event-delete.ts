@@ -1,4 +1,5 @@
 import type { Env } from "../types";
+import { THUMB_SUFFIX } from "./media";
 
 export interface DeleteResult {
   blocked: boolean;
@@ -37,7 +38,7 @@ export async function deleteEventCascade(env: Env, eventId: string): Promise<Del
     .bind(eventId)
     .all<{ r2_key: string }>();
   if (media.results.length) {
-    await env.MEDIA.delete(media.results.map((m) => m.r2_key));
+    await env.MEDIA.delete(media.results.flatMap((m) => [m.r2_key, `${m.r2_key}${THUMB_SUFFIX}`]));
   }
 
   await env.DB.batch([

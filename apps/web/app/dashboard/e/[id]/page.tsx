@@ -1742,7 +1742,7 @@ function SponsorsTab({
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 {ev.logo_media_id && (
                   <img
-                    src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+                    src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file?thumb=1`}
                     alt=""
                     style={{ width: 58, height: 58, objectFit: "contain", borderRadius: 12, border: "1px solid var(--line)", background: "#fff", padding: 5, flex: "none" }}
                   />
@@ -2206,7 +2206,7 @@ function PerformerPhoto({
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       {mediaId ? (
         <img
-          src={`${API_BASE}/api/public/media/${mediaId}/file`}
+          src={`${API_BASE}/api/public/media/${mediaId}/file?thumb=1`}
           alt=""
           style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }}
         />

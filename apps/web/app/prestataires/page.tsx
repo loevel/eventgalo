@@ -93,7 +93,7 @@ export default async function VendorDirectoryPage({
                 <a href={`/sponsors/${co.id}`} className="directory-card-head" style={{ textDecoration: "none", color: "inherit" }}>
                   {co.has_logo ? (
                     <img
-                      src={`${API_BASE}/api/public/companies/${co.id}/logo`}
+                      src={`${API_BASE}/api/public/companies/${co.id}/logo?thumb=1`}
                       alt={co.name}
                       loading="lazy"
                       className={pro ? "pro-photo" : undefined}

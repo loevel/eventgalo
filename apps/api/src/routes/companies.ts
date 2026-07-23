@@ -4,7 +4,7 @@ import { nowIso, randomToken, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { createNotification } from "../lib/notifications";
-import { validateMediaFile } from "../lib/media";
+import { deleteProcessedImage, putProcessedImage, THUMB_SUFFIX, validateMediaFile } from "../lib/media";
 import { clampText, sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { generateReviewSummary, parseDirectorySearch, parseOpportunitySearch } from "../lib/ai";
@@ -105,10 +105,10 @@ company.post("/logo", async (c) => {
   const invalid = validateMediaFile(file);
   if (invalid) return c.json({ error: invalid }, 400);
   const key = `companies/${row.id}/${uuid()}`;
-  await c.env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
-  if (row.logo_key) await c.env.MEDIA.delete(row.logo_key);
+  const contentType = await putProcessedImage(c.env, key, file);
+  if (row.logo_key) await deleteProcessedImage(c.env, row.logo_key);
   await c.env.DB.prepare("UPDATE companies SET logo_key = ?, logo_type = ?, updated_at = ? WHERE id = ?")
-    .bind(key, file.type, nowIso(), row.id)
+    .bind(key, contentType, nowIso(), row.id)
     .run();
   return c.json({ ok: true });
 });
@@ -230,14 +230,19 @@ company.post("/apply", async (c) => {
   const token = randomToken(16);
   const message = clampText(b.message, 800);
 
-  // Le logo de l'entreprise est copié dans la galerie de l'événement pour la vitrine.
+  // Le logo de l'entreprise est copié dans la galerie de l'événement pour la vitrine
+  // (avec sa vignette si elle existe déjà — le logo source est lui-même déjà optimisé).
   let logoMediaId: string | null = null;
   if (co.logo_key) {
     const obj = await c.env.MEDIA.get(co.logo_key);
     if (obj) {
       logoMediaId = uuid();
       const key = `events/${event.id}/${logoMediaId}`;
-      await c.env.MEDIA.put(key, obj.body, { httpMetadata: { contentType: co.logo_type ?? "image/png" } });
+      const thumbObj = await c.env.MEDIA.get(`${co.logo_key}${THUMB_SUFFIX}`);
+      await Promise.all([
+        c.env.MEDIA.put(key, obj.body, { httpMetadata: { contentType: co.logo_type ?? "image/png" } }),
+        thumbObj ? c.env.MEDIA.put(`${key}${THUMB_SUFFIX}`, thumbObj.body, { httpMetadata: { contentType: "image/webp" } }) : null,
+      ]);
       await c.env.DB.prepare(
         "INSERT INTO media (id, event_id, guest_id, r2_key, content_type) VALUES (?, ?, NULL, ?, ?)",
       )
@@ -655,12 +660,14 @@ directory.get("/:id/logo", async (c) => {
     .bind(c.req.param("id"))
     .first<{ logo_key: string | null; logo_type: string | null }>();
   if (!row?.logo_key) return c.json({ error: "Logo introuvable" }, 404);
-  const obj = await c.env.MEDIA.get(row.logo_key);
+  const wantsThumb = c.req.query("thumb") === "1";
+  const thumbKey = `${row.logo_key}${THUMB_SUFFIX}`;
+  const obj = (wantsThumb ? await c.env.MEDIA.get(thumbKey) : null) ?? (await c.env.MEDIA.get(row.logo_key));
   if (!obj) return c.json({ error: "Logo introuvable" }, 404);
   return new Response(obj.body, {
     headers: {
-      "Content-Type": row.logo_type ?? "image/png",
-      "Cache-Control": "public, max-age=3600",
+      "Content-Type": wantsThumb && obj.key === thumbKey ? "image/webp" : (row.logo_type ?? "image/png"),
+      "Cache-Control": "public, max-age=31536000, immutable",
       ETag: obj.httpEtag,
     },
   });

@@ -553,7 +553,7 @@ export default function CompanyPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             {hasLogo ? (
               <img
-                src={`${API_BASE}/api/public/companies/${companyId}/logo?v=${logoBust}`}
+                src={`${API_BASE}/api/public/companies/${companyId}/logo?thumb=1&v=${logoBust}`}
                 alt={form.kind === "professional" ? "Photo" : "Logo"}
                 style={
                   form.kind === "professional"

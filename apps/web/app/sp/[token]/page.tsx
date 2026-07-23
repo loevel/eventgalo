@@ -273,7 +273,7 @@ export default function SponsorPage() {
 
   const { sponsor, event: ev, tiers } = data;
   const takenBy = (id: string) => data.taken.find((t) => t.tier_id === id)?.n ?? 0;
-  const logoUrl = logoId ? `${API_BASE}/api/public/media/${logoId}/file` : null;
+  const logoUrl = logoId ? `${API_BASE}/api/public/media/${logoId}/file?thumb=1` : null;
   const myTier = tiers.find((t) => t.id === sponsor.tier_id);
   const showcase = myTier?.showcase ?? "logo";
   const embed = videoEmbedUrl(profile.video_url);
@@ -283,7 +283,7 @@ export default function SponsorPage() {
       <div className="sponsor-hero">
         <div className="sponsor-hero-content">
           {ev.logo_media_id && (
-            <img className="event-logo" src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`} alt="" style={{ margin: "0 auto 14px" }} />
+            <img className="event-logo" src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file?thumb=1`} alt="" style={{ margin: "0 auto 14px" }} />
           )}
           <span className="hero-badge glass glass-chip">
             <Handshake /> Espace sponsor
@@ -572,7 +572,7 @@ export default function SponsorPage() {
                 <div className="sponsor-photo-grid">
                   {data.photos.map((p) => (
                     <div key={p.id} className="sponsor-photo">
-                      <img src={`${API_BASE}/api/public/media/${p.id}/file`} alt="" loading="lazy" />
+                      <img src={`${API_BASE}/api/public/media/${p.id}/file?thumb=1`} alt="" loading="lazy" />
                       <button
                         type="button"
                         className="sponsor-photo-del"

@@ -71,7 +71,7 @@ export default function InvitePage() {
       <div className="hero" style={{ paddingBottom: 8 }}>
         {ev.logo_media_id && (
           <img
-            src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file`}
+            src={`${API_BASE}/api/public/media/${ev.logo_media_id}/file?thumb=1`}
             alt={`Logo — ${ev.title}`}
             style={{
               width: 72, height: 72, objectFit: "contain", borderRadius: 14,

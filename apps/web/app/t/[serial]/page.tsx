@@ -36,7 +36,7 @@ export default function TicketPage() {
           {t.logo_media_id ? (
             <img
               className="ticket-logo"
-              src={`${API_BASE}/api/public/media/${t.logo_media_id}/file`}
+              src={`${API_BASE}/api/public/media/${t.logo_media_id}/file?thumb=1`}
               alt={`Logo — ${t.event_title}`}
             />
           ) : (
