@@ -1,21 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import { useState } from "react";
 import {
   Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star,
   Search, Wand2, Camera,
 } from "lucide-react";
 import { Reveal } from "@/components/reveal";
 import { AdBand } from "@/components/ad-band";
+import { HeroCarousel } from "@/components/hero-carousel";
 import {
   BamilekeDivider, ConstellationBg, GoldDust, HeroFx, LeopardRosettes, SectionDepthFx, SpiderMark,
   SplitTitle, StatNumber, StepsPath, TiltCard,
 } from "@/components/landing-fx";
-
-const ParticleHero = dynamic(() => import("@/components/particle-hero").then((m) => m.ParticleHero), {
-  ssr: false,
-});
 
 const FEATURES = [
   {
@@ -177,19 +173,11 @@ const TESTIMONIALS = [
 
 export default function Home() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  // La scène 3D (Three.js + postprocessing) est un gros bundle et une boucle de
-  // rendu continue : on la monte après le premier rendu pour ne pas concurrencer
-  // le chemin critique (FCP/TTI) avec un chargement/calcul purement décoratif.
-  const [showParticles, setShowParticles] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setShowParticles(true), 400);
-    return () => clearTimeout(t);
-  }, []);
 
   return (
     <>
       <div className="landing-hero">
-        {showParticles && <ParticleHero />}
+        <HeroCarousel />
         <HeroFx />
         <div className="landing-hero-content">
           <span className="hero-badge">
