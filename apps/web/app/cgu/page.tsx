@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Conditions générales d'utilisation",
   description: "Conditions générales d'utilisation d'EventGalo.",
+  alternates: { canonical: "https://eventgalo.com/cgu" },
 };
 
 export default function CguPage() {

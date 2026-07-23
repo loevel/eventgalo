@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Politique de confidentialité",
   description: "Comment EventGalo collecte, utilise et protège vos données personnelles.",
+  alternates: { canonical: "https://eventgalo.com/confidentialite" },
 };
 
 export default function PrivacyPage() {

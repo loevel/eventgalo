@@ -163,6 +163,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const description = ev.description
     ? truncate(ev.description)
     : `${ev.title} — ${formatDate(ev.starts_at)}${ev.venue ? ` · ${ev.venue}` : ""}`;
+  const coverUrl = ev.cover_media_id ? `${API_BASE}/api/public/media/${ev.cover_media_id}/file` : null;
   return {
     title: ev.title,
     description,
@@ -171,8 +172,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       title: ev.title,
       description,
       url: `https://eventgalo.com/e/${slug}`,
+      ...(coverUrl ? { images: [{ url: coverUrl }] } : {}),
     },
-    twitter: { card: "summary", title: ev.title, description },
+    twitter: {
+      card: coverUrl ? "summary_large_image" : "summary",
+      title: ev.title,
+      description,
+      ...(coverUrl ? { images: [coverUrl] } : {}),
+    },
   };
 }
 

@@ -42,11 +42,13 @@ export const metadata: Metadata = {
     locale: "fr_CA",
     title: "EventGalo — événements, invitations et billetterie",
     description: SITE_DESCRIPTION,
+    images: [{ url: "/og-default.png", width: 1200, height: 630 }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "EventGalo — événements, invitations et billetterie",
     description: SITE_DESCRIPTION,
+    images: ["/og-default.png"],
   },
   robots: {
     index: true,

@@ -72,7 +72,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       url: `https://eventgalo.com/sponsors/${co.id}`,
       ...(logoUrl ? { images: [{ url: logoUrl }] } : {}),
     },
-    twitter: { card: "summary", title, description },
+    twitter: { card: "summary", title, description, ...(logoUrl ? { images: [logoUrl] } : {}) },
   };
 }
 

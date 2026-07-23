@@ -10,10 +10,21 @@ import { Pagination } from "@/components/pagination";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
+const TITLE = "Annuaire des sponsors";
+const DESCRIPTION =
+  "Découvrez les entreprises prêtes à sponsoriser des événements : galas, soirées communautaires, anniversaires. Entreprises : inscrivez-vous gratuitement.";
+
 export const metadata: Metadata = {
-  title: "Annuaire des sponsors",
-  description:
-    "Découvrez les entreprises prêtes à sponsoriser des événements : galas, soirées communautaires, anniversaires. Entreprises : inscrivez-vous gratuitement.",
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "https://eventgalo.com/sponsors" },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "https://eventgalo.com/sponsors",
+    images: [{ url: "/og-default.png", width: 1200, height: 630 }],
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/og-default.png"] },
 };
 
 interface DirectoryCompany {

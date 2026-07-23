@@ -476,6 +476,20 @@ export default function Home() {
         </section>
 
         <section className="section">
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                mainEntity: FAQS.map((f) => ({
+                  "@type": "Question",
+                  name: f.q,
+                  acceptedAnswer: { "@type": "Answer", text: f.a },
+                })),
+              }),
+            }}
+          />
           <Reveal>
             <span className="section-kicker">Questions fréquentes</span>
             <SplitTitle className="section-title">Vous vous posez des questions ?</SplitTitle>
