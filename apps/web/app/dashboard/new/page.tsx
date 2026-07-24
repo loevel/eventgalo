@@ -152,6 +152,7 @@ export default function NewEvent() {
   // Étape 3 — récapitulatif
   const [description, setDescription] = useState("");
   const [dressCode, setDressCode] = useState("");
+  const [communityTag, setCommunityTag] = useState("");
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [agendaForm, setAgendaForm] = useState({ time: "", label: "" });
   const [seatingPlan, setSeatingPlan] = useState("");
@@ -335,6 +336,7 @@ export default function NewEvent() {
         body: {
           description: description || null,
           dress_code: dressCode || null,
+          community_tag: communityTag || null,
           seating_plan: seatingPlan || null,
           agenda,
           rsvp_question: type === "private" ? rsvpQuestion || null : null,
@@ -702,6 +704,18 @@ export default function NewEvent() {
             <textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
             <label>Dress code</label>
             <input value={dressCode} onChange={(e) => setDressCode(e.target.value)} placeholder="Tenue de soirée" />
+
+            <label>Association / communauté organisatrice (optionnel)</label>
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Affichée sur la page publique de l&apos;événement — ex. « Association des Bandjoun de Montréal »,
+              « Communauté bamiléké de l'Ontario »…
+            </p>
+            <input
+              value={communityTag}
+              onChange={(e) => setCommunityTag(e.target.value)}
+              maxLength={120}
+              placeholder="Association des Bandjoun de Montréal"
+            />
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
               <label style={{ margin: 0 }}>Programme de la soirée (optionnel)</label>

@@ -110,6 +110,14 @@ const FAQS = [
     q: "Mes paiements et mes données sont-ils sécurisés ?",
     a: "Tous les paiements sont traités par Stripe, qui gère la conformité PCI-DSS — EventGalo ne stocke aucune donnée de carte bancaire. La connexion se fait sans mot de passe, par lien magique envoyé par email.",
   },
+  {
+    q: "EventGalo convient-il aux galas et associations villageoises camerounaises au Canada ?",
+    a: "Oui — de nombreuses associations et communautés camerounaises au Canada (Bandjoun, Bafoussam, Bangangté, Baham, Bafang, Dschang, Douala…) utilisent EventGalo pour leurs galas annuels : invitations, RSVP, billetterie et sponsoring, à Montréal, Ottawa-Gatineau, Toronto ou ailleurs.",
+  },
+  {
+    q: "Puis-je organiser un événement pour mon association culturelle ou ma communauté ?",
+    a: "Absolument. Invitations personnalisées, RSVP, billetterie sécurisée et recherche de sponsors fonctionnent aussi bien pour un gala de charité, une soirée culturelle bamiléké ou africaine, ou les retrouvailles d'une association villageoise que pour tout autre type d'événement communautaire.",
+  },
 ];
 
 const PAYMENT_LOGOS = [

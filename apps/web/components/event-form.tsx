@@ -21,6 +21,7 @@ export interface EventFormPayload {
   day_of_phone: string | null;
   coat_check_available: boolean;
   coat_check_details: string | null;
+  community_tag: string | null;
   rsvp_question: string | null;
   seating_plan: string | null;
   agenda: Array<{ time: string; label: string }>;
@@ -89,6 +90,7 @@ export function EventForm({
     day_of_phone: initial?.day_of_phone ?? "",
     coat_check_available: Boolean(initial?.coat_check_available),
     coat_check_details: initial?.coat_check_details ?? "",
+    community_tag: initial?.community_tag ?? "",
     rsvp_question: initial?.rsvp_question ?? "",
     seating_plan: initial?.seating_plan ?? "",
     capacity: String(initial?.capacity ?? "100"),
@@ -167,6 +169,7 @@ export function EventForm({
         day_of_phone: form.day_of_phone || null,
         coat_check_available: form.coat_check_available,
         coat_check_details: form.coat_check_available ? form.coat_check_details || null : null,
+        community_tag: form.community_tag || null,
         rsvp_question: form.type === "private" ? form.rsvp_question || null : null,
         seating_plan: form.seating_plan || null,
         agenda,
@@ -367,6 +370,18 @@ export function EventForm({
           <input required type="number" min={1} value={form.capacity} onChange={(e) => set("capacity", e.target.value)} />
         </div>
       </div>
+
+      <label>Association / communauté organisatrice (optionnel)</label>
+      <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+        Affichée sur la page publique de l&apos;événement — ex. « Association des Bandjoun de Montréal »,
+        « Communauté bamiléké de l'Ontario »…
+      </p>
+      <input
+        value={form.community_tag}
+        onChange={(e) => set("community_tag", e.target.value)}
+        maxLength={120}
+        placeholder="Association des Bandjoun de Montréal"
+      />
 
       {form.type === "private" && (
         <>

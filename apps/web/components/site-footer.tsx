@@ -18,6 +18,12 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     ],
   },
   {
+    title: "Communauté",
+    links: [
+      { href: "/communaute-camerounaise", label: "Galas & associations camerounaises" },
+    ],
+  },
+  {
     title: "Légal",
     links: [
       { href: "/cgu", label: "Conditions générales d'utilisation" },

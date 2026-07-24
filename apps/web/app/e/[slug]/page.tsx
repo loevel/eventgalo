@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock, SquareParking, Accessibility, BadgeAlert, PackageCheck } from "lucide-react";
+import { Ticket, PartyPopper, CalendarPlus, CalendarDays, MapPin, Shirt, Hourglass, Megaphone, ArrowRight, Clock, Navigation, Camera, Handshake, Globe, Phone, Mail, CalendarClock, SquareParking, Accessibility, BadgeAlert, PackageCheck, Users } from "lucide-react";
 import { parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
 import { SOCIAL_ICON_COMPONENTS } from "@/components/social-icons";
 import { CheckoutForm } from "@/components/checkout-form";
@@ -28,6 +28,7 @@ interface PublicEvent {
   day_of_phone: string | null;
   coat_check_available: number;
   coat_check_details: string | null;
+  community_tag: string | null;
   type: string;
   public_slug: string;
   cover_media_id: string | null;
@@ -162,7 +163,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const ev = data.event;
   const description = ev.description
     ? truncate(ev.description)
-    : `${ev.title} — ${formatDate(ev.starts_at)}${ev.venue ? ` · ${ev.venue}` : ""}`;
+    : `${ev.title} — ${formatDate(ev.starts_at)}${ev.venue ? ` · ${ev.venue}` : ""}${ev.community_tag ? ` · ${ev.community_tag}` : ""}`;
   const coverUrl = ev.cover_media_id ? `${API_BASE}/api/public/media/${ev.cover_media_id}/file` : null;
   return {
     title: ev.title,
@@ -269,10 +270,18 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
               alt={`Logo — ${ev.title}`}
             />
           )}
-          <span className="hero-badge glass glass-chip">
-            {ev.type === "ticketed" ? <Ticket /> : <PartyPopper />}
-            {ev.type === "ticketed" ? "Billetterie" : "Invitation"}
-          </span>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <span className="hero-badge glass glass-chip">
+              {ev.type === "ticketed" ? <Ticket /> : <PartyPopper />}
+              {ev.type === "ticketed" ? "Billetterie" : "Invitation"}
+            </span>
+            {ev.community_tag && (
+              <span className="hero-badge glass glass-chip">
+                <Users />
+                {ev.community_tag}
+              </span>
+            )}
+          </div>
           <h1>{ev.title}</h1>
           <div className="hero-cta-row">
             <a className="btn glass glass-btn" href={`${API_BASE}/api/public/events/${slug}/ics`}>

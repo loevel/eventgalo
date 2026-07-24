@@ -33,6 +33,11 @@ export const metadata: Metadata = {
     "vente de billets",
     "QR code billet",
     "gestion d'événements",
+    "gala camerounais",
+    "gala bamiléké",
+    "association culturelle camerounaise",
+    "communauté camerounaise Canada",
+    "événements diaspora africaine",
   ],
   alternates: { canonical: "./" },
   openGraph: {

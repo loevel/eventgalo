@@ -71,8 +71,8 @@ events.post("/", async (c) => {
        dress_code, seating_plan, capacity, public_slug, scanner_key, type, status, refund_policy, rsvp_question,
        parking_available, parking_details, accessibility_available, accessibility_details,
        age_restriction, age_restriction_details, day_of_phone, coat_check_available, coat_check_details,
-       created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       community_tag, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id, user.id, title,
@@ -91,6 +91,7 @@ events.post("/", async (c) => {
       (b.day_of_phone as string) || null,
       b.coat_check_available ? 1 : 0,
       (b.coat_check_details as string) || null,
+      clampText(b.community_tag, 120),
       nowIso(), nowIso(),
     )
     .run();
@@ -217,6 +218,10 @@ events.patch("/:id", async (c) => {
       sets.push(`${key} = ?`);
       values.push(b[key]);
     }
+  }
+  if (b.community_tag !== undefined) {
+    sets.push("community_tag = ?");
+    values.push(clampText(b.community_tag, 120));
   }
   if (b.parking_available !== undefined) {
     sets.push("parking_available = ?");
