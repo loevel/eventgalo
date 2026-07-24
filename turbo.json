@@ -5,8 +5,16 @@
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", ".open-next/**", "dist/**"]
     },
+    "build:worker": {
+      "dependsOn": ["^build"],
+      "outputs": [".open-next/**"]
+    },
     "deploy": {
       "dependsOn": ["build"],
+      "cache": false
+    },
+    "@eventgalo/web#deploy": {
+      "dependsOn": ["build:worker"],
       "cache": false
     },
     "dev": {
