@@ -591,6 +591,46 @@ tr:last-child td { border-bottom: none; }
 .usecases .card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
 .usecases .card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -18px rgba(28,26,23,0.35); }
 
+/* Chips (tags de villages, régions…) */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 99px;
+  background: var(--surface); border: 1px solid var(--line);
+  font-size: 13px; font-weight: 500; color: var(--ink);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.chip svg { width: 13px; height: 13px; color: var(--accent); }
+a.chip:hover, .chip.hoverable:hover { border-color: rgba(143,64,9,0.4); color: var(--accent); text-decoration: none; }
+
+/* Lien "Découvrir →" en bas d'une carte feature */
+.feature-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 600; color: var(--accent);
+  padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--line);
+}
+.feature-link svg { width: 15px; height: 15px; transition: transform 0.15s ease; }
+a.feature-link:hover svg { transform: translateX(3px); }
+.feature-accent .feature-link { color: #fff; border-top-color: rgba(255,255,255,0.2); }
+
+/* Portrait avec légende flottante (photo + accroche en carte sombre) */
+.portrait-frame { position: relative; }
+.portrait-frame img {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
+  border-radius: var(--radius); border: 1px solid var(--line);
+}
+.portrait-caption {
+  position: absolute; left: 24px; bottom: -18px; max-width: 210px;
+  padding: 14px 18px; border-radius: 12px;
+  font-family: var(--font-display); font-style: italic; font-size: 14px; color: var(--gold);
+  background: linear-gradient(160deg, var(--gala-ink), var(--gala-ink-2));
+  border: 1px solid rgba(217,166,98,0.3);
+  box-shadow: 0 16px 32px -18px rgba(28,26,23,0.5);
+}
+@media (max-width: 640px) {
+  .portrait-caption { position: static; margin-top: 12px; max-width: none; }
+}
+
 .login-section { display: flex; justify-content: center; }
 .login-card { width: 100%; max-width: 480px; position: relative; overflow: hidden; }
 .login-card::before {
