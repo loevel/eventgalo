@@ -2,10 +2,11 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { requireAuth, revokeUserSessions } from "../lib/auth";
 import { requireAdmin, requireSuperadmin, logAdminAction, getSetting, setSetting } from "../lib/admin";
-import { nowIso } from "../lib/crypto";
+import { nowIso, uuid } from "../lib/crypto";
 import { deleteEventCascade } from "../lib/event-delete";
 import { generateFraudRiskAssessment } from "../lib/ai";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import { deleteProcessedImage, putProcessedImage, validateMediaFile } from "../lib/media";
 
 const admin = new Hono<AppContext>();
 admin.use("*", requireAuth, requireAdmin);
@@ -456,6 +457,139 @@ admin.post("/ads/:id/reject", async (c) => {
     .run();
   if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
   await logAdminAction(c.env, admin_.id, "ad.reject", "ad_slot", id);
+  return c.json({ ok: true });
+});
+
+interface HeroSlideRow {
+  id: string;
+  image_key: string | null;
+  image_type: string | null;
+  caption: string | null;
+  position: number;
+  active: number;
+  created_at: string;
+}
+
+/** Diapositives du carrousel hero de la page d'accueil (gestion complète). */
+admin.get("/hero-slides", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT id, image_key, image_type, caption, position, active, created_at
+     FROM hero_slides ORDER BY position ASC, created_at ASC`,
+  ).all<HeroSlideRow>();
+  return c.json({ slides: rows.results });
+});
+
+/** Crée une diapositive (légende seule au départ — l'image s'ajoute séparément). */
+admin.post("/hero-slides", async (c) => {
+  const admin_ = c.get("user");
+  const body = await c.req.json<{ caption?: string }>().catch(() => ({}) as Record<string, never>);
+  const caption = typeof body.caption === "string" ? body.caption.trim().slice(0, 200) : null;
+  const maxPosition = await c.env.DB.prepare("SELECT COALESCE(MAX(position), -1) AS n FROM hero_slides")
+    .first<{ n: number }>();
+  const id = uuid();
+  await c.env.DB.prepare(
+    `INSERT INTO hero_slides (id, caption, position, active, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, ?)`,
+  )
+    .bind(id, caption || null, (maxPosition?.n ?? -1) + 1, nowIso(), nowIso())
+    .run();
+  await logAdminAction(c.env, admin_.id, "hero_slide.create", "hero_slide", id);
+  return c.json({ id }, 201);
+});
+
+/** Met à jour la légende et/ou la visibilité d'une diapositive. */
+admin.patch("/hero-slides/:id", async (c) => {
+  const admin_ = c.get("user");
+  const id = c.req.param("id");
+  const body = await c.req.json<{ caption?: string; active?: boolean }>().catch(() => ({}) as Record<string, never>);
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (body.caption !== undefined) {
+    sets.push("caption = ?");
+    binds.push(typeof body.caption === "string" ? body.caption.trim().slice(0, 200) || null : null);
+  }
+  if (body.active !== undefined) {
+    sets.push("active = ?");
+    binds.push(body.active ? 1 : 0);
+  }
+  if (!sets.length) return c.json({ error: "Rien à mettre à jour" }, 400);
+  sets.push("updated_at = ?");
+  binds.push(nowIso());
+  const result = await c.env.DB.prepare(`UPDATE hero_slides SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...binds, id)
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Introuvable" }, 404);
+  await logAdminAction(c.env, admin_.id, "hero_slide.update", "hero_slide", id, body);
+  return c.json({ ok: true });
+});
+
+/** Déplace une diapositive d'un cran dans l'ordre d'affichage. */
+admin.post("/hero-slides/:id/move", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.json<{ direction?: "up" | "down" }>().catch(() => ({}) as Record<string, never>);
+  if (!["up", "down"].includes(body.direction ?? "")) return c.json({ error: "Direction invalide" }, 400);
+  const slide = await c.env.DB.prepare("SELECT id, position FROM hero_slides WHERE id = ?")
+    .bind(id)
+    .first<{ id: string; position: number }>();
+  if (!slide) return c.json({ error: "Introuvable" }, 404);
+  const neighbor = await c.env.DB.prepare(
+    `SELECT id, position FROM hero_slides WHERE position ${body.direction === "up" ? "<" : ">"} ?
+     ORDER BY position ${body.direction === "up" ? "DESC" : "ASC"} LIMIT 1`,
+  )
+    .bind(slide.position)
+    .first<{ id: string; position: number }>();
+  if (!neighbor) return c.json({ ok: true });
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE hero_slides SET position = ? WHERE id = ?").bind(neighbor.position, slide.id),
+    c.env.DB.prepare("UPDATE hero_slides SET position = ? WHERE id = ?").bind(slide.position, neighbor.id),
+  ]);
+  return c.json({ ok: true });
+});
+
+/** Image d'une diapositive (même pipeline de traitement que le logo entreprise). */
+admin.post("/hero-slides/:id/image", async (c) => {
+  const row = await c.env.DB.prepare("SELECT id, image_key FROM hero_slides WHERE id = ?")
+    .bind(c.req.param("id"))
+    .first<{ id: string; image_key: string | null }>();
+  if (!row) return c.json({ error: "Introuvable" }, 404);
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) return c.json({ error: "Fichier manquant" }, 400);
+  const invalid = validateMediaFile(file);
+  if (invalid) return c.json({ error: invalid }, 400);
+  const key = `hero/${row.id}/${uuid()}`;
+  const contentType = await putProcessedImage(c.env, key, file);
+  if (row.image_key) await deleteProcessedImage(c.env, row.image_key);
+  await c.env.DB.prepare("UPDATE hero_slides SET image_key = ?, image_type = ?, updated_at = ? WHERE id = ?")
+    .bind(key, contentType, nowIso(), row.id)
+    .run();
+  return c.json({ ok: true });
+});
+
+/** Retire l'image d'une diapositive (repasse en légende seule, sans supprimer la diapositive). */
+admin.delete("/hero-slides/:id/image", async (c) => {
+  const row = await c.env.DB.prepare("SELECT id, image_key FROM hero_slides WHERE id = ?")
+    .bind(c.req.param("id"))
+    .first<{ id: string; image_key: string | null }>();
+  if (!row) return c.json({ error: "Introuvable" }, 404);
+  if (row.image_key) await deleteProcessedImage(c.env, row.image_key);
+  await c.env.DB.prepare("UPDATE hero_slides SET image_key = NULL, image_type = NULL, updated_at = ? WHERE id = ?")
+    .bind(nowIso(), row.id)
+    .run();
+  return c.json({ ok: true });
+});
+
+/** Supprime définitivement une diapositive. */
+admin.delete("/hero-slides/:id", async (c) => {
+  const admin_ = c.get("user");
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare("SELECT image_key FROM hero_slides WHERE id = ?")
+    .bind(id)
+    .first<{ image_key: string | null }>();
+  if (!row) return c.json({ error: "Introuvable" }, 404);
+  if (row.image_key) await deleteProcessedImage(c.env, row.image_key);
+  await c.env.DB.prepare("DELETE FROM hero_slides WHERE id = ?").bind(id).run();
+  await logAdminAction(c.env, admin_.id, "hero_slide.delete", "hero_slide", id);
   return c.json({ ok: true });
 });
 

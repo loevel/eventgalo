@@ -44,6 +44,34 @@ pub.get("/settings/ad-price", async (c) => {
   return c.json({ price_cents_per_week: priceCentsPerWeek, currency: "CAD" });
 });
 
+/** Diapositives actives du carrousel hero de la page d'accueil, dans l'ordre d'affichage. */
+pub.get("/hero-slides", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT id, caption, (image_key IS NOT NULL) AS has_image
+     FROM hero_slides WHERE active = 1 ORDER BY position ASC`,
+  ).all<{ id: string; caption: string | null; has_image: number }>();
+  return c.json({ slides: rows.results });
+});
+
+/** Image d'une diapositive du hero, servie depuis R2 (même pattern que la créative publicitaire). */
+pub.get("/hero-slides/:id/image", async (c) => {
+  const row = await c.env.DB.prepare("SELECT image_key, image_type FROM hero_slides WHERE id = ?")
+    .bind(c.req.param("id"))
+    .first<{ image_key: string | null; image_type: string | null }>();
+  if (!row?.image_key) return c.json({ error: "Image introuvable" }, 404);
+  const wantsThumb = c.req.query("thumb") === "1";
+  const thumbKey = `${row.image_key}${THUMB_SUFFIX}`;
+  const obj = (wantsThumb ? await c.env.MEDIA.get(thumbKey) : null) ?? (await c.env.MEDIA.get(row.image_key));
+  if (!obj) return c.json({ error: "Image introuvable" }, 404);
+  return new Response(obj.body, {
+    headers: {
+      "Content-Type": wantsThumb && obj.key === thumbKey ? "image/webp" : (row.image_type ?? "image/png"),
+      "Cache-Control": "public, max-age=31536000, immutable",
+      ETag: obj.httpEtag,
+    },
+  });
+});
+
 // Liste des événements publiés (slug + date de mise à jour) — utilisée par le sitemap du site web
 pub.get("/events", async (c) => {
   const events = await c.env.DB.prepare(

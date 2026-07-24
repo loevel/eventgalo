@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
@@ -38,8 +38,7 @@ export function HeroFx() {
     const cleanups: Array<() => void> = [];
     if (window.matchMedia("(pointer: fine)").matches) {
       // Parallax du texte du hero : mouvement très subtil, à l'opposé du curseur —
-      // couche la plus au premier plan, donc celle qui bouge le moins (l'anneau
-      // 3D et les particules, plus en profondeur, réagissent davantage).
+      // couche la plus au premier plan, donc celle qui bouge le moins.
       const heroContent = document.querySelector<HTMLElement>(".landing-hero-content");
       const heroSection = document.querySelector<HTMLElement>(".landing-hero");
       if (heroContent && heroSection) {
@@ -201,67 +200,6 @@ export function StatNumber({ value }: { value: string }) {
   );
 }
 
-interface Speck {
-  left: number;
-  size: number;
-  top: number;
-}
-
-/** Poussière d'or qui retombe du hero derrière la barre de stats. */
-export function GoldDust() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [specks, setSpecks] = useState<Speck[]>([]);
-
-  // Générées côté client uniquement (aléatoire ⇒ pas de rendu serveur possible).
-  useEffect(() => {
-    if (reduceMotion()) return;
-    setSpecks(
-      Array.from({ length: 14 }, () => ({
-        left: 2 + Math.random() * 96,
-        size: 3 + Math.random() * 5,
-        top: Math.random() * 100,
-      })),
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!specks.length || !ref.current) return;
-    const ctx = gsap.context(() => {
-      gsap.utils.toArray<HTMLElement>(".gold-dust span").forEach((s) => {
-        gsap.to(s, {
-          y: -(30 + Math.random() * 50),
-          x: (Math.random() - 0.5) * 30,
-          duration: 4 + Math.random() * 5,
-          repeat: -1,
-          yoyo: true,
-          ease: "sine.inOut",
-          delay: Math.random() * 4,
-        });
-        gsap.to(s, {
-          opacity: 0.25 + Math.random() * 0.5,
-          duration: 1.5 + Math.random() * 2,
-          repeat: -1,
-          yoyo: true,
-          ease: "sine.inOut",
-          delay: Math.random() * 3,
-        });
-      });
-    }, ref);
-    return () => ctx.revert();
-  }, [specks]);
-
-  return (
-    <div className="gold-dust" ref={ref} aria-hidden="true">
-      {specks.map((s, i) => (
-        <span
-          key={i}
-          style={{ left: `${s.left}%`, top: `${s.top}%`, width: s.size, height: s.size }}
-        />
-      ))}
-    </div>
-  );
-}
-
 /** Trait doré qui relie les étapes 1 → 2 → 3 et se dessine au scroll. */
 export function StepsPath() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -359,104 +297,6 @@ export function TiltCard({ children, className }: { children: React.ReactNode; c
  * entreprises) reliés quand ils se rapprochent — la mise en relation, en image.
  * Canvas 2D léger, en pause hors du viewport.
  */
-export function ConstellationBg() {
-  const ref = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const parent = canvas.parentElement!;
-    const ctx2d = canvas.getContext("2d");
-    if (!ctx2d) return;
-
-    const NODES = 46;
-    const LINK_DIST = 150;
-    const nodes = Array.from({ length: NODES }, () => ({
-      x: Math.random(),
-      y: Math.random(),
-      vx: (Math.random() - 0.5) * 0.0006,
-      vy: (Math.random() - 0.5) * 0.0006,
-      r: 1.6 + Math.random() * 2.2,
-    }));
-
-    let w = 0;
-    let h = 0;
-    function resize() {
-      const dpr = Math.min(window.devicePixelRatio, 2);
-      w = parent.clientWidth;
-      h = parent.clientHeight;
-      canvas!.width = w * dpr;
-      canvas!.height = h * dpr;
-      ctx2d!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(parent);
-
-    function draw() {
-      ctx2d!.clearRect(0, 0, w, h);
-      for (const n of nodes) {
-        n.x += n.vx;
-        n.y += n.vy;
-        if (n.x < 0 || n.x > 1) n.vx *= -1;
-        if (n.y < 0 || n.y > 1) n.vy *= -1;
-      }
-      for (let i = 0; i < NODES; i++) {
-        for (let j = i + 1; j < NODES; j++) {
-          const dx = (nodes[i].x - nodes[j].x) * w;
-          const dy = (nodes[i].y - nodes[j].y) * h;
-          const d = Math.hypot(dx, dy);
-          if (d < LINK_DIST) {
-            ctx2d!.strokeStyle = `rgba(180, 120, 40, ${0.34 * (1 - d / LINK_DIST)})`;
-            ctx2d!.lineWidth = 1;
-            ctx2d!.beginPath();
-            ctx2d!.moveTo(nodes[i].x * w, nodes[i].y * h);
-            ctx2d!.lineTo(nodes[j].x * w, nodes[j].y * h);
-            ctx2d!.stroke();
-          }
-        }
-      }
-      for (const n of nodes) {
-        ctx2d!.fillStyle = "rgba(201, 118, 31, 0.65)";
-        ctx2d!.beginPath();
-        ctx2d!.arc(n.x * w, n.y * h, n.r, 0, Math.PI * 2);
-        ctx2d!.fill();
-      }
-    }
-
-    let frameId = 0;
-    let running = false;
-    function loop() {
-      draw();
-      frameId = requestAnimationFrame(loop);
-    }
-
-    if (reduceMotion()) {
-      draw(); // une seule frame statique
-      return () => ro.disconnect();
-    }
-
-    const io = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !running) {
-        running = true;
-        frameId = requestAnimationFrame(loop);
-      } else if (!entry.isIntersecting && running) {
-        running = false;
-        cancelAnimationFrame(frameId);
-      }
-    });
-    io.observe(parent);
-
-    return () => {
-      io.disconnect();
-      ro.disconnect();
-      cancelAnimationFrame(frameId);
-    };
-  }, []);
-
-  return <canvas ref={ref} className="constellation" aria-hidden="true" />;
-}
-
 /**
  * Frise géométrique inspirée des motifs perlés bamiléké (Ouest-Cameroun) :
  * chevrons entrelacés formant un lattis de losanges, utilisée comme séparateur

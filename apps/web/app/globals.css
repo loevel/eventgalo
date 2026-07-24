@@ -1316,13 +1316,6 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 .btn-gold:hover::after { animation: goldSheen 0.9s ease; }
 @keyframes goldSheen { to { left: 135%; } }
 
-/* Poussière d'or qui retombe du hero derrière la barre de stats. */
-.gold-dust { position: absolute; left: 0; right: 0; top: -70px; bottom: -90px; pointer-events: none; z-index: -1; overflow: hidden; }
-.gold-dust span {
-  position: absolute; border-radius: 50%; opacity: 0;
-  background: radial-gradient(circle, #d9a662 0%, rgba(217,166,98,0) 70%);
-}
-
 /* Trait doré reliant les étapes 1 → 2 → 3. */
 .steps-wrap { position: relative; }
 .steps-path { position: absolute; top: 24px; left: 4%; width: 92%; height: 70px; pointer-events: none; }
@@ -1330,11 +1323,6 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 
 /* Cartes inclinables (GSAP pilote la rotation sur le wrapper, pas la carte). */
 .tilt { will-change: transform; transform-style: preserve-3d; }
-
-/* Constellation derrière la section marketplace. */
-.marketplace-section { position: relative; }
-.marketplace-section > *:not(.constellation) { position: relative; z-index: 1; }
-.constellation { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; opacity: 0.6; }
 
 /* Motifs culturels camerounais (grassfields bamiléké/bamoun) — voir landing-fx.tsx */
 .bamileke-divider {
@@ -1397,9 +1385,6 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
 /* Le kicker se resserre en apparaissant (piloté par le Reveal existant). */
 .section-kicker { transition: letter-spacing 1.1s ease; }
 .reveal:not(.reveal-visible) .section-kicker { letter-spacing: 0.5em; }
-
-/* Constellation renforcée. */
-.constellation { opacity: 0.85; }
 
 @media (prefers-reduced-motion: reduce) {
   .feature:hover::after { animation: none; opacity: 0; }

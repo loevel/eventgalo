@@ -9,7 +9,7 @@ import { Reveal } from "@/components/reveal";
 import { AdBand } from "@/components/ad-band";
 import { HeroCarousel } from "@/components/hero-carousel";
 import {
-  BamilekeDivider, ConstellationBg, GoldDust, HeroFx, LeopardRosettes, SectionDepthFx, SpiderMark,
+  BamilekeDivider, HeroFx, LeopardRosettes, SectionDepthFx, SpiderMark,
   SplitTitle, StatNumber, StepsPath, TiltCard,
 } from "@/components/landing-fx";
 
@@ -207,7 +207,6 @@ export default function Home() {
       </div>
 
       <div className="hero-stats-wrap">
-        <GoldDust />
         <div className="hero-stats-bar">
           {STATS.map((s) => (
             <div className="hero-stat glass" key={s.label}>
@@ -398,7 +397,6 @@ export default function Home() {
         </section>
 
         <section className="section marketplace-section">
-          <ConstellationBg />
           <Reveal>
             <SpiderMark />
             <span className="section-kicker">Place de marché</span>
