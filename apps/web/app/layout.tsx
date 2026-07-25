@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces } from "next/font/google";
+import { Fraunces, Instrument_Sans } from "next/font/google";
 import Link from "next/link";
 import { TopbarNav } from "@/components/topbar-nav";
 import { SiteBanner } from "@/components/site-banner";
@@ -10,6 +10,12 @@ const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-display",
   axes: ["opsz", "SOFT", "WONK"],
+  display: "swap",
+});
+
+const instrumentSans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
   display: "swap",
 });
 
@@ -90,7 +96,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={fraunces.variable}>
+    <html lang="fr" className={`${fraunces.variable} ${instrumentSans.variable}`}>
       <body>
         <script
           type="application/ld+json"

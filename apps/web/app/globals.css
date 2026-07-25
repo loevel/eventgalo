@@ -15,6 +15,7 @@
   --gala-ink-2: #241a12;
   --gold: #d9a662;
   --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Instrument Sans", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
 }
 
 /* Ponts vers Tailwind : ces tokens deviennent des utilitaires (bg-ink, text-gold, font-display…) */
@@ -31,6 +32,7 @@
   --color-gala-ink-2: var(--gala-ink-2);
   --color-gold: var(--gold);
   --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
 }
 
 * { box-sizing: border-box; }
@@ -39,7 +41,7 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
