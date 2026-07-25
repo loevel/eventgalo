@@ -319,7 +319,7 @@ tr:last-child td { border-bottom: none; }
   transition: opacity 1.1s ease;
 }
 .hero-slide.active { opacity: 1; }
-.hero-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hero-slide img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
 .hero-scrim { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: rgba(18,15,12,0.56); }
 .hero-slide-caption {
   position: absolute; left: 28px; bottom: 84px; z-index: 1; max-width: 320px;
@@ -486,7 +486,11 @@ tr:last-child td { border-bottom: none; }
 .btn svg { width: 16px; height: 16px; vertical-align: -3px; margin-left: 2px; }
 
 @media (max-width: 640px) {
-  .landing-hero { min-height: 100vh; min-height: 100svh; }
+  /* Conteneur du hero moins extrême en hauteur sur mobile : en 100svh plein écran,
+     le ratio devient si haut/étroit que object-fit: cover doit rogner énormément
+     les photos (paysage ou carrées) pour "couvrir" — l'image apparaît disproportionnée,
+     très zoomée. On limite donc la hauteur pour réduire ce rognage. */
+  .landing-hero { min-height: 78vh; min-height: 78svh; }
   .landing-hero-content { padding: 96px 20px 80px; }
   .landing-hero h1 { font-size: 40px; }
   .landing-hero p { font-size: 16px; }
