@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
+const COLUMNS: { title: string; links: { href: string; label: string }[]; note?: string }[] = [
   {
     title: "Produit",
     links: [
@@ -22,14 +22,13 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     links: [
       { href: "/communaute-camerounaise", label: "Galas & associations camerounaises" },
     ],
+    note: "Villages, associations et diaspora camerounaise au Canada.",
   },
-  {
-    title: "Légal",
-    links: [
-      { href: "/cgu", label: "Conditions générales d'utilisation" },
-      { href: "/confidentialite", label: "Politique de confidentialité" },
-    ],
-  },
+];
+
+const LEGAL_LINKS = [
+  { href: "/cgu", label: "CGU" },
+  { href: "/confidentialite", label: "Confidentialité" },
 ];
 
 export function SiteFooter() {
@@ -37,8 +36,12 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="site-footer-grid">
         <div className="site-footer-brand">
-          <span className="brand">
-            Event<span>Galo</span>
+          <span className="brand-row">
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo fixe et léger, next/image est superflu ici */}
+            <img src="/icon.svg" alt="" className="brand-mark" width={26} height={26} />
+            <span className="brand">
+              Event<span>Galo</span>
+            </span>
           </span>
           <p className="muted">Invitations, RSVP et billetterie pour vos événements.</p>
         </div>
@@ -50,11 +53,19 @@ export function SiteFooter() {
                 {l.label}
               </Link>
             ))}
+            {col.note && <p className="site-footer-col-note">{col.note}</p>}
           </div>
         ))}
       </div>
       <div className="site-footer-bottom">
         <span className="muted">© {new Date().getFullYear()} EventGalo</span>
+        <div className="site-footer-legal">
+          {LEGAL_LINKS.map((l) => (
+            <Link key={l.href} href={l.href}>
+              {l.label}
+            </Link>
+          ))}
+        </div>
       </div>
     </footer>
   );

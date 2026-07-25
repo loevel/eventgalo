@@ -217,7 +217,7 @@ export default function Home() {
       <div className="hero-stats-wrap">
         <div className="hero-stats-bar">
           {STATS.map((s) => (
-            <div className="hero-stat glass" key={s.label}>
+            <div className="hero-stat" key={s.label}>
               <s.icon />
               <div>
                 <StatNumber value={s.num} />
@@ -250,9 +250,19 @@ export default function Home() {
                 </div>
                 <h3>{FEATURES[2].title}</h3>
                 <p>{FEATURES[2].text}</p>
-                <div className="feature-bars">
-                  {[0.5, 0.75, 1, 0.65, 0.85].map((h, i) => (
-                    <div key={i} className="feature-bar" style={{ height: `${h * 100}%` }} />
+                <div className="feature-vendors">
+                  {[
+                    { label: "Vendeur 1", tickets: 42, pct: 92 },
+                    { label: "Vendeur 2", tickets: 31, pct: 68 },
+                    { label: "Vendeur 3", tickets: 19, pct: 41 },
+                  ].map((v) => (
+                    <div className="feature-vendor-row" key={v.label}>
+                      <span>{v.label}</span>
+                      <div className="feature-vendor-track">
+                        <div className="feature-vendor-fill" style={{ width: `${v.pct}%` }} />
+                      </div>
+                      <strong>{v.tickets}</strong>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -355,7 +365,7 @@ export default function Home() {
         </div>
 
         <Reveal>
-          <div className="payments-strip glass depth-fx">
+          <div className="payments-strip depth-fx">
             <div className="payments-strip-head">
               <ShieldCheck />
               <div>

@@ -105,6 +105,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteBanner />
         <div className="topbar">
           <Link href="/" className="brand">
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo fixe et léger, next/image est superflu ici */}
+            <img src="/icon.svg" alt="" width={22} height={22} className="brand-mark" />
             Event<span>Galo</span>
           </Link>
           <TopbarNav />
