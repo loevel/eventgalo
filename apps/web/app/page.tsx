@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Mail, Ticket, BarChart3, Sparkles, ChevronDown, ArrowRight, PartyPopper, ShieldCheck, Handshake, Store, Star,
   Search, Wand2, Camera,
@@ -438,9 +439,9 @@ export default function Home() {
                   entreprises depuis l&apos;annuaire en un clic, encaissez en ligne. Leurs vitrines s&apos;affichent
                   automatiquement sur votre page.
                 </p>
-                <a href="/sponsors" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
+                <Link href="/sponsors" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
                   Parcourir l&apos;annuaire des sponsors
-                </a>
+                </Link>
               </div>
             </Reveal>
             <Reveal delay={90}>

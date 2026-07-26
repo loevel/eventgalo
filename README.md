@@ -43,8 +43,8 @@ pnpm --filter @eventgalo/web deploy
 
 Configurer via `wrangler secret put <NOM>` dans le répertoire de l'app concernée :
 
-- `apps/api` : `TICKET_SIGNING_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-- Sans `RESEND_API_KEY`/`EMAIL_FROM`, les emails ne sont pas envoyés (liens magiques exposés via `debug_url`)
+- `apps/api` : `TICKET_SIGNING_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN` (optionnel — désactive le suivi d'erreurs si absent)
+- L'envoi d'email passe par le binding Cloudflare Email Sending (`EMAIL`, déclaré dans `wrangler.jsonc`) ; `EMAIL_FROM` y est déjà configuré par environnement (`vars`), ce n'est pas un secret à poser séparément. Sans `EMAIL_FROM`, les emails ne sont pas envoyés (liens magiques exposés via `debug_url`)
 - Sans les clés Stripe, les paiements sont désactivés (billets gratuits uniquement)
 
 ## Migrations base de données

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 
 const POLL_INTERVAL_MS = 3000;
@@ -109,7 +110,7 @@ export default function CheckoutSuccess() {
     return (
       <main className="container narrow">
         <div className="alert err">
-          {state.message} — <a href="/">retour à l&apos;accueil</a>
+          {state.message} — <Link href="/">retour à l&apos;accueil</Link>
         </div>
       </main>
     );

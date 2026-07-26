@@ -150,7 +150,6 @@ export default function EventAdmin() {
   const { event: ev, is_owner, guests, categories, sellers, seller_quotas, announcements, refund_requests, sales, waitlist, collaborators, sponsor_tiers, sponsors, performers } = data;
   const opened = guests.filter((g) => g.opened_at).length;
   const yes = guests.filter((g) => g.rsvp_status === "yes").length;
-  const no = guests.filter((g) => g.rsvp_status === "no").length;
   const soldTotal = categories.reduce((s, c) => s + c.sold, 0);
   const revenue = sales.reduce((s, r) => s + (r.revenue_cents ?? 0), 0);
 
@@ -409,7 +408,6 @@ export default function EventAdmin() {
       {tab === "artistes" && <PerformersTab ev={ev} performers={performers} act={act} />}
       {tab === "rapport" && (
         <ReportTab
-          ev={ev}
           categories={categories}
           sales={sales}
           refundRequests={refund_requests}
@@ -2036,9 +2034,8 @@ function RateSponsorInline({
  * par GET /api/events/:id — aucune nouvelle table ni tracking, juste de l'agrégation.
  */
 function ReportTab({
-  ev, categories, sales, refundRequests, waitlist, sponsorTiers, sponsors,
+  categories, sales, refundRequests, waitlist, sponsorTiers, sponsors,
 }: {
-  ev: Record<string, any>;
   categories: Array<Record<string, any>>;
   sales: Array<Record<string, any>>;
   refundRequests: Array<Record<string, any>>;

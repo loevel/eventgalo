@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, DownloadCloud, Inbox, Receipt, Store, Upload } from "lucide-react";
 import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
@@ -234,7 +235,7 @@ export default function CompanyPage() {
       <p className="muted">
         Ouvert aux entreprises comme aux indépendants — coiffeur, photographe, décorateur, DJ… même si ce n&apos;est
         pas votre activité principale. Créez votre profil public pour apparaître dans l&apos;
-        <a href="/sponsors">annuaire des sponsors</a> et/ou l&apos;<a href="/prestataires">annuaire des
+        <Link href="/sponsors">annuaire des sponsors</Link> et/ou l&apos;<a href="/prestataires">annuaire des
         prestataires</a> : les organisateurs d&apos;événements sur EventGalo pourront vous découvrir et vous
         contacter. Vous pouvez aussi <a href="/entreprise/pub">acheter un créneau dans le bandeau publicitaire</a> de
         la page d&apos;accueil.
@@ -614,7 +615,7 @@ export default function CompanyPage() {
 
       <p className="muted" style={{ textAlign: "center" }}>
         <Store size={14} style={{ verticalAlign: -2 }} />{" "}
-        <a href="/sponsors">Voir l&apos;annuaire public des sponsors</a>
+        <Link href="/sponsors">Voir l&apos;annuaire public des sponsors</Link>
       </p>
     </main>
   );

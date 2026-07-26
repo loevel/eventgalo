@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
 import { CalendarDays, CalendarPlus, Check, MapPin, Printer, Shirt, Sparkles } from "lucide-react";
-import { API_BASE, api, formatDate, formatPrice } from "@/lib/api";
+import { API_BASE, api, formatDate } from "@/lib/api";
 import { parsePerks } from "@/lib/perks";
 
 export default function TicketPage() {

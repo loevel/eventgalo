@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, setToken } from "@/lib/api";
 
@@ -28,7 +29,7 @@ export default function AuthCallback() {
     <main className="container narrow">
       {error ? (
         <div className="alert err">
-          {error} — <a href="/">retour à l&apos;accueil</a>
+          {error} — <Link href="/">retour à l&apos;accueil</Link>
         </div>
       ) : (
         <p className="muted">Connexion en cours…</p>

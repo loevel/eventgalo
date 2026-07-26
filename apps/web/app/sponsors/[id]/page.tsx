@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgeCheck, ChevronLeft, Globe, MapPin } from "lucide-react";
 import { parseSocials, videoEmbedUrl, type SocialKey } from "@/lib/sponsor";
@@ -111,9 +112,9 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
     <main className="container narrow">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <a href="/sponsors" className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 14 }}>
+      <Link href="/sponsors" className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 14 }}>
         <ChevronLeft size={16} /> Retour à l&apos;annuaire
-      </a>
+      </Link>
 
       <div className="card directory-card" style={{ marginTop: 16 }}>
         <div className="directory-card-head">

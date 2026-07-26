@@ -22,6 +22,8 @@ export interface Env {
   EMAIL_FROM?: string;
   /** Clé secrète Turnstile : protège la demande de lien magique contre l'abus automatisé. */
   TURNSTILE_SECRET_KEY?: string;
+  /** DSN Sentry : optionnel, aucune erreur envoyée si absent (dev local, avant configuration du secret). */
+  SENTRY_DSN?: string;
 }
 
 export interface AuthedUser {

@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "build": "tsc --noEmit",
     "test": "vitest run",
+    "lint": "eslint .",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply eventgalo-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply eventgalo-db --remote"
@@ -14,13 +15,16 @@
   "dependencies": {
     "@cf-wasm/photon": "^0.3.7",
     "@eventgalo/shared": "workspace:*",
+    "@sentry/cloudflare": "^10.68.0",
     "hono": "^4.12.30",
     "stripe": "^22.3.2"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.6",
     "@cloudflare/workers-types": "^5.20260716.1",
+    "eslint": "^9.39.5",
     "typescript": "^5.8.0",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10",
     "wrangler": "^4.111.0"
   }

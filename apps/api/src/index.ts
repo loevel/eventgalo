@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import * as Sentry from "@sentry/cloudflare";
 import type { AppContext, Env } from "./types";
 import authRoutes from "./routes/auth";
 import eventRoutes from "./routes/events";
@@ -40,6 +41,7 @@ app.route("/api/notifications", notificationRoutes);
 
 app.onError((err, c) => {
   console.error("unhandled", err);
+  Sentry.captureException(err);
   return c.json({ error: "Erreur interne du serveur" }, 500);
 });
 
@@ -158,13 +160,22 @@ async function sendEventReminders(env: Env): Promise<void> {
   }
 }
 
-export default {
-  fetch: app.fetch,
-  scheduled: async (event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
-    if (event.cron === "0 * * * *") {
-      ctx.waitUntil(sendEventReminders(env));
-    } else {
-      ctx.waitUntil(purgeExpiredEvents(env));
-    }
-  },
-};
+export default Sentry.withSentry(
+  (env: Env) => ({
+    dsn: env.SENTRY_DSN,
+    environment: env.ENVIRONMENT,
+    tracesSampleRate: 0.1,
+  }),
+  {
+    fetch: app.fetch,
+    scheduled: async (event: ScheduledController, env: Env, ctx: ExecutionContext) => {
+      const task = event.cron === "0 * * * *" ? sendEventReminders(env) : purgeExpiredEvents(env);
+      ctx.waitUntil(
+        task.catch((err) => {
+          Sentry.captureException(err);
+          throw err;
+        }),
+      );
+    },
+  } satisfies ExportedHandler<Env>,
+);

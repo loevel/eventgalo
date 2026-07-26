@@ -374,7 +374,7 @@ export function EventForm({
       <label>Association / communauté organisatrice (optionnel)</label>
       <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
         Affichée sur la page publique de l&apos;événement — ex. « Association des Bandjoun de Montréal »,
-        « Communauté bamiléké de l'Ontario »…
+        « Communauté bamiléké de l&apos;Ontario »…
       </p>
       <input
         value={form.community_tag}
