@@ -3,17 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Menu, X } from "lucide-react";
 import { api, getToken, setToken } from "@/lib/api";
 import { NotificationBell } from "@/components/notification-bell";
 
-const PUBLIC_LINKS = [
-  { href: "/sponsors", label: "Sponsors" },
-  { href: "/prestataires", label: "Prestataires" },
-  { href: "/opportunites", label: "Opportunités" },
-];
+const PUBLIC_LINK_KEYS = ["sponsors", "vendors", "opportunities"] as const;
+const PUBLIC_LINK_HREFS = {
+  sponsors: "/sponsors",
+  vendors: "/prestataires",
+  opportunities: "/opportunites",
+};
 
 export function TopbarNav() {
+  const t = useTranslations("TopbarNav");
   const pathname = usePathname();
   const [connected, setConnected] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -51,24 +54,28 @@ export function TopbarNav() {
   const authLinks = connected ? (
     <>
       <NotificationBell />
-      <Link href="/dashboard">Mon espace</Link>
-      {isAdmin && <Link href="/admin">Administration</Link>}
+      <Link href="/dashboard">{t("myDashboard")}</Link>
+      {isAdmin && <Link href="/admin">{t("administration")}</Link>}
       <button className="btn-sm btn-ghost" onClick={logout}>
-        Déconnexion
+        {t("logout")}
       </button>
     </>
   ) : (
     <Link href="/connexion" className="btn-sm btn-accent">
-      Connexion
+      {t("login")}
     </Link>
   );
 
   return (
     <>
       <nav className="topbar-links">
-        {PUBLIC_LINKS.map((l) => (
-          <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
-            {l.label}
+        {PUBLIC_LINK_KEYS.map((key) => (
+          <Link
+            key={key}
+            href={PUBLIC_LINK_HREFS[key]}
+            aria-current={pathname === PUBLIC_LINK_HREFS[key] ? "page" : undefined}
+          >
+            {t(key)}
           </Link>
         ))}
         <span className="topbar-sep" aria-hidden="true" />
@@ -77,7 +84,7 @@ export function TopbarNav() {
       <button
         type="button"
         className="topbar-toggle"
-        aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+        aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((v) => !v)}
       >
@@ -85,24 +92,28 @@ export function TopbarNav() {
       </button>
       {menuOpen && (
         <div className="topbar-mobile-panel">
-          {PUBLIC_LINKS.map((l) => (
-            <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
-              {l.label}
+          {PUBLIC_LINK_KEYS.map((key) => (
+            <Link
+              key={key}
+              href={PUBLIC_LINK_HREFS[key]}
+              aria-current={pathname === PUBLIC_LINK_HREFS[key] ? "page" : undefined}
+            >
+              {t(key)}
             </Link>
           ))}
           <hr />
           {connected ? (
             <>
               <NotificationBell />
-              <Link href="/dashboard">Mon espace</Link>
-              {isAdmin && <Link href="/admin">Administration</Link>}
+              <Link href="/dashboard">{t("myDashboard")}</Link>
+              {isAdmin && <Link href="/admin">{t("administration")}</Link>}
               <button className="btn-sm btn-ghost" onClick={logout}>
-                Déconnexion
+                {t("logout")}
               </button>
             </>
           ) : (
             <Link href="/connexion" className="btn-sm btn-accent">
-              Connexion
+              {t("login")}
             </Link>
           )}
         </div>

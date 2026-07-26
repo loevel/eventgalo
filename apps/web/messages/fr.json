@@ -1,0 +1,217 @@
+{
+  "HomePage": {
+    "hero": {
+      "badge": "Invitations · RSVP · Billetterie",
+      "titlePrefix": "Vos événements, ",
+      "titleEmphasis": "sans les relances",
+      "subtitle": "Une fiche unique par événement, des invitations personnalisées avec RSVP en un clic, et une billetterie sécurisée avec suivi par vendeur — anniversaires, galas, soirées communautaires.",
+      "ctaPrimary": "Commencer gratuitement",
+      "ctaSecondary": "Comment ça marche ?",
+      "scrollCue": "Découvrir"
+    },
+    "stats": {
+      "noCard": { "num": "100%", "label": "sans carte bancaire pour démarrer" },
+      "zeroFraud": { "num": "0", "label": "billet dupliqué — QR signés" },
+      "threeMin": { "num": "3 min", "label": "pour publier un événement" }
+    },
+    "features": {
+      "invitations": {
+        "title": "Invitations personnalisées",
+        "text": "Chaque invité reçoit son propre lien : programme, lieu, dress code. Vous voyez qui a ouvert et qui a confirmé, sans relancer personne."
+      },
+      "ticketing": {
+        "title": "Billetterie sécurisée",
+        "text": "Catégories Standard, VIP, VIP+ avec paiement en ligne. QR codes signés à usage unique, impossibles à dupliquer."
+      },
+      "sellerTracking": {
+        "title": "Suivi par vendeur",
+        "text": "Attribuez des quotas à vos vendeurs et suivez leurs ventes en temps réel. Le jour J, scannez les billets à l'entrée depuis votre téléphone."
+      }
+    },
+    "vendors": {
+      "vendor1": "Vendeur 1",
+      "vendor2": "Vendeur 2",
+      "vendor3": "Vendeur 3"
+    },
+    "steps": {
+      "sectionKicker": "Trois étapes",
+      "sectionTitle": "Comment ça marche",
+      "sectionSub": "De la création à l'accueil du jour J, sans jongler entre dix outils.",
+      "create": {
+        "title": "Créez votre événement",
+        "text": "Anniversaire, gala, soirée communautaire : décrivez votre événement en quelques minutes, sans carte bancaire."
+      },
+      "invite": {
+        "title": "Invitez ou vendez",
+        "text": "Envoyez des invitations avec RSVP en un clic, ou mettez vos billets en vente avec vos propres vendeurs."
+      },
+      "welcome": {
+        "title": "Accueillez sereinement",
+        "text": "Le jour J, scannez les QR codes à l'entrée. Chaque billet n'est valide qu'une seule fois — zéro fraude, zéro stress."
+      }
+    },
+    "ai": {
+      "sectionKicker": "Intelligence artificielle",
+      "sectionTitle": "L'IA travaille pour vous",
+      "sectionSub": "Recherche, rédaction, vérification : Workers AI accélère la plateforme sans jamais remplacer votre jugement.",
+      "search": {
+        "title": "Recherche en langage naturel",
+        "text": "Décrivez ce que vous cherchez — « entreprises vérifiées de Montréal en événementiel » ou « galas en septembre » — l'IA traduit votre phrase en filtres, dans l'annuaire comme dans les opportunités de sponsoring."
+      },
+      "agenda": {
+        "title": "Programme suggéré par l'IA",
+        "text": "Un bouton « Suggérer avec l'IA » propose un déroulé complet à partir du thème et de l'horaire de votre événement — à ajuster librement ou publier tel quel."
+      },
+      "trust": {
+        "title": "Confiance vérifiée",
+        "text": "Badge « Vérifiée » par email professionnel ou registre canadien des entreprises, et détection assistée par IA des profils suspects côté modération."
+      }
+    },
+    "useCases": {
+      "private": {
+        "title": "Événements privés",
+        "text": "Lieu, plan de table, dress code : tout dans un lien. Chaque invité a le sien — vous voyez qui a ouvert, qui a confirmé."
+      },
+      "gala": {
+        "title": "Galas & billetterie",
+        "text": "Catégories Standard / VIP / VIP+, quotas par vendeur, paiement en ligne, QR codes signés à usage unique et scan à l'entrée."
+      }
+    },
+    "payments": {
+      "title": "Paiement 100 % sécurisé",
+      "subtitle": "Propulsé par Stripe — vos clients paient comme ils préfèrent."
+    },
+    "testimonialsSection": {
+      "sectionKicker": "Avis clients",
+      "sectionTitle": "Ils nous font confiance",
+      "sectionSub": "Organisateurs, sponsors, prestataires et invités racontent leur expérience."
+    },
+    "testimonials": [
+      {
+        "rating": 5,
+        "hook": "Un gain de temps incroyable pour nos événements !",
+        "quote": "Nous avons utilisé EventGalo pour l'organisation de notre gala annuel et tout s'est déroulé à merveille. Le suivi par vendeur est hyper pratique, et le système de scan par QR code le jour J nous a évité les files d'attente à l'entrée. Un vrai plus : la recherche de sponsors intégrée !",
+        "author": "Marc L.",
+        "role": "Président d'association"
+      },
+      {
+        "rating": 5,
+        "hook": "Fini les relances sans fin pour le RSVP !",
+        "quote": "J'ai créé la page de mon anniversaire en moins de 5 minutes. Les invités reçoivent leur propre lien personnalisé avec le lieu et le dress code. Pouvoir suivre en temps réel qui a ouvert et confirmé l'invitation sans avoir à relancer tout le monde sur WhatsApp, c'est tout simplement génial.",
+        "author": "Sophie T.",
+        "role": "Organisatrice d'anniversaire"
+      },
+      {
+        "rating": 5,
+        "hook": "Une belle opportunité de visibilité locale.",
+        "quote": "En tant que gérant d'entreprise, la marketplace de sponsoring m'a permis de trouver rapidement des événements pertinents à soutenir dans ma région. La création de vitrine est simple et la transaction s'est faite en toute sécurité via Stripe.",
+        "author": "Karim B.",
+        "role": "Directeur de cabinet conseil"
+      },
+      {
+        "rating": 4,
+        "hook": "Très pratique pour trouver de nouveaux contrats.",
+        "quote": "La plateforme est claire, intuitive et sans prise de tête. Pouvoir s'inscrire dans l'annuaire et proposer ses services directement aux organisateurs simplifie énormément la prospection. Je recommande !",
+        "author": "Élodie M.",
+        "role": "Photographe événementiel"
+      },
+      {
+        "rating": 5,
+        "hook": "Simple, fluide et sécurisé.",
+        "quote": "J'avais un quota de billets à vendre pour la soirée de mon club étudiant. Le suivi en temps réel sur la plateforme m'a permis de voir mes ventes au jour le jour. Le jour de la soirée, aucun doublon ni problème de fraude grâce au scan unique.",
+        "author": "Thomas P.",
+        "role": "Responsable billetterie"
+      },
+      {
+        "rating": 5,
+        "hook": "Achat rapide et expérience fluide.",
+        "quote": "J'ai acheté mon billet VIP pour une soirée communautaire via EventGalo. Paiement rapide par Apple Pay, billet avec QR code reçu immédiatement. L'entrée s'est faite en 2 secondes à l'accueil. Top !",
+        "author": "Claire D.",
+        "role": "Participante"
+      }
+    ],
+    "marketplace": {
+      "sectionKicker": "Place de marché",
+      "sectionTitle": "La marketplace, simplifiée",
+      "sectionSub": "Les associations trouvent des sponsors et des prestataires, les entreprises gagnent en visibilité — tout se passe sur EventGalo, de la mise en relation au paiement.",
+      "sponsors": {
+        "title": "Organisateurs : trouvez des sponsors",
+        "text": "Créez vos paliers (Officiel, Or, Argent…) avec avantages et niveaux de visibilité, invitez des entreprises depuis l'annuaire en un clic, encaissez en ligne. Leurs vitrines s'affichent automatiquement sur votre page.",
+        "cta": "Parcourir l'annuaire des sponsors"
+      },
+      "vendorsSearch": {
+        "title": "Organisateurs : trouvez vos prestataires",
+        "text": "Photographe, traiteur, DJ, décoration, salle de réception… parcourez l'annuaire des prestataires, filtrez par secteur et par ville, et contactez-les directement.",
+        "cta": "Parcourir l'annuaire des prestataires"
+      },
+      "companies": {
+        "title": "Entreprises & prestataires : gagnez en visibilité",
+        "text": "Créez votre profil gratuit, apparaissez dans l'annuaire des sponsors et/ou des prestataires, recevez des propositions, et décrochez un badge « Vérifiée ». Vous pouvez aussi acheter un créneau dans le bandeau publicitaire de la page d'accueil, ciblé par secteur ou par région.",
+        "ctaProfile": "Créer mon profil gratuit",
+        "ctaOpportunities": "Voir les événements à sponsoriser"
+      }
+    },
+    "faqSection": {
+      "sectionKicker": "Questions fréquentes",
+      "sectionTitle": "Vous vous posez des questions ?"
+    },
+    "faqs": [
+      {
+        "q": "Est-ce gratuit d'utiliser EventGalo ?",
+        "a": "Créer un compte et publier un événement est gratuit, sans carte bancaire. Des frais de service s'appliquent uniquement sur les transactions (vente de billets, sponsoring), prélevés automatiquement via Stripe au moment du paiement."
+      },
+      {
+        "q": "Puis-je inviter des gens sans vendre de billets ?",
+        "a": "Oui. Pour un anniversaire ou une soirée privée, chaque invité reçoit un lien personnalisé (lieu, dress code, programme) et confirme sa présence en un clic — aucun paiement n'est nécessaire."
+      },
+      {
+        "q": "Comment fonctionne la billetterie et le paiement ?",
+        "a": "Vos clients paient en ligne par carte, Apple Pay ou Google Pay via Stripe. Chaque billet est envoyé immédiatement avec un QR code signé à usage unique : impossible à dupliquer, et le scan à l'entrée le jour J invalide définitivement le billet."
+      },
+      {
+        "q": "Comment fonctionne le suivi par vendeur ?",
+        "a": "Vous pouvez attribuer des quotas de billets à vos vendeurs et suivre leurs ventes en temps réel depuis votre tableau de bord, puis scanner les billets à l'entrée depuis n'importe quel téléphone."
+      },
+      {
+        "q": "Comment trouver des sponsors pour mon événement ?",
+        "a": "Créez vos paliers de sponsoring (Officiel, Or, Argent…) avec avantages et niveaux de visibilité, puis invitez des entreprises depuis l'annuaire ou laissez-les vous proposer un sponsoring. L'encaissement se fait en ligne, et leur vitrine s'affiche automatiquement sur la page de votre événement."
+      },
+      {
+        "q": "Je suis prestataire (photographe, décorateur, traiteur…) : comment être visible ?",
+        "a": "Créez gratuitement votre profil depuis « Créer mon profil », que vous soyez une entreprise ou un indépendant. Vous apparaissez ensuite dans l'annuaire des prestataires et pouvez être contacté directement par des organisateurs."
+      },
+      {
+        "q": "Comment savoir si un sponsor ou un prestataire est fiable ?",
+        "a": "Les profils vérifiés portent un badge « Vérifiée » : validation par email au domaine du site web de l'entreprise, ou concordance avec le registre canadien des entreprises. Notre équipe s'appuie aussi sur une détection assistée par IA pour repérer les profils suspects avant qu'ils ne posent problème."
+      },
+      {
+        "q": "Puis-je mettre mon entreprise en avant sur la page d'accueil ?",
+        "a": "Oui : depuis votre espace entreprise, achetez un créneau dans le bandeau publicitaire de la page d'accueil, à la semaine, avec ciblage optionnel par secteur d'activité ou par région."
+      },
+      {
+        "q": "Mes paiements et mes données sont-ils sécurisés ?",
+        "a": "Tous les paiements sont traités par Stripe, qui gère la conformité PCI-DSS — EventGalo ne stocke aucune donnée de carte bancaire. La connexion se fait sans mot de passe, par lien magique envoyé par email."
+      },
+      {
+        "q": "EventGalo convient-il aux galas et associations villageoises camerounaises au Canada ?",
+        "a": "Oui — de nombreuses associations et communautés camerounaises au Canada (Bandjoun, Bafoussam, Bangangté, Baham, Bafang, Dschang, Douala…) utilisent EventGalo pour leurs galas annuels : invitations, RSVP, billetterie et sponsoring, à Montréal, Ottawa-Gatineau, Toronto ou ailleurs."
+      },
+      {
+        "q": "Puis-je organiser un événement pour mon association culturelle ou ma communauté ?",
+        "a": "Absolument. Invitations personnalisées, RSVP, billetterie sécurisée et recherche de sponsors fonctionnent aussi bien pour un gala de charité, une soirée culturelle bamiléké ou africaine, ou les retrouvailles d'une association villageoise que pour tout autre type d'événement communautaire."
+      }
+    ]
+  },
+  "TopbarNav": {
+    "sponsors": "Sponsors",
+    "vendors": "Prestataires",
+    "opportunities": "Opportunités",
+    "notifications": "Notifications",
+    "myDashboard": "Mon espace",
+    "administration": "Administration",
+    "logout": "Déconnexion",
+    "login": "Connexion",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu"
+  }
+}

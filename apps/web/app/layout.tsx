@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Instrument_Sans } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
 import Link from "next/link";
 import { TopbarNav } from "@/components/topbar-nav";
 import { SiteBanner } from "@/components/site-banner";
@@ -94,7 +95,7 @@ export const viewport: Viewport = {
   themeColor: "#8f4009",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={`${fraunces.variable} ${instrumentSans.variable}`}>
       <body>
@@ -102,17 +103,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <SiteBanner />
-        <div className="topbar">
-          <Link href="/" className="brand">
-            {/* eslint-disable-next-line @next/next/no-img-element -- logo fixe et léger, next/image est superflu ici */}
-            <img src="/icon.svg" alt="" width={22} height={22} className="brand-mark" />
-            Event<span>Galo</span>
-          </Link>
-          <TopbarNav />
-        </div>
-        {children}
-        <SiteFooter />
+        <NextIntlClientProvider>
+          <SiteBanner />
+          <div className="topbar">
+            <Link href="/" className="brand">
+              {/* eslint-disable-next-line @next/next/no-img-element -- logo fixe et léger, next/image est superflu ici */}
+              <img src="/icon.svg" alt="" width={22} height={22} className="brand-mark" />
+              Event<span>Galo</span>
+            </Link>
+            <TopbarNav />
+          </div>
+          {children}
+          <SiteFooter />
+        </NextIntlClientProvider>
       </body>
     </html>
   );
