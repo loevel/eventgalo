@@ -37,3 +37,6 @@ jobs:
 
       - name: Test API
         run: pnpm --filter @eventgalo/api test
+
+      - name: Test web
+        run: pnpm --filter @eventgalo/web test

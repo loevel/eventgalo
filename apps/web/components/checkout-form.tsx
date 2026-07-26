@@ -171,8 +171,9 @@ export function CheckoutForm({
       ) : (
         <div className="grid2">
           <div>
-            <label>Quantité</label>
+            <label htmlFor="qty">Quantité</label>
             <input
+              id="qty"
               type="number"
               min={1}
               max={Math.min(10, remaining)}
@@ -181,19 +182,19 @@ export function CheckoutForm({
             />
           </div>
           <div>
-            <label>Nom complet (billet nominatif)</label>
-            <input required value={name} onChange={(e) => setName(e.target.value)} />
+            <label htmlFor="name">Nom complet (billet nominatif)</label>
+            <input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
           </div>
         </div>
       )}
       {soldOut && (
         <>
-          <label>Nom complet</label>
-          <input required value={name} onChange={(e) => setName(e.target.value)} />
+          <label htmlFor="name">Nom complet</label>
+          <input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
         </>
       )}
-      <label>Email {soldOut ? "" : "(réception des billets)"}</label>
-      <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <label htmlFor="email">Email {soldOut ? "" : "(réception des billets)"}</label>
+      <input id="email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       {!soldOut && (
         <div className="check">
           <input id="consent" type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />

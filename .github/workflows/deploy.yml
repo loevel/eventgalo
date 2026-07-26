@@ -49,6 +49,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # Garde-fou avant la prod : la production ne se déploie que si staging
+      # répond correctement une fois déployé (needs: deploy-staging plus bas
+      # transforme un échec de ce step en blocage de deploy-production).
+      - name: Smoke test (staging)
+        run: |
+          set -e
+          echo "API staging:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
+            https://eventgalo-api-staging.davechendjou.workers.dev/ | tee /tmp/api-health.json | grep -q '"status":"ok"'
+          echo
+          echo "Web staging:"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors \
+            https://eventgalo-web-staging.davechendjou.workers.dev/ > /dev/null
+
   deploy-production:
     needs: deploy-staging
     runs-on: ubuntu-latest
