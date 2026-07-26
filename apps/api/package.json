@@ -17,7 +17,8 @@
     "@eventgalo/shared": "workspace:*",
     "@sentry/cloudflare": "^10.68.0",
     "hono": "^4.12.30",
-    "stripe": "^22.3.2"
+    "stripe": "^22.3.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.6",

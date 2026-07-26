@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import Stripe from "stripe";
+import { z } from "zod";
 import type { AppContext } from "../types";
 import { buildTicketPayload, nowIso, uuid, verifyTicketPayload } from "../lib/crypto";
 import { eventLogoUrl, layout, sendEmail } from "../lib/email";
@@ -16,6 +17,25 @@ import { triggerWebhooks } from "../lib/webhooks";
 import { organizerDestination, serviceFeeCents } from "../lib/stripe";
 import { createNotification } from "../lib/notifications";
 import { generateEventAnswer } from "../lib/ai";
+import { parseBody } from "../lib/validate";
+
+// Même message pour le nom et l'email (comme l'ancien `!buyerName || !regex.test(buyerEmail)`
+// combiné) : on ne distingue pas lequel des deux manque côté client.
+const REQUIRED_BUYER_MSG = "Nom et email de l'acheteur requis";
+
+const checkoutSchema = z.object({
+  slug: z.string().optional(),
+  category_id: z.string().optional(),
+  quantity: z.unknown().optional(),
+  buyer_name: z.string().trim().min(1, { message: REQUIRED_BUYER_MSG }),
+  buyer_email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, { message: REQUIRED_BUYER_MSG }),
+  seller_code: z.string().optional(),
+  consent: z.literal(true, { message: "Le consentement à la collecte des données est requis" }),
+});
 
 const pub = new Hono<AppContext>();
 
@@ -939,18 +959,11 @@ pub.get("/seller/:code/stats", async (c) => {
 pub.post("/checkout", async (c) => {
   // 10 requêtes / min par IP : limite les tentatives d'épuisement de quota ou de fraude.
   if (await isRateLimited(c.env, "checkout", clientIp(c), 10, 60)) return tooManyRequests(c);
-  const b = await c.req
-    .json<{
-      slug?: string; category_id?: string; quantity?: number;
-      buyer_name?: string; buyer_email?: string; seller_code?: string; consent?: boolean;
-    }>()
-    .catch(() => ({}) as Record<string, never>);
-  const buyerName = String(b.buyer_name ?? "").trim();
-  const buyerEmail = String(b.buyer_email ?? "").trim().toLowerCase();
-  if (!buyerName || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail)) {
-    return c.json({ error: "Nom et email de l'acheteur requis" }, 400);
-  }
-  if (!b.consent) return c.json({ error: "Le consentement à la collecte des données est requis" }, 400);
+  const parsed = await parseBody(c, checkoutSchema);
+  if (!parsed.ok) return parsed.response;
+  const b = parsed.data;
+  const buyerName = b.buyer_name;
+  const buyerEmail = b.buyer_email;
 
   const event = await c.env.DB.prepare(
     "SELECT id, title, public_slug, organizer_id FROM events WHERE public_slug = ? AND status = 'published'",

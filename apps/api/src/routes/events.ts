@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import Stripe from "stripe";
+import { z } from "zod";
 import type { AppContext, Env } from "../types";
 import { nowIso, randomToken, slugify, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
@@ -12,9 +13,14 @@ import { triggerWebhooks } from "../lib/webhooks";
 import { deleteEventCascade } from "../lib/event-delete";
 import { generateAgendaSuggestion, generateDraft } from "../lib/ai";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
+import { parseBody } from "../lib/validate";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
+
+const refundDecisionSchema = z.object({
+  approve: z.boolean({ message: "Le champ « approve » (booléen) est requis" }),
+});
 
 interface EventRow {
   id: string;
@@ -798,7 +804,9 @@ events.post("/:id/refund-requests/:rid/decision", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const b = await c.req.json<{ approve?: boolean }>().catch(() => ({}) as Record<string, never>);
+  const parsed = await parseBody(c, refundDecisionSchema);
+  if (!parsed.ok) return parsed.response;
+  const b = parsed.data;
 
   const request = await c.env.DB.prepare(
     `SELECT r.*, t.event_id, t.category_id, tr.stripe_payment_intent, tr.amount_cents, tr.quantity, tr.currency,
