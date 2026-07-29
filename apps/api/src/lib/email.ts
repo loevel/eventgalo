@@ -35,6 +35,20 @@ export async function sendEmail(
   }
 }
 
+/**
+ * Échappe un texte saisi par un utilisateur avant insertion dans le HTML d'un
+ * email (corps d'annonce, message libre…) : sans ça un « < » suffit à casser
+ * le rendu du message chez le destinataire.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export interface LayoutOptions {
   /** URL publique du logo de l'association organisatrice, affiché en en-tête. */
   logoUrl?: string | null;

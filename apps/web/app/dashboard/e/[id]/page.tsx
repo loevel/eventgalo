@@ -394,10 +394,7 @@ export default function EventAdmin() {
         <>
           <AnnounceForm eventId={ev.id} act={act} />
           {announcements.map((a) => (
-            <div className="card" key={a.id}>
-              <p style={{ margin: 0 }}>{a.body}</p>
-              <span className="muted">{formatDate(a.created_at)}</span>
-            </div>
+            <AnnouncementCard key={a.id} eventId={ev.id} announcement={a} act={act} />
           ))}
         </>
       )}
@@ -803,9 +800,62 @@ function DetailsCard({ ev }: { ev: Record<string, any> }) {
   );
 }
 
+/**
+ * Une annonce publiée, avec l'état de sa diffusion par courriel. Le renvoi sert
+ * quand des billets ont été vendus après coup, ou qu'un envoi a échoué.
+ */
+function AnnouncementCard({
+  eventId, announcement, act,
+}: {
+  eventId: string;
+  announcement: Record<string, any>;
+  act: (fn: () => Promise<unknown>, ok?: string) => void;
+}) {
+  const [resent, setResent] = useState<number | null>(null);
+  const count = Number(announcement.recipients_count ?? 0);
+  const notified = Boolean(announcement.notified_at);
+
+  return (
+    <div className="card">
+      <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{announcement.body}</p>
+      <span className="muted">
+        {formatDate(announcement.created_at)}
+        {" · "}
+        {resent !== null
+          ? `courriel renvoyé à ${resent} personne${resent > 1 ? "s" : ""}`
+          : announcement.notify === 0
+            ? "publiée sans courriel"
+            : notified
+              ? count > 0
+                ? `courriel envoyé à ${count} personne${count > 1 ? "s" : ""}`
+                : "aucun destinataire avec adresse courriel"
+              : "diffusion non confirmée"}
+      </span>
+      <div style={{ marginTop: 10 }}>
+        <button
+          type="button"
+          className="btn-sm btn-ghost"
+          onClick={() =>
+            act(async () => {
+              const res = await api<{ notified: number }>(
+                `/api/events/${eventId}/announcements/${announcement.id}/notify`,
+                { method: "POST" },
+              );
+              setResent(res.notified);
+            }, "Courriel renvoyé")
+          }
+        >
+          ✉ Renvoyer par courriel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AnnounceForm({ eventId, act }: { eventId: string; act: (fn: () => Promise<unknown>, ok?: string) => void }) {
   const [body, setBody] = useState("");
   const [hint, setHint] = useState("");
+  const [notify, setNotify] = useState(true);
   const [aiBusy, setAiBusy] = useState(false);
 
   async function generate() {
@@ -826,7 +876,10 @@ function AnnounceForm({ eventId, act }: { eventId: string; act: (fn: () => Promi
   return (
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Nouvelle annonce</h3>
-      <p className="muted">Visible sur toutes les invitations, et envoyée par email aux invités.</p>
+      <p className="muted">
+        Visible sur la page de l&apos;événement et sur toutes les invitations, et envoyée par courriel aux invités
+        (hors refus) ainsi qu&apos;aux détenteurs de billets.
+      </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <input
           placeholder="De quoi parle l'annonce ? (ex. changement d'horaire)"
@@ -839,11 +892,18 @@ function AnnounceForm({ eventId, act }: { eventId: string; act: (fn: () => Promi
         </button>
       </div>
       <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Changement d'horaire : ouverture des portes à 19h." />
+      <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "6px 0 12px" }}>
+        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+        <span>Prévenir les invités et les détenteurs de billets par courriel</span>
+      </label>
       <button
         className="btn-accent"
         onClick={() => {
           if (body.trim()) {
-            act(() => api(`/api/events/${eventId}/announcements`, { method: "POST", body: { body } }), "Annonce publiée");
+            act(
+              () => api(`/api/events/${eventId}/announcements`, { method: "POST", body: { body, notify } }),
+              notify ? "Annonce publiée et courriel en cours d'envoi" : "Annonce publiée",
+            );
             setBody("");
           }
         }}

@@ -14,6 +14,7 @@ import { deleteEventCascade } from "../lib/event-delete";
 import { generateAgendaSuggestion, generateDraft } from "../lib/ai";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { parseBody } from "../lib/validate";
+import { announcementRecipients, deliverAnnouncement } from "../lib/announce";
 
 const events = new Hono<AppContext>();
 events.use("*", requireAuth);
@@ -497,42 +498,51 @@ events.delete("/:id/guests/:gid", async (c) => {
 
 /* -------------------------------- Annonces ------------------------------- */
 
+const announcementSchema = z.object({
+  body: z.string().trim().min(1, "Message vide").max(2000, "Annonce trop longue (2000 caractères maximum)"),
+  /** false = publier la note sans prévenir personne par courriel. */
+  notify: z.boolean().optional(),
+});
+
 events.post("/:id/announcements", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const b = await c.req.json<{ body?: string }>().catch(() => ({}) as Record<string, never>);
-  const text = (b.body ?? "").trim();
-  if (!text) return c.json({ error: "Message vide" }, 400);
+  const parsed = await parseBody(c, announcementSchema);
+  if (!parsed.ok) return parsed.response;
+  const text = parsed.data.body;
+  const notify = parsed.data.notify !== false;
+
   const id = uuid();
-  await c.env.DB.prepare("INSERT INTO announcements (id, event_id, body) VALUES (?, ?, ?)")
-    .bind(id, event.id, text)
+  await c.env.DB.prepare("INSERT INTO announcements (id, event_id, body, notify) VALUES (?, ?, ?, ?)")
+    .bind(id, event.id, text, notify ? 1 : 0)
     .run();
 
-  // Notification email aux invités ayant une adresse
+  // Courriel aux invités RSVP *et* aux détenteurs de billets (cf. lib/announce).
+  const recipients = notify ? await announcementRecipients(c.env, event.id) : [];
+  if (notify) {
+    c.executionCtx.waitUntil(
+      deliverAnnouncement(c.env, { id: event.id, title: String(event.title) }, { id, body: text }, recipients),
+    );
+  }
+  return c.json({ ok: true, id, notified: recipients.length }, 201);
+});
+
+/** Renvoie une annonce déjà publiée (ex. courriel jamais parti, nouveaux billets vendus depuis). */
+events.post("/:id/announcements/:aid/notify", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+  const announcement = await c.env.DB.prepare("SELECT id, body FROM announcements WHERE id = ? AND event_id = ?")
+    .bind(c.req.param("aid"), event.id)
+    .first<{ id: string; body: string }>();
+  if (!announcement) return c.json({ error: "Annonce introuvable" }, 404);
+
+  const recipients = await announcementRecipients(c.env, event.id);
   c.executionCtx.waitUntil(
-    (async () => {
-      const [guests, logoUrl] = await Promise.all([
-        c.env.DB.prepare(
-          "SELECT name, email, token FROM guests WHERE event_id = ? AND email IS NOT NULL",
-        ).bind(event.id).all<{ name: string; email: string; token: string }>(),
-        eventLogoUrl(c.env, event.id),
-      ]);
-      for (const g of guests.results) {
-        await sendEmail(
-          c.env,
-          g.email,
-          `Mise à jour : ${event.title}`,
-          layout(
-            `Mise à jour — ${event.title}`,
-            `<p>${text}</p><p><a href="${c.env.WEB_BASE_URL}/i/${g.token}">Voir l'invitation</a></p>`,
-            { logoUrl, eventTitle: String(event.title) },
-          ),
-        );
-      }
-    })(),
+    deliverAnnouncement(c.env, { id: event.id, title: String(event.title) }, announcement, recipients),
   );
-  return c.json({ ok: true, id }, 201);
+  return c.json({ ok: true, notified: recipients.length });
 });
 
 /* ------------------------- Catégories de billets ------------------------- */
