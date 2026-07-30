@@ -49,6 +49,15 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Logo EventGalo affiché en en-tête quand l'événement n'a pas son propre logo.
+ * URL absolue et stable (les clients email ne résolvent pas les chemins
+ * relatifs) : le domaine public sert la même image en staging comme en prod.
+ * Le mot-logo texte reste sous l'image, qui porte donc un alt vide — les
+ * clients qui bloquent les images n'affichent aucun trou.
+ */
+const BRAND_LOGO_URL = "https://eventgalo.com/logo-email.png";
+
 export interface LayoutOptions {
   /** URL publique du logo de l'association organisatrice, affiché en en-tête. */
   logoUrl?: string | null;
@@ -69,6 +78,7 @@ export function layout(title: string, body: string, opts: LayoutOptions = {}): s
         ${opts.eventTitle ? `<p style="margin:12px 0 0;color:#f2c078;font-size:13px;letter-spacing:0.08em;text-transform:uppercase">${opts.eventTitle}</p>` : ""}
       </div>`
     : `<div style="text-align:center;padding:22px 24px 18px;background:#151009;border-radius:14px 14px 0 0">
+        <img src="${BRAND_LOGO_URL}" alt="" width="44" height="44" style="width:44px;height:44px;display:block;margin:0 auto 10px" />
         <p style="margin:0;color:#f6ede1;font-size:17px;font-family:Georgia,serif">Event<em style="color:#f2c078">Galo</em></p>
         ${opts.eventTitle ? `<p style="margin:8px 0 0;color:#f2c078;font-size:13px;letter-spacing:0.08em;text-transform:uppercase">${opts.eventTitle}</p>` : ""}
       </div>`;

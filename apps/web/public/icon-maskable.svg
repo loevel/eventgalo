@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>EventGalo</title><desc>Un billet d'or frappé d'une rosette à huit branches — clin d'oeil esthétique aux motifs grassfields.</desc>
+  <rect width="100" height="100" fill="#120f0c"/>
+  <g transform="translate(50 50) scale(0.7) translate(-50 -50)">
+    <path fill="#d9a662" d="M22,28 H78 A9,9 0 0 1 87,37 V42 A8,8 0 0 0 87,58 V63 A9,9 0 0 1 78,72 H22 A9,9 0 0 1 13,63 V58 A8,8 0 0 0 13,42 V37 A9,9 0 0 1 22,28 Z"/>
+    <path fill="#120f0c" d="M50.00,38.00 L52.83,43.16 L58.49,41.51 L56.84,47.17 L62.00,50.00 L56.84,52.83 L58.49,58.49 L52.83,56.84 L50.00,62.00 L47.17,56.84 L41.51,58.49 L43.16,52.83 L38.00,50.00 L43.16,47.17 L41.51,41.51 L47.17,43.16 Z"/>
+  </g>
+</svg>

@@ -66,6 +66,15 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // Sans cette déclaration, aucun navigateur ne va chercher /icon.svg : la
+  // favicon reste vide (il n'y a pas de /favicon.ico dans public/).
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   manifest: "/manifest.webmanifest",
 };
 
@@ -77,7 +86,7 @@ const jsonLd = {
       "@id": `${SITE_URL}/#organization`,
       name: "EventGalo",
       url: SITE_URL,
-      logo: `${SITE_URL}/icon.svg`,
+      logo: `${SITE_URL}/icon-512.png`,
     },
     {
       "@type": "WebSite",

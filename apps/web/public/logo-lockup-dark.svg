@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 372 100">
+  <title>EventGalo</title><desc>Un billet d'or frappé d'une rosette à huit branches — clin d'oeil esthétique aux motifs grassfields.</desc>
+  <rect width="372" height="100" fill="#120f0c"/>
+  <g transform="translate(6 10) scale(0.8)">
+    <rect width="100" height="100" rx="26" fill="#120f0c"/>
+    <g transform="rotate(-6 50 50)">
+    <path fill="#d9a662" d="M27,33 H73 A7,7 0 0 1 80,40 V43.5 A6.5,6.5 0 0 0 80,56.5 V60 A7,7 0 0 1 73,67 H27 A7,7 0 0 1 20,60 V56.5 A6.5,6.5 0 0 0 20,43.5 V40 A7,7 0 0 1 27,33 Z"/>
+    <g fill="#120f0c">
+      <path d="M39.50,40.60 L41.72,44.64 L46.15,43.35 L44.86,47.78 L48.90,50.00 L44.86,52.22 L46.15,56.65 L41.72,55.36 L39.50,59.40 L37.28,55.36 L32.85,56.65 L34.14,52.22 L30.10,50.00 L34.14,47.78 L32.85,43.35 L37.28,44.64 Z"/>
+      <rect x="60.2" y="38" width="3" height="6.4" rx="1.5"/>
+      <rect x="60.2" y="46.8" width="3" height="6.4" rx="1.5"/>
+      <rect x="60.2" y="55.6" width="3" height="6.4" rx="1.5"/>
+    </g>
+  </g>
+  </g>
+  <text x="104" y="67" font-family="Fraunces, 'Iowan Old Style', Georgia, serif" font-size="46" font-weight="600" letter-spacing="-0.5">
+    <tspan fill="#f6ede1">Event</tspan><tspan fill="#d9a662">Galo</tspan>
+  </text>
+</svg>
