@@ -209,7 +209,18 @@ export interface EventQAContext {
   categories: Array<{ name: string; priceCents: number; currency: string }>;
 }
 
-const ASK_SYSTEM_PROMPT = `Tu es l'assistant virtuel d'un événement, destiné aux invités du public. Réponds UNIQUEMENT à partir des informations fournies ci-dessous à propos de cet événement précis. Si la question porte sur une information absente du contexte (ex. météo, détails non fournis), dis clairement que tu ne sais pas et invite à contacter l'organisateur — n'invente jamais de détail. Si la question est hors-sujet (rien à voir avec cet événement), réponds poliment que tu ne peux répondre qu'aux questions sur cet événement. Réponds en français, en 1 à 3 phrases courtes, ton chaleureux, sans markdown.`;
+/** Marqueur demandé au modèle pour signaler une information absente du contexte. */
+const UNKNOWN_MARKER = "[INCONNU]";
+
+const ASK_SYSTEM_PROMPT = `Tu es l'assistant virtuel d'un événement, destiné aux invités du public. Réponds UNIQUEMENT à partir des informations fournies ci-dessous à propos de cet événement précis. Si la question porte sur une information absente du contexte (ex. météo, détails non fournis), commence ta réponse par ${UNKNOWN_MARKER} puis dis clairement que tu ne sais pas et invite à contacter l'organisateur — n'invente jamais de détail. Si la question est hors-sujet (rien à voir avec cet événement), réponds poliment que tu ne peux répondre qu'aux questions sur cet événement. Réponds en français, en 1 à 3 phrases courtes, ton chaleureux, sans markdown.`;
+
+/**
+ * Formulations par lesquelles le modèle avoue son ignorance quand il oublie le
+ * marqueur. Filet de rattrapage : un marqueur manqué ferait passer un trou de la
+ * fiche pour une question réglée, et c'est justement ce qu'on cherche à voir.
+ */
+const UNKNOWN_PATTERNS =
+  /je ne sais pas|je n'ai pas (?:cette |l')?info|n'est pas (?:précisé|indiqué|mentionné)|non précisé|contacter l'organisateur|contactez l'organisateur|ne figure pas/i;
 
 function buildEventContext(ctx: EventQAContext): string {
   const date = ctx.startsAt
@@ -247,8 +258,14 @@ function buildEventContext(ctx: EventQAContext): string {
   return lines.join("\n");
 }
 
+export interface EventAnswer {
+  answer: string;
+  /** `false` quand l'information manquait à la fiche : c'est ce que l'organisateur doit voir. */
+  answered: boolean;
+}
+
 /** Répond à une question d'invité sur un événement précis, à partir de son contexte public, via Workers AI. */
-export async function generateEventAnswer(env: Env, ctx: EventQAContext, question: string): Promise<string> {
+export async function generateEventAnswer(env: Env, ctx: EventQAContext, question: string): Promise<EventAnswer> {
   const result = await env.AI.run(MODEL, {
     messages: [
       { role: "system", content: ASK_SYSTEM_PROMPT },
@@ -257,7 +274,12 @@ export async function generateEventAnswer(env: Env, ctx: EventQAContext, questio
     max_tokens: 250,
   });
   const response = (result as { response?: unknown }).response;
-  return typeof response === "string" ? response.trim() : "";
+  const raw = typeof response === "string" ? response.trim() : "";
+
+  const marked = raw.startsWith(UNKNOWN_MARKER);
+  // Le marqueur est un détail d'implémentation : il ne doit jamais atteindre le visiteur.
+  const answer = marked ? raw.slice(UNKNOWN_MARKER.length).trim() : raw;
+  return { answer, answered: !marked && !UNKNOWN_PATTERNS.test(answer) };
 }
 
 /* ------------------ Utilitaire : réponses JSON structurées ---------------- */

@@ -8,8 +8,11 @@ import { Menu, X } from "lucide-react";
 import { api, getToken, setToken } from "@/lib/api";
 import { NotificationBell } from "@/components/notification-bell";
 
-const PUBLIC_LINK_KEYS = ["sponsors", "vendors", "opportunities"] as const;
+// « Événements » en tête : c'est la porte d'entrée de la découverte, et la seule
+// page qui donne une suite à un visiteur arrivé par un lien partagé.
+const PUBLIC_LINK_KEYS = ["events", "sponsors", "vendors", "opportunities"] as const;
 const PUBLIC_LINK_HREFS = {
+  events: "/evenements",
   sponsors: "/sponsors",
   vendors: "/prestataires",
   opportunities: "/opportunites",
@@ -54,6 +57,7 @@ export function TopbarNav() {
   const authLinks = connected ? (
     <>
       <NotificationBell />
+      <Link href="/mes-billets">{t("myTickets")}</Link>
       <Link href="/dashboard">{t("myDashboard")}</Link>
       {isAdmin && <Link href="/admin">{t("administration")}</Link>}
       <button className="btn-sm btn-ghost" onClick={logout}>

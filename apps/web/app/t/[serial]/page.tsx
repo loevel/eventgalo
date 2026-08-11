@@ -6,22 +6,57 @@ import QRCode from "qrcode";
 import { CalendarDays, CalendarPlus, Check, MapPin, Printer, Shirt, Sparkles } from "lucide-react";
 import { API_BASE, api, formatDate } from "@/lib/api";
 import { parsePerks } from "@/lib/perks";
+import { EventMiniCard, type SimilarEvent } from "@/components/similar-events";
+import { cacheTicket, readCachedTicket, registerTicketWorker } from "@/lib/ticket-cache";
 
 export default function TicketPage() {
   const { serial } = useParams<{ serial: string }>();
   const [data, setData] = useState<Record<string, any> | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Billet servi depuis le cache local : le réseau n'a pas répondu. */
+  const [offline, setOffline] = useState(false);
   const [refund, setRefund] = useState({ open: false, email: "", reason: "", done: false, err: "" });
   const [transfer, setTransfer] = useState({ open: false, email: "", newName: "", newEmail: "", done: false, err: "", busy: false });
+  const [similar, setSimilar] = useState<SimilarEvent[]>([]);
 
   useEffect(() => {
+    registerTicketWorker();
+
+    /** Affiche un billet et en dérive le QR. Même chemin en ligne et hors ligne. */
+    async function show(d: any) {
+      setData(d);
+      setQr(await QRCode.toDataURL(d.qr_payload, { width: 480, margin: 1 }));
+    }
+
     api(`/api/public/tickets/${serial}`, { auth: false })
       .then(async (d: any) => {
-        setData(d);
-        setQr(await QRCode.toDataURL(d.qr_payload, { width: 480, margin: 1 }));
+        setOffline(false);
+        // Conservé avant tout affichage : si la personne ferme la page ici, le
+        // billet est déjà disponible pour l'entrée de la salle.
+        cacheTicket(serial, d);
+        await show(d);
+        // Le détenteur d'un billet est déjà convaincu par le format : c'est le
+        // meilleur moment pour lui montrer la suite. La page était un cul-de-sac.
+        if (d.ticket?.public_slug) {
+          api<{ events: SimilarEvent[] }>(`/api/public/events/${d.ticket.public_slug}/similar`, { auth: false })
+            .then((r) => setSimilar(r.events))
+            .catch(() => {
+              // Suggestions optionnelles : le billet reste la priorité de la page.
+            });
+        }
       })
-      .catch((e) => setError(e.message));
+      .catch(async (e) => {
+        // Le réseau a échoué : on ressort la dernière copie connue plutôt que
+        // de laisser quelqu'un devant une erreur à l'entrée de la salle.
+        const cached = readCachedTicket(serial);
+        if (cached) {
+          setOffline(true);
+          await show(cached);
+        } else {
+          setError(e.message);
+        }
+      });
   }, [serial]);
 
   if (error) return <main className="container narrow"><div className="alert err" role="alert">{error}</div></main>;
@@ -31,6 +66,15 @@ export default function TicketPage() {
   const perks = parsePerks(t.category_perks);
   return (
     <main className="container narrow">
+      {offline && (
+        // On ne prétend pas que le billet est valide : on dit d'où il vient.
+        // Le statut affiché date de la dernière connexion, et un contrôleur qui
+        // scanne le QR obtiendra de toute façon la vérité côté serveur.
+        <div className="alert warn no-print" role="status" style={{ marginBottom: 16 }}>
+          <strong>Mode hors ligne.</strong> Ce billet est affiché depuis une copie enregistrée sur cet appareil. Le QR
+          code reste valable au contrôle ; les informations peuvent dater de votre dernière connexion.
+        </div>
+      )}
       <div className="ticket-shell">
         <div className="ticket-head">
           {t.logo_media_id ? (
@@ -181,6 +225,22 @@ export default function TicketPage() {
             </>
           )}
         </div>
+      )}
+
+      {similar.length > 0 && (
+        <section className="section similar-band no-print">
+          <div className="similar-head">
+            <h2>Après cet événement</h2>
+            <a className="similar-all" href="/evenements">
+              Tous les événements
+            </a>
+          </div>
+          <div className="mini-grid">
+            {similar.map((ev) => (
+              <EventMiniCard key={ev.public_slug} ev={ev} />
+            ))}
+          </div>
+        </section>
       )}
     </main>
   );

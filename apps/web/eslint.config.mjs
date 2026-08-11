@@ -30,6 +30,11 @@ const eslintConfig = defineConfig([
       // ([id], [token]…) qu'il faut échapper : en syntaxe glob, [id] sans échappement
       // désigne une classe de caractères ("i" ou "d"), pas le texte "[id]".
       "app/dashboard/e/\\[id\\]/page.tsx",
+      // Onglets extraits de la page ci-dessus : le fichier de 2 800 lignes a été
+      // découpé, mais la dette de typage a simplement suivi le code — elle n'a
+      // été ni créée ni aggravée par le découpage, et la solder relève du même
+      // chantier zod que la ligne précédente.
+      "app/dashboard/e/\\[id\\]/_components/*.tsx",
       "app/dashboard/e/\\[id\\]/edit/page.tsx",
       "app/i/\\[token\\]/page.tsx",
       "app/s/\\[code\\]/page.tsx",

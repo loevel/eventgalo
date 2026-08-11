@@ -77,8 +77,8 @@ describe("CheckoutForm", () => {
     expect(screen.getByRole("button", { name: /liste d&apos;attente|liste d'attente/ })).toBeTruthy();
   });
 
-  it("soumet la liste d'attente avec la bonne charge utile", async () => {
-    stubApi({ "/api/public/waitlist": {} });
+  it("soumet la liste d'attente avec la bonne charge utile et affiche le rang", async () => {
+    stubApi({ "/api/public/waitlist": { ok: true, kind: "waitlist", rank: 3, sold_out: true } });
     const user = userEvent.setup();
     render(<CheckoutForm slug="mon-gala" categories={CATEGORIES} />);
     await user.click(screen.getByRole("radio", { name: /VIP\+/ }));
@@ -87,6 +87,8 @@ describe("CheckoutForm", () => {
     await user.click(screen.getByRole("button", { name: /liste d&apos;attente|liste d'attente/ }));
 
     await waitFor(() => expect(screen.getByText(/sur la liste d&apos;attente|sur la liste d'attente/)).toBeTruthy());
+    // Le rang est ce qui rend l'attente supportable : il doit être affiché.
+    expect(screen.getByText("3e")).toBeTruthy();
     expect(mockedApi).toHaveBeenCalledWith(
       "/api/public/waitlist",
       expect.objectContaining({

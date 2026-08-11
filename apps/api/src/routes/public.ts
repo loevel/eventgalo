@@ -100,6 +100,130 @@ pub.get("/events", async (c) => {
   return c.json({ events: events.results });
 });
 
+/** Nombre d'événements par page de l'annuaire public. */
+const DISCOVER_PAGE_SIZE = 24;
+
+/**
+ * Annuaire public des événements à venir.
+ *
+ * La plateforme n'avait aucune page de découverte : tout le trafic venait d'un
+ * lien partagé, et un visiteur qui n'achetait pas n'avait aucune seconde page
+ * où aller. Les filtres n'utilisent que des colonnes déjà présentes — aucune
+ * migration nécessaire.
+ */
+pub.get("/discover", async (c) => {
+  const q = (c.req.query("q") ?? "").trim().slice(0, 80);
+  const tag = (c.req.query("tag") ?? "").trim().slice(0, 120);
+  const city = (c.req.query("city") ?? "").trim().slice(0, 80);
+  const free = c.req.query("free") === "1";
+  const type = c.req.query("type");
+  const page = Math.max(1, Number(c.req.query("page") ?? 1) | 0);
+  const offset = (page - 1) * DISCOVER_PAGE_SIZE;
+
+  const where = [
+    "e.status = 'published'",
+    // Un événement passé n'a rien à faire dans une page de découverte.
+    "COALESCE(e.ends_at, e.starts_at) >= ?",
+  ];
+  const params: unknown[] = [nowIso()];
+
+  if (q) {
+    where.push("(e.title LIKE ? OR e.description LIKE ? OR e.venue LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (tag) {
+    where.push("e.community_tag = ?");
+    params.push(tag);
+  }
+  if (city) {
+    where.push("(e.venue LIKE ? OR e.address LIKE ?)");
+    params.push(`%${city}%`, `%${city}%`);
+  }
+  if (type === "ticketed" || type === "private") {
+    where.push("e.type = ?");
+    params.push(type);
+  }
+  if (free) {
+    where.push(
+      "NOT EXISTS (SELECT 1 FROM ticket_categories tc WHERE tc.event_id = e.id AND tc.price_cents > 0)",
+    );
+  }
+  const whereSql = where.join(" AND ");
+
+  const [rows, total] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT e.title, e.description, e.starts_at, e.ends_at, e.venue, e.address, e.public_slug,
+              e.type, e.community_tag, e.cover_media_id, e.logo_media_id,
+              (SELECT MIN(tc.price_cents) FROM ticket_categories tc WHERE tc.event_id = e.id) AS min_price_cents,
+              (SELECT tc.currency FROM ticket_categories tc WHERE tc.event_id = e.id ORDER BY tc.price_cents LIMIT 1) AS currency,
+              (SELECT COALESCE(SUM(tc.quantity - tc.sold), 0) FROM ticket_categories tc WHERE tc.event_id = e.id) AS seats_left
+       FROM events e
+       WHERE ${whereSql}
+       ORDER BY e.starts_at ASC
+       LIMIT ? OFFSET ?`,
+    )
+      .bind(...params, DISCOVER_PAGE_SIZE, offset)
+      .all(),
+    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM events e WHERE ${whereSql}`)
+      .bind(...params)
+      .first<{ n: number }>(),
+  ]);
+
+  return c.json({
+    events: rows.results,
+    page,
+    page_size: DISCOVER_PAGE_SIZE,
+    total: total?.n ?? 0,
+  });
+});
+
+/** Étiquettes de communauté et villes réellement utilisées, pour alimenter les filtres. */
+pub.get("/discover/facets", async (c) => {
+  const [tags, cities] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT community_tag AS value, COUNT(*) AS n FROM events
+       WHERE status = 'published' AND community_tag IS NOT NULL AND community_tag != ''
+         AND COALESCE(ends_at, starts_at) >= ?
+       GROUP BY community_tag ORDER BY n DESC LIMIT 20`,
+    ).bind(nowIso()).all(),
+    c.env.DB.prepare(
+      `SELECT venue AS value, COUNT(*) AS n FROM events
+       WHERE status = 'published' AND venue IS NOT NULL AND venue != ''
+         AND COALESCE(ends_at, starts_at) >= ?
+       GROUP BY venue ORDER BY n DESC LIMIT 20`,
+    ).bind(nowIso()).all(),
+  ]);
+  return c.json({ tags: tags.results, cities: cities.results });
+});
+
+/**
+ * Suggestions affichées en bas d'une page événement et d'un billet : c'est la
+ * surface la plus qualifiée du site — quelqu'un qui tient déjà son billet — et
+ * elle ne menait nulle part. On privilégie la même étiquette de communauté,
+ * puis on complète par les prochains événements.
+ */
+pub.get("/events/:slug/similar", async (c) => {
+  const current = await c.env.DB.prepare(
+    "SELECT id, community_tag FROM events WHERE public_slug = ? AND status = 'published'",
+  )
+    .bind(c.req.param("slug"))
+    .first<{ id: string; community_tag: string | null }>();
+  if (!current) return c.json({ events: [] });
+
+  const rows = await c.env.DB.prepare(
+    `SELECT e.title, e.starts_at, e.venue, e.public_slug, e.community_tag, e.cover_media_id, e.logo_media_id,
+            (SELECT MIN(tc.price_cents) FROM ticket_categories tc WHERE tc.event_id = e.id) AS min_price_cents,
+            (SELECT tc.currency FROM ticket_categories tc WHERE tc.event_id = e.id ORDER BY tc.price_cents LIMIT 1) AS currency
+     FROM events e
+     WHERE e.status = 'published' AND e.id != ? AND COALESCE(e.ends_at, e.starts_at) >= ?
+     ORDER BY (e.community_tag IS NOT NULL AND e.community_tag = ?) DESC, e.starts_at ASC
+     LIMIT 3`,
+  )
+    .bind(current.id, nowIso(), current.community_tag)
+    .all();
+  return c.json({ events: rows.results });
+});
+
 pub.get("/events/:slug", async (c) => {
   const event = await c.env.DB.prepare(
     `SELECT ${PUBLIC_EVENT_FIELDS} FROM events WHERE public_slug = ? AND status = 'published'`,
@@ -142,6 +266,9 @@ pub.get("/events/:slug", async (c) => {
   }
   return c.json({
     event,
+    // Calculées ici plutôt que côté client : elles dépendent des champs remplis,
+    // et le client n'a pas à connaître ce que l'assistant sait faire.
+    ask_suggestions: askSuggestions(event as unknown as AskSuggestionSource, categories.results.length > 0),
     categories: categories.results,
     announcements: announcements.results,
     gallery: gallery.results,
@@ -152,6 +279,39 @@ pub.get("/events/:slug", async (c) => {
     performers: performers.results,
   });
 });
+
+/**
+ * Amorces proposées sous l'assistant : elles ne sont proposées que si la fiche
+ * porte réellement de quoi y répondre.
+ *
+ * Une amorce qui mène à « je ne sais pas » est pire que pas d'amorce du tout :
+ * elle donne au visiteur la preuve immédiate que l'assistant ne sert à rien.
+ * D'où la dérivation depuis les champs remplis plutôt qu'une liste figée.
+ */
+interface AskSuggestionSource {
+  parking_available: number;
+  accessibility_available: number;
+  coat_check_available: number;
+  dress_code: string | null;
+  agenda: string | null;
+  address: string | null;
+  age_restriction: string;
+  day_of_phone: string | null;
+}
+
+function askSuggestions(event: AskSuggestionSource, hasCategories: boolean): string[] {
+  const out: string[] = [];
+  if (event.parking_available) out.push("Où puis-je me garer ?");
+  if (event.dress_code) out.push("Quelle est la tenue demandée ?");
+  if (event.agenda) out.push("Quel est le programme de la soirée ?");
+  if (event.accessibility_available) out.push("Le lieu est-il accessible en fauteuil ?");
+  if (event.coat_check_available) out.push("Y a-t-il un vestiaire ?");
+  if (event.age_restriction && event.age_restriction !== "all") out.push("L'événement est-il ouvert aux mineurs ?");
+  if (hasCategories) out.push("Quelles sont les catégories de billets ?");
+  if (event.address) out.push("Où exactement se déroule l'événement ?");
+  // Quatre suffisent : au-delà, la rangée d'amorces se lit comme un formulaire.
+  return out.slice(0, 4);
+}
 
 /** Assistant IA public : répond aux questions des invités à partir des infos publiées de l'événement. */
 pub.post("/events/:slug/ask", async (c) => {
@@ -207,7 +367,7 @@ pub.post("/events/:slug/ask", async (c) => {
     .bind(event.id)
     .all<{ name: string; price_cents: number; currency: string }>();
 
-  const answer = await generateEventAnswer(
+  const { answer, answered } = await generateEventAnswer(
     c.env,
     {
       title: event.title,
@@ -232,6 +392,19 @@ pub.post("/events/:slug/ask", async (c) => {
     },
     question,
   );
+
+  // Journalisation hors du chemin de réponse : le visiteur n'a pas à attendre
+  // une écriture qui ne le concerne pas, et un échec d'insertion ne doit pas
+  // lui coûter sa réponse.
+  c.executionCtx.waitUntil(
+    c.env.DB.prepare(
+      "INSERT INTO event_questions (id, event_id, question, answer, answered) VALUES (?, ?, ?, ?, ?)",
+    )
+      .bind(uuid(), event.id, question, answer, answered ? 1 : 0)
+      .run()
+      .catch((err) => console.error("[ask] journalisation impossible:", err)),
+  );
+
   return c.json({ answer });
 });
 
@@ -1109,15 +1282,55 @@ pub.post("/waitlist", async (c) => {
     .bind(String(b.category_id ?? ""))
     .first<{ id: string; event_id: string; quantity: number; sold: number }>();
   if (!cat) return c.json({ error: "Catégorie introuvable" }, 404);
-  if (cat.quantity - cat.sold > 0) return c.json({ error: "Cette catégorie n'est pas épuisée" }, 409);
 
+  // Épuisée : c'est une vraie liste d'attente, on relancera à la première place
+  // libérée. Encore disponible : c'est une manifestation d'intérêt, on note la
+  // personne sans lui promettre une place qu'elle peut acheter tout de suite.
+  const kind = cat.quantity - cat.sold > 0 ? "interest" : "waitlist";
+
+  // Idempotent : réutiliser le formulaire ne doit pas créer de doublon ni faire
+  // reculer la personne dans la file. `INSERT OR IGNORE` s'appuie sur l'index
+  // unique (category_id, email) ; le rang est ensuite lu depuis la ligne qui
+  // existe réellement, qu'elle vienne d'être créée ou non.
   await c.env.DB.prepare(
-    "INSERT INTO waitlist (id, event_id, category_id, name, email, phone) VALUES (?, ?, ?, ?, ?, ?)",
+    `INSERT OR IGNORE INTO waitlist (id, event_id, category_id, name, email, phone, kind)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(uuid(), cat.event_id, cat.id, name, email, (b.phone as string) || null)
+    .bind(uuid(), cat.event_id, cat.id, name, email, (b.phone as string) || null, kind)
     .run();
-  return c.json({ ok: true }, 201);
+
+  const rank = await waitlistRank(c.env, cat.id, email);
+  return c.json({ ok: true, kind, rank, sold_out: kind === "waitlist" }, 201);
 });
+
+/**
+ * Position de quelqu'un dans la file d'une catégorie.
+ *
+ * On ne compte que les inscriptions encore en attente : une fois prévenu, on
+ * quitte la file, et les suivants doivent voir leur rang avancer. Renvoie `null`
+ * si la personne n'est pas (ou plus) dans la file — le cas d'une manifestation
+ * d'intérêt, qui n'a pas de rang à afficher.
+ */
+async function waitlistRank(
+  env: AppContext["Bindings"],
+  categoryId: string,
+  email: string,
+): Promise<number | null> {
+  const row = await env.DB.prepare(
+    `SELECT (
+       SELECT COUNT(*) FROM waitlist ahead
+       WHERE ahead.category_id = w.category_id
+         AND ahead.kind = 'waitlist'
+         AND ahead.notified_at IS NULL
+         AND (ahead.created_at < w.created_at OR (ahead.created_at = w.created_at AND ahead.id <= w.id))
+     ) AS rank
+     FROM waitlist w
+     WHERE w.category_id = ? AND w.email = ? AND w.kind = 'waitlist' AND w.notified_at IS NULL`,
+  )
+    .bind(categoryId, email)
+    .first<{ rank: number }>();
+  return row?.rank ?? null;
+}
 
 export async function sendTicketsEmail(
   env: AppContext["Bindings"],

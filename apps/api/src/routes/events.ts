@@ -128,7 +128,7 @@ events.get("/:id", async (c) => {
   const user = c.get("user");
   const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
-  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators, sponsorTiers, sponsors, performers] = await Promise.all([
+  const [guests, categories, sellers, quotas, announcements, refunds, sales, waitlist, collaborators, sponsorTiers, sponsors, performers, questions] = await Promise.all([
     c.env.DB.prepare("SELECT * FROM guests WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM ticket_categories WHERE event_id = ? ORDER BY price_cents").bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM sellers WHERE event_id = ? ORDER BY created_at").bind(event.id).all(),
@@ -169,6 +169,12 @@ events.get("/:id", async (c) => {
        WHERE s.event_id = ? ORDER BY s.created_at DESC`,
     ).bind(event.id).all(),
     c.env.DB.prepare("SELECT * FROM event_performers WHERE event_id = ? ORDER BY rank, created_at").bind(event.id).all(),
+    // Questions posées à l'assistant IA, les sans-réponse d'abord : ce sont les
+    // trous de la fiche que de vrais visiteurs sont venus chercher.
+    c.env.DB.prepare(
+      `SELECT id, question, answer, answered, created_at FROM event_questions
+       WHERE event_id = ? ORDER BY answered ASC, created_at DESC LIMIT 50`,
+    ).bind(event.id).all(),
   ]);
   return c.json({
     event,
@@ -184,6 +190,7 @@ events.get("/:id", async (c) => {
     sponsor_tiers: sponsorTiers.results,
     sponsors: sponsors.results,
     performers: performers.results,
+    questions: questions.results,
     collaborators: collaborators.results,
   });
 });

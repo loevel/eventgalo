@@ -6,6 +6,10 @@ import { esc, layout, sendEmail } from "./email";
  * Notifie les premiers inscrits sur liste d'attente lorsque des places se libèrent
  * (augmentation de quantité, remboursement). Premier arrivé, premier notifié ;
  * chaque entrée n'est notifiée qu'une seule fois.
+ *
+ * Seules les lignes `kind = 'waitlist'` sont concernées : les manifestations
+ * d'intérêt déposées sur une catégorie encore disponible ne correspondent à
+ * aucune attente, et leur écrire « une place s'est libérée » serait absurde.
  */
 export async function notifyWaitlist(env: Env, categoryId: string, freedSlots: number): Promise<void> {
   if (freedSlots <= 0) return;
@@ -14,7 +18,7 @@ export async function notifyWaitlist(env: Env, categoryId: string, freedSlots: n
      FROM waitlist w
      JOIN ticket_categories c ON c.id = w.category_id
      JOIN events e ON e.id = c.event_id
-     WHERE w.category_id = ? AND w.notified_at IS NULL
+     WHERE w.category_id = ? AND w.notified_at IS NULL AND w.kind = 'waitlist'
      ORDER BY w.created_at ASC LIMIT ?`,
   )
     .bind(categoryId, freedSlots)

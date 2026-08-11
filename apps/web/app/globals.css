@@ -1579,6 +1579,154 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
    chargement (.spin) garde son animation : il porte une information de statut,
    pas un mouvement décoratif. */
 
+/* ===================== Listes (découverte, mes billets) ===================== */
+/* Système de cartes partagé par /evenements et /mes-billets. Volontairement
+   distinct de `.section-title` (centré, 30px), réservé aux sections marketing
+   de la page d'accueil : ici on aligne à gauche, en mode annuaire. */
+
+.listing-head { margin: 32px 0 24px; }
+.listing-head h1 {
+  font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 4vw, 38px);
+  margin: 0 0 8px; letter-spacing: -0.015em; text-wrap: balance;
+}
+.listing-head p { margin: 0; max-width: 62ch; }
+.listing-title {
+  font-family: var(--font-display); font-weight: 600; font-size: 21px;
+  margin: 0 0 16px; letter-spacing: -0.01em;
+}
+
+.card-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+.card-grid.is-past { opacity: 0.72; }
+
+.ev-card {
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; color: inherit; text-decoration: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.ev-card:hover, .ev-card:focus-visible {
+  text-decoration: none; transform: translateY(-3px);
+  border-color: rgba(143, 64, 9, 0.35);
+  box-shadow: 0 16px 32px -20px rgba(28, 26, 23, 0.4);
+}
+.ev-cover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--line); }
+.ev-cover-fallback,
+.ev-thumb-fallback {
+  background: linear-gradient(135deg, var(--gala-ink) 0%, var(--gala-ink-2) 60%, var(--accent) 160%);
+}
+.ev-thumb {
+  width: 100%; aspect-ratio: 3 / 1; object-fit: contain; object-position: center;
+  background: var(--gala-ink); padding: 14px; display: block;
+}
+
+.ev-card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.ev-card-body h2, .ev-card-body h3 {
+  font-family: var(--font-display); font-weight: 600; font-size: 17px; line-height: 1.3;
+  margin: 0; letter-spacing: -0.01em; text-wrap: balance;
+}
+.ev-meta {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; color: var(--muted); font-size: 13.5px;
+}
+.ev-meta svg { flex: none; opacity: 0.75; }
+.ev-card-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: auto; padding-top: 10px;
+}
+.ev-price { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+.ev-tag {
+  align-self: flex-start;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--accent); background: rgba(143, 64, 9, 0.09);
+  padding: 3px 8px; border-radius: 100px;
+}
+
+.listing-pager {
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  margin-top: 36px; flex-wrap: wrap;
+}
+
+.empty-state {
+  text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 48px 28px;
+}
+.empty-state svg { color: var(--accent); opacity: 0.7; }
+.empty-state h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 4px 0 0; }
+.empty-state p { max-width: 46ch; margin: 0; }
+.empty-state .btn-accent { margin-top: 8px; display: inline-flex; align-items: center; gap: 7px; }
+
+/* -------------------------- Filtres de découverte -------------------------- */
+
+.discover-filters { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
+.discover-search {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 6px 6px 6px 14px;
+}
+.discover-search svg { color: var(--muted); flex: none; }
+.discover-search input {
+  flex: 1; border: none; background: none; padding: 8px 0; margin: 0;
+  font: inherit; color: var(--ink); min-width: 0;
+}
+.discover-search input:focus { outline: none; }
+.discover-search:focus-within { border-color: var(--accent); }
+
+/* `.chip` et `.chip-row` sont définis plus haut (tags de villages). On ne
+   redéclare ici que ce qui est propre aux chips cliquables — redéfinir la base
+   une seconde fois créait deux règles de même spécificité dont seule la
+   dernière s'appliquait, ce qui écrasait silencieusement le style d'origine. */
+button.chip { cursor: pointer; color: var(--muted); }
+button.chip:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
+button.chip:disabled { opacity: 0.5; cursor: default; }
+.chip.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip.is-on .chip-n { color: var(--accent-ink); opacity: 0.8; }
+.chip-n { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip-clear { border-style: dashed; }
+
+/* Amorces de l'assistant : mêmes pastilles, en colonne serrée sous le titre. */
+.ask-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ask-chips .chip { font-size: 12.5px; padding: 5px 11px; }
+
+/* ---------------------- Bandeau « à voir aussi » --------------------------- */
+
+.similar-band { border-top: 1px solid var(--line); padding-top: 28px; }
+.similar-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; margin-bottom: 16px;
+}
+.similar-head h2 {
+  font-family: var(--font-display); font-weight: 600; font-size: 22px; margin: 0;
+  letter-spacing: -0.01em;
+}
+.similar-all { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+
+.mini-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.mini-card {
+  display: flex; flex-direction: column; color: inherit; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; transition: transform 0.16s ease, border-color 0.16s ease;
+}
+.mini-card:hover, .mini-card:focus-visible {
+  text-decoration: none; transform: translateY(-2px); border-color: rgba(143, 64, 9, 0.35);
+}
+.mini-cover { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--line); }
+.mini-cover-fallback {
+  background: linear-gradient(135deg, var(--gala-ink) 0%, var(--gala-ink-2) 60%, var(--accent) 160%);
+}
+.mini-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 5px; }
+.mini-body h3 {
+  font-family: var(--font-display); font-weight: 600; font-size: 15.5px; line-height: 1.3;
+  margin: 0; text-wrap: balance;
+}
+
+@media (max-width: 520px) {
+  .discover-search { flex-wrap: wrap; }
+  .discover-search input { flex-basis: 100%; order: -1; padding-left: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn-gold:hover::after,
   .hero-scroll-cue .scroll-chevron,
@@ -1614,6 +1762,9 @@ a.sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -16p
     animation: none;
   }
   .hero-slide { transition: none; }
+  .ev-card, .mini-card, .chip { transition: none; }
+  .ev-card:hover, .ev-card:focus-visible,
+  .mini-card:hover, .mini-card:focus-visible { transform: none; }
   .feature:hover::after { animation: none; opacity: 0; }
   .reveal:not(.reveal-visible) .section-kicker { letter-spacing: 0.12em; }
 }

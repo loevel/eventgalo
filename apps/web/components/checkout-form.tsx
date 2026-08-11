@@ -38,7 +38,7 @@ export function CheckoutForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Array<{ serial: string; url: string }> | null>(null);
-  const [waitlistDone, setWaitlistDone] = useState(false);
+  const [waitlistDone, setWaitlistDone] = useState<{ kind: string; rank: number | null } | null>(null);
 
   const selected = categories.find((c) => c.id === catId);
   const remaining = selected ? selected.quantity - selected.sold : 0;
@@ -66,18 +66,22 @@ export function CheckoutForm({
     };
   }, [slug]);
 
-  async function joinWaitlist(e: React.FormEvent) {
+  // `SyntheticEvent` et non `FormEvent` : appelée à la fois comme `onSubmit` du
+  // formulaire (catégorie épuisée) et comme `onClick` du bouton « prévenez-moi ».
+  async function joinWaitlist(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!selected) return;
     setBusy(true);
     setError(null);
     try {
-      await api("/api/public/waitlist", {
+      // L'API décide elle-même s'il s'agit d'une liste d'attente (catégorie
+      // épuisée) ou d'une simple manifestation d'intérêt, et renvoie le rang.
+      const res = await api<{ kind: string; rank: number | null }>("/api/public/waitlist", {
         method: "POST",
         auth: false,
         body: { category_id: selected.id, name, email },
       });
-      setWaitlistDone(true);
+      setWaitlistDone({ kind: res.kind, rank: res.rank });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -86,10 +90,27 @@ export function CheckoutForm({
   }
 
   if (waitlistDone) {
+    // Le rang est ce qui transforme une attente vague en attente supportable :
+    // « 3e sur la liste » se surveille, « on vous préviendra » s'oublie.
+    const rank = waitlistDone.rank;
     return (
       <div className="alert ok" role="status">
-        <strong>Vous êtes sur la liste d&apos;attente !</strong> Nous vous préviendrons par email si une place se
-        libère.
+        {waitlistDone.kind === "waitlist" ? (
+          <>
+            <strong>Vous êtes sur la liste d&apos;attente !</strong>{" "}
+            {rank !== null && (
+              <>
+                Vous êtes <strong>{rank === 1 ? "1er·ère" : `${rank}e`}</strong> sur la liste.{" "}
+              </>
+            )}
+            Nous vous préviendrons par email si une place se libère.
+          </>
+        ) : (
+          <>
+            <strong>C&apos;est noté !</strong> Nous vous préviendrons par email si cette catégorie approche de la
+            rupture. Des places sont encore disponibles : vous pouvez aussi réserver dès maintenant.
+          </>
+        )}
       </div>
     );
   }
@@ -245,6 +266,20 @@ export function CheckoutForm({
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           Des frais de service peuvent s&apos;ajouter au moment du paiement sécurisé.
         </p>
+      )}
+      {!soldOut && (
+        // Un visiteur qui hésite repartait sans rien laisser. Ce second bouton
+        // capte l'intention au lieu de la perdre : la seule condition est
+        // d'avoir déjà saisi nom et email, qui servent aussi à l'achat.
+        <button
+          type="button"
+          className="btn-sm btn-ghost"
+          style={{ marginTop: 10 }}
+          disabled={busy || !selected || !name.trim() || !email.trim()}
+          onClick={joinWaitlist}
+        >
+          Pas encore décidé·e ? Prévenez-moi avant que ce soit complet
+        </button>
       )}
     </form>
   );

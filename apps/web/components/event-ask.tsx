@@ -10,15 +10,13 @@ interface QA {
 }
 
 /** Widget public : les invités posent une question, répondue par l'IA à partir des infos de l'événement. */
-export function EventAsk({ slug }: { slug: string }) {
+export function EventAsk({ slug, suggestions = [] }: { slug: string; suggestions?: string[] }) {
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<QA[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function ask(e: FormEvent) {
-    e.preventDefault();
-    const q = question.trim();
+  async function send(q: string) {
     if (!q || busy) return;
     setBusy(true);
     setError(null);
@@ -37,6 +35,15 @@ export function EventAsk({ slug }: { slug: string }) {
     }
   }
 
+  async function ask(e: FormEvent) {
+    e.preventDefault();
+    await send(question.trim());
+  }
+
+  // Une fois la conversation entamée, les amorces n'ont plus d'utilité : elles
+  // servent à franchir le premier pas, pas à meubler.
+  const showSuggestions = suggestions.length > 0 && history.length === 0;
+
   return (
     <div className="card" style={{ margin: 0 }}>
       <h3 style={{ marginTop: 0, fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
@@ -49,6 +56,15 @@ export function EventAsk({ slug }: { slug: string }) {
               <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 13 }}>{qa.question}</p>
               <p className="muted" style={{ margin: 0, fontSize: 13 }}>{qa.answer}</p>
             </div>
+          ))}
+        </div>
+      )}
+      {showSuggestions && (
+        <div className="ask-chips">
+          {suggestions.map((s) => (
+            <button key={s} type="button" className="chip" disabled={busy} onClick={() => send(s)}>
+              {s}
+            </button>
           ))}
         </div>
       )}

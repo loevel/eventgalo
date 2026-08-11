@@ -13,6 +13,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
+      url: "https://eventgalo.com/evenements",
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
       url: "https://eventgalo.com/sponsors",
       changeFrequency: "daily",
       priority: 0.7,

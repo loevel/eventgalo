@@ -9,6 +9,7 @@ import { Countdown } from "@/components/countdown";
 import { ShareButton } from "@/components/share-button";
 import { EventAsk } from "@/components/event-ask";
 import { EventGallery } from "@/components/event-gallery";
+import { SimilarEvents } from "@/components/similar-events";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://eventgalo-api.davechendjou.workers.dev";
 
@@ -50,6 +51,7 @@ interface EventPayload {
     sold: number;
   }>;
   announcements: Array<{ body: string; created_at: string }>;
+  ask_suggestions?: string[];
   gallery: Array<{ id: string; content_type: string }>;
   sponsors: Array<{
     company_name: string;
@@ -400,7 +402,8 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
 
             {data.gallery.length > 0 && (
               <Reveal delay={60}>
-                <div className="card">
+                {/* `#photos` est la cible du lien de l'email d'après-événement. */}
+                <div className="card" id="photos">
                   <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
                     <Camera size={17} /> En images
                   </h3>
@@ -497,7 +500,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
               </Reveal>
             )}
             <Reveal delay={100}>
-              <EventAsk slug={slug} />
+              <EventAsk slug={slug} suggestions={data.ask_suggestions} />
             </Reveal>
           </aside>
         </div>
@@ -650,6 +653,8 @@ export default async function PublicEventPage({ params }: { params: Promise<{ sl
             </a>
           </div>
         </Reveal>
+
+        <SimilarEvents slug={slug} />
       </main>
     </>
   );

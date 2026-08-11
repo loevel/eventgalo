@@ -61,6 +61,9 @@ export async function deleteEventCascade(env: Env, eventId: string): Promise<Del
     env.DB.prepare("DELETE FROM event_webhooks WHERE event_id = ?").bind(eventId),
     env.DB.prepare("DELETE FROM announcements WHERE event_id = ?").bind(eventId),
     env.DB.prepare("DELETE FROM waitlist WHERE event_id = ?").bind(eventId),
+    // Les questions sont du texte libre saisi par des visiteurs : elles tombent
+    // sous la même purge que le reste des données personnelles de l'événement.
+    env.DB.prepare("DELETE FROM event_questions WHERE event_id = ?").bind(eventId),
     env.DB.prepare("DELETE FROM event_collaborators WHERE event_id = ?").bind(eventId),
     env.DB.prepare("DELETE FROM guests WHERE event_id = ?").bind(eventId),
     env.DB.prepare("DELETE FROM media WHERE event_id = ?").bind(eventId),

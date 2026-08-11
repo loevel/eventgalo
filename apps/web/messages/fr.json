@@ -203,6 +203,8 @@
     ]
   },
   "TopbarNav": {
+    "events": "Événements",
+    "myTickets": "Mes billets",
     "sponsors": "Sponsors",
     "vendors": "Prestataires",
     "opportunities": "Opportunités",
