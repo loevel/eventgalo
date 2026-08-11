@@ -91,7 +91,7 @@ export default function AdminEventsPage() {
         </select>
         <button type="submit" className="btn-sm btn-ghost">Rechercher</button>
       </form>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {!events ? (
         <p className="muted">Chargement…</p>
       ) : (

@@ -132,7 +132,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {events !== null && <ConnectPaymentsCard />}
 

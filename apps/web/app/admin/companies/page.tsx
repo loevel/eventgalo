@@ -84,7 +84,7 @@ export default function AdminCompaniesPage() {
         <input placeholder="Rechercher par nom, site ou email…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1 }} />
         <button type="submit" className="btn-sm btn-ghost">Rechercher</button>
       </form>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {!companies ? (
         <p className="muted">Chargement…</p>
       ) : (

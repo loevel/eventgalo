@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext, AuthedUser } from "../types";
 import { nowIso, randomToken, uuid } from "../lib/crypto";
-import { layout, sendEmail } from "../lib/email";
+import { esc, layout, sendEmail, type EmailResult } from "../lib/email";
 import { ADMIN_SESSION_TTL, createSession, requireAuth, sessionKey } from "../lib/auth";
 import { clientIp, isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { verifyTurnstile } from "../lib/turnstile";
@@ -25,29 +25,37 @@ auth.post("/magic-link", async (c) => {
   // 5 demandes / 5 min par IP : évite le bombardement de boîtes de réception.
   if (await isRateLimited(c.env, "magic-link", ip, 5, 300)) return tooManyRequests(c);
 
+  // Inscriptions fermées : on n'envoie pas de lien à une adresse inconnue, mais
+  // la réponse reste identique dans les deux cas. Répondre 403 uniquement pour
+  // les adresses inconnues transformait cet endpoint en oracle : n'importe qui
+  // pouvait tester si une adresse avait un compte EventGalo.
+  let deliverLink = true;
   if ((await getSetting(c.env, "feature_signups_enabled")) === "0") {
     const existing = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
-    if (!existing) return c.json({ error: "Les nouvelles inscriptions sont temporairement suspendues." }, 403);
+    deliverLink = Boolean(existing);
   }
 
-  const token = randomToken(24);
-  await c.env.KV.put(
-    `magic:${token}`,
-    JSON.stringify({ email, name: body.name ?? null }),
-    { expirationTtl: 900 },
-  );
-  const url = `${c.env.WEB_BASE_URL}/auth/callback?token=${token}`;
-  const result = await sendEmail(
-    c.env,
-    email,
-    "Votre lien de connexion EventGalo",
-    layout(
-      "Connexion à EventGalo",
-      `<p>Cliquez sur ce lien pour vous connecter (valide 15 minutes) :</p>
-       <p><a href="${url}" style="display:inline-block;background:#1a1a1a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Se connecter</a></p>`,
-    ),
-    url,
-  );
+  let result: EmailResult = { sent: true };
+  if (deliverLink) {
+    const token = randomToken(24);
+    await c.env.KV.put(
+      `magic:${token}`,
+      JSON.stringify({ email, name: body.name ?? null }),
+      { expirationTtl: 900 },
+    );
+    const url = `${c.env.WEB_BASE_URL}/auth/callback?token=${token}`;
+    result = await sendEmail(
+      c.env,
+      email,
+      "Votre lien de connexion EventGalo",
+      layout(
+        "Connexion à EventGalo",
+        `<p>Cliquez sur ce lien pour vous connecter (valide 15 minutes) :</p>
+         <p><a href="${url}" style="display:inline-block;background:#1a1a1a;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Se connecter</a></p>`,
+      ),
+      url,
+    );
+  }
   return c.json({
     ok: true,
     message: result.sent
@@ -101,7 +109,7 @@ auth.post("/verify", async (c) => {
       layout(
         "Nouvelle connexion à l'espace admin",
         `<p>Une connexion vient d'être effectuée sur votre compte administrateur EventGalo.</p>
-         <p>Date : ${nowIso()}<br/>Adresse IP : ${ip}</p>
+         <p>Date : ${nowIso()}<br/>Adresse IP : ${esc(ip)}</p>
          <p>Si ce n'était pas vous, contactez immédiatement le support.</p>`,
       ),
     );

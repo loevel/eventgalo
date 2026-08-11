@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { z } from "zod";
 import type { AppContext } from "../types";
 import { buildTicketPayload, nowIso, uuid, verifyTicketPayload } from "../lib/crypto";
-import { eventLogoUrl, layout, sendEmail } from "../lib/email";
+import { esc, escapeUrl, eventLogoUrl, layout, sendEmail } from "../lib/email";
 import {
   deleteProcessedImage, MAX_MEDIA_PER_EVENT, MAX_MEDIA_PER_GUEST, MEDIA_LIST_QUERY, putProcessedImage, THUMB_SUFFIX,
   validateMediaFile,
@@ -428,12 +428,12 @@ pub.post("/sponsor/:token", async (c) => {
         `Nouvel engagement sponsor — ${org.title}`,
         layout(
           `${companyName} veut sponsoriser ${org.title} !`,
-          `<p><strong>${companyName}</strong> vient de s'engager sur le palier
-             <strong>${tier.name}</strong> (${amount}&nbsp;$).</p>
+          `<p><strong>${esc(companyName)}</strong> vient de s'engager sur le palier
+             <strong>${esc(tier.name)}</strong> (${esc(amount)}&nbsp;$).</p>
            <ul style="color:#444;padding-left:18px">
-             <li>Contact : ${(b.contact_name as string) || "—"} · ${sponsor.contact_email}</li>
-             ${b.website ? `<li>Site web : ${b.website}</li>` : ""}
-             ${b.message ? `<li>Message : « ${b.message} »</li>` : ""}
+             <li>Contact : ${esc(b.contact_name, "—")} · ${esc(sponsor.contact_email)}</li>
+             ${escapeUrl(b.website) ? `<li>Site web : <a href="${escapeUrl(b.website)}">${esc(b.website)}</a></li>` : ""}
+             ${b.message ? `<li>Message : « ${esc(b.message)} »</li>` : ""}
            </ul>
            <p>Le sponsor peut payer en ligne, ou vous pouvez confirmer manuellement après réception du
               paiement (virement/facture) depuis l'onglet Sponsors de votre tableau de bord.</p>
@@ -576,11 +576,11 @@ pub.post("/sponsor/:token/propose", async (c) => {
         `Contre-proposition de sponsoring — ${sponsor.event_title}`,
         layout(
           `${company} propose un autre montant`,
-          `<p><strong>${company}</strong> souhaite sponsoriser <strong>${sponsor.event_title}</strong>
-             (palier <strong>${sponsor.tier_name ?? ""}</strong>) pour
+          `<p><strong>${esc(company)}</strong> souhaite sponsoriser <strong>${esc(sponsor.event_title)}</strong>
+             (palier <strong>${esc(sponsor.tier_name)}</strong>) pour
              <strong>${(proposed / 100).toFixed(2)}&nbsp;$</strong> au lieu de
              ${sponsor.amount_cents != null ? `${(sponsor.amount_cents / 100).toFixed(2)}&nbsp;$` : "—"}.</p>
-           ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${message} »</p>` : ""}
+           ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${esc(message)} »</p>` : ""}
            <p>Acceptez ou refusez cette proposition depuis l'onglet Sponsors de votre tableau de bord :</p>
            <p><a href="${c.env.WEB_BASE_URL}/dashboard/e/${sponsor.event_id}">Ouvrir le tableau de bord</a></p>`,
           { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: sponsor.event_title },
@@ -652,8 +652,8 @@ pub.post("/sponsor/:token/decline", async (c) => {
         `Proposition déclinée — ${sponsor.event_title}`,
         layout(
           "Proposition de sponsoring déclinée",
-          `<p>${sponsor.company_name ? `<strong>${sponsor.company_name}</strong>` : "L'entreprise contactée"}
-             a décliné la proposition de sponsoring pour <strong>${sponsor.event_title}</strong>.</p>
+          `<p>${sponsor.company_name ? `<strong>${esc(sponsor.company_name)}</strong>` : "L'entreprise contactée"}
+             a décliné la proposition de sponsoring pour <strong>${esc(sponsor.event_title)}</strong>.</p>
            <p>Vous pouvez explorer d'autres entreprises dans
              <a href="${c.env.WEB_BASE_URL}/sponsors">l'annuaire des sponsors</a>.</p>`,
           { logoUrl: await eventLogoUrl(c.env, sponsor.event_id), eventTitle: sponsor.event_title },
@@ -676,17 +676,33 @@ pub.post("/sponsor/:token/decline", async (c) => {
   return c.json({ ok: true, status: "declined" });
 });
 
-/** Upload du logo de l'entreprise sponsor. */
+/**
+ * Upload du logo de l'entreprise sponsor. Aligné sur `/sponsor/:token/media` :
+ * même contrôle de statut, même limitation de débit. L'ancien logo est supprimé
+ * de R2 — sans ça, chaque envoi laissait un objet orphelin que plus rien ne
+ * référençait et qu'aucune purge ne rattrapait avant J+30 de l'événement.
+ */
 pub.post("/sponsor/:token/logo", async (c) => {
-  const sponsor = await c.env.DB.prepare("SELECT id, event_id FROM sponsors WHERE token = ?")
+  if (await isRateLimited(c.env, "sponsor-logo", clientIp(c), 10, 600)) return tooManyRequests(c);
+  const sponsor = await c.env.DB.prepare("SELECT id, event_id, status, logo_media_id FROM sponsors WHERE token = ?")
     .bind(c.req.param("token"))
-    .first<{ id: string; event_id: string }>();
+    .first<{ id: string; event_id: string; status: string; logo_media_id: string | null }>();
   if (!sponsor) return c.json({ error: "Lien de sponsoring introuvable" }, 404);
+  if (!["pending", "confirmed"].includes(sponsor.status)) {
+    return c.json({ error: "Engagez-vous d'abord sur un palier" }, 409);
+  }
   const body = await c.req.parseBody();
   const file = body.file;
   if (!(file instanceof File)) return c.json({ error: "Fichier manquant" }, 400);
   const invalid = validateMediaFile(file);
   if (invalid) return c.json({ error: invalid }, 400);
+
+  const previous = sponsor.logo_media_id
+    ? await c.env.DB.prepare("SELECT id, r2_key FROM media WHERE id = ?")
+        .bind(sponsor.logo_media_id)
+        .first<{ id: string; r2_key: string }>()
+    : null;
+
   const id = uuid();
   const key = `events/${sponsor.event_id}/${id}`;
   const contentType = await putProcessedImage(c.env, key, file);
@@ -695,6 +711,17 @@ pub.post("/sponsor/:token/logo", async (c) => {
       .bind(id, sponsor.event_id, key, contentType),
     c.env.DB.prepare("UPDATE sponsors SET logo_media_id = ? WHERE id = ?").bind(id, sponsor.id),
   ]);
+
+  // Après la bascule seulement : si la suppression échoue, le nouveau logo est
+  // déjà en place et on n'a perdu qu'un objet, jamais le logo affiché.
+  if (previous) {
+    c.executionCtx.waitUntil(
+      (async () => {
+        await deleteProcessedImage(c.env, previous.r2_key);
+        await c.env.DB.prepare("DELETE FROM media WHERE id = ?").bind(previous.id).run();
+      })(),
+    );
+  }
   return c.json({ media_id: id }, 201);
 });
 
@@ -1101,7 +1128,7 @@ export async function sendTicketsEmail(
   tickets: Array<{ serial: string }>,
 ) {
   const links = tickets
-    .map((t) => `<p><a href="${env.WEB_BASE_URL}/t/${t.serial}">Billet ${t.serial}</a></p>`)
+    .map((t) => `<p><a href="${env.WEB_BASE_URL}/t/${esc(t.serial)}">Billet ${esc(t.serial)}</a></p>`)
     .join("");
   const logoUrl = await eventLogoUrl(env, eventId);
   await sendEmail(
@@ -1110,7 +1137,7 @@ export async function sendTicketsEmail(
     `Vos billets — ${eventTitle}`,
     layout(
       `Merci ${name} !`,
-      `<p>Voici vos billets pour <strong>${eventTitle}</strong>. Présentez le QR code à l'entrée.</p>${links}`,
+      `<p>Voici vos billets pour <strong>${esc(eventTitle)}</strong>. Présentez le QR code à l'entrée.</p>${links}`,
       { logoUrl, eventTitle },
     ),
     tickets[0] ? `${env.WEB_BASE_URL}/t/${tickets[0].serial}` : undefined,
@@ -1291,7 +1318,7 @@ pub.patch("/tickets/:serial/transfer", async (c) => {
           `Un billet vous a été transféré — ${ticket.event_title}`,
           layout(
             `${ticket.buyer_name} vous a transféré un billet !`,
-            `<p>Vous êtes maintenant titulaire d'un billet pour <strong>${ticket.event_title}</strong>.</p>
+            `<p>Vous êtes maintenant titulaire d'un billet pour <strong>${esc(ticket.event_title)}</strong>.</p>
              <p><a href="${url}">Voir mon billet</a></p>`,
             brand,
           ),
@@ -1303,7 +1330,7 @@ pub.patch("/tickets/:serial/transfer", async (c) => {
           `Transfert confirmé — ${ticket.event_title}`,
           layout(
             "Transfert confirmé",
-            `<p>Votre billet pour <strong>${ticket.event_title}</strong> a bien été transféré à ${newName} (${newEmail}).</p>`,
+            `<p>Votre billet pour <strong>${esc(ticket.event_title)}</strong> a bien été transféré à ${esc(newName)} (${esc(newEmail)}).</p>`,
             brand,
           ),
         ),

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import Stripe from "stripe";
 import type { AppContext, Env } from "../types";
 import { callEventDO } from "../do/event-do";
-import { eventLogoUrl, layout, sendEmail } from "../lib/email";
+import { esc, eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { nowIso } from "../lib/crypto";
 import { sendTicketsEmail } from "./public";
 import { triggerWebhooks } from "../lib/webhooks";
@@ -42,10 +42,10 @@ async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: stri
       `Paiement reçu — sponsoring confirmé pour ${sponsor.event_title}`,
       layout(
         "Merci pour votre soutien !",
-        `<p>Votre paiement de <strong>${amount}</strong> pour le palier
-           <strong>${sponsor.tier_name ?? ""}</strong> a bien été reçu.</p>
-         <p><strong>${company}</strong> figure désormais parmi les sponsors de
-           <strong>${sponsor.event_title}</strong> : votre logo apparaît sur la page publique de l'événement.</p>`,
+        `<p>Votre paiement de <strong>${esc(amount)}</strong> pour le palier
+           <strong>${esc(sponsor.tier_name)}</strong> a bien été reçu.</p>
+         <p><strong>${esc(company)}</strong> figure désormais parmi les sponsors de
+           <strong>${esc(sponsor.event_title)}</strong> : votre logo apparaît sur la page publique de l'événement.</p>`,
         brand,
       ),
     ),
@@ -55,8 +55,8 @@ async function finalizeSponsorPayment(env: Env, sponsorId: string, eventId: stri
       `Sponsoring payé en ligne — ${sponsor.event_title}`,
       layout(
         `${company} a payé son sponsoring !`,
-        `<p><strong>${company}</strong> a réglé <strong>${amount}</strong> en ligne pour le palier
-           <strong>${sponsor.tier_name ?? ""}</strong>. Le sponsoring a été confirmé automatiquement
+        `<p><strong>${esc(company)}</strong> a réglé <strong>${esc(amount)}</strong> en ligne pour le palier
+           <strong>${esc(sponsor.tier_name)}</strong>. Le sponsoring a été confirmé automatiquement
            et son logo apparaît sur la page publique.</p>
          <p><a href="${env.WEB_BASE_URL}/dashboard/e/${eventId}">Ouvrir le tableau de bord</a></p>`,
         brand,

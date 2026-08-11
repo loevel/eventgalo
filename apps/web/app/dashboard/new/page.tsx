@@ -376,7 +376,7 @@ export default function NewEvent() {
         })}
       </div>
 
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {step === 1 && (
         <form onSubmit={continueFromStep1} className="card">
@@ -690,7 +690,7 @@ export default function NewEvent() {
               }}
             />
             {logoUploading && <p className="muted">Envoi du logo…</p>}
-            {logoDone && <div className="alert ok">Logo enregistré ✓</div>}
+            {logoDone && <div className="alert ok" role="status">Logo enregistré ✓</div>}
           </div>
 
           <div className="card">

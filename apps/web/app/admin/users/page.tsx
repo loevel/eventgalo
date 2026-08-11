@@ -74,7 +74,7 @@ export default function AdminUsersPage() {
         <input placeholder="Rechercher par email ou nom…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1 }} />
         <button type="submit" className="btn-sm btn-ghost">Rechercher</button>
       </form>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {!users ? (
         <p className="muted">Chargement…</p>
       ) : (

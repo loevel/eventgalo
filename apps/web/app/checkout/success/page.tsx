@@ -83,7 +83,7 @@ export default function CheckoutSuccess() {
             l&apos;entrée.
           </p>
         </div>
-        <div className="alert ok">
+        <div className="alert ok" role="status">
           <strong>Billets émis !</strong> Un email de confirmation a aussi été envoyé.
           {state.tickets.map((t) => (
             <p key={t.serial}>
@@ -98,7 +98,7 @@ export default function CheckoutSuccess() {
   if (state.kind === "canceled") {
     return (
       <main className="container narrow">
-        <div className="alert err">
+        <div className="alert err" role="alert">
           Le paiement n&apos;a pas abouti — la réservation a été annulée.{" "}
           <a href={`/e/${state.slug}`}>Retourner à la billetterie</a>
         </div>
@@ -109,7 +109,7 @@ export default function CheckoutSuccess() {
   if (state.kind === "error") {
     return (
       <main className="container narrow">
-        <div className="alert err">
+        <div className="alert err" role="alert">
           {state.message} — <Link href="/">retour à l&apos;accueil</Link>
         </div>
       </main>

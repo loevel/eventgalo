@@ -268,7 +268,7 @@ export default function SponsorPage() {
     }
   }
 
-  if (error && !data) return <main className="container narrow"><div className="alert err">{error}</div></main>;
+  if (error && !data) return <main className="container narrow"><div className="alert err" role="alert">{error}</div></main>;
   if (!data) return <main className="container narrow"><p className="muted">Chargement…</p></main>;
 
   const { sponsor, event: ev, tiers } = data;
@@ -322,7 +322,7 @@ export default function SponsorPage() {
               leurs prochains sponsorings.
               {data.my_review ? " Vous pouvez modifier votre note à tout moment." : ""}
             </p>
-            {reviewSaved && <div className="alert ok">Merci, votre évaluation est enregistrée ✓</div>}
+            {reviewSaved && <div className="alert ok" role="status">Merci, votre évaluation est enregistrée ✓</div>}
             <RatingForm
               key={data.my_review ? `${data.my_review.rating}:${data.my_review.comment ?? ""}` : "new"}
               initialRating={data.my_review?.rating}
@@ -358,7 +358,7 @@ export default function SponsorPage() {
               </div>
             )}
             {sponsor.proposal_status === "accepted" && (
-              <div className="alert ok">
+              <div className="alert ok" role="status">
                 Montant négocié accepté : votre sponsoring s&apos;élève maintenant à{" "}
                 <strong>{formatPrice(sponsor.amount_cents ?? 0, tiers[0]?.currency ?? "CAD")}</strong>.
               </div>
@@ -480,7 +480,7 @@ export default function SponsorPage() {
                 }}
               />
             </div>
-            {error && <div className="alert err">{error}</div>}
+            {error && <div className="alert err" role="alert">{error}</div>}
           </div>
         )}
 
@@ -612,7 +612,7 @@ export default function SponsorPage() {
               </>
             )}
 
-            {profileSaved && <div className="alert ok">Vitrine enregistrée ✓</div>}
+            {profileSaved && <div className="alert ok" role="status">Vitrine enregistrée ✓</div>}
             <button type="submit" className="btn-accent" disabled={savingProfile}>
               {savingProfile ? "Enregistrement…" : "Enregistrer ma vitrine"}
             </button>
@@ -686,7 +686,7 @@ export default function SponsorPage() {
                 En confirmant, vous vous engagez pour le palier sélectionné. L&apos;organisation vous contactera
                 pour le paiement (virement ou facture) et confirmera ensuite votre sponsoring.
               </p>
-              {error && <div className="alert err">{error}</div>}
+              {error && <div className="alert err" role="alert">{error}</div>}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <button type="submit" className="btn-accent" disabled={busy || !tierId || !company}>
                   {busy ? "Envoi…" : "Confirmer mon engagement"}

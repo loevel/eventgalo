@@ -57,10 +57,30 @@ export function NotificationBell() {
     }
   }
 
+  /**
+   * Sondage à 5 min plutôt qu'à 1 min, avec un décalage aléatoire pour ne pas
+   * synchroniser toutes les sessions ouvertes sur la même seconde. Les
+   * notifications changent quelques fois par jour : une interrogation par minute
+   * et par onglet ouvert coûtait des invocations sans rien apporter.
+   *
+   * Ce qu'on perd en fréquence, on le récupère là où ça se voit : rafraîchissement
+   * immédiat quand l'utilisateur revient sur l'onglet, et à l'ouverture du menu.
+   */
   useEffect(() => {
     load();
-    const interval = setInterval(load, 60_000);
-    return () => clearInterval(interval);
+    const jitter = Math.random() * 30_000;
+    const interval = setInterval(load, 5 * 60_000 + jitter);
+
+    function onVisible() {
+      if (document.visibilityState === "visible") load();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, []);
 
   useEffect(() => {

@@ -15,16 +15,27 @@ flowchart LR
   Browser["Navigateur"] --> Web["apps/web<br/>Next.js / OpenNext<br/>(Cloudflare Workers)"]
   Web --> API["apps/api<br/>Hono<br/>(Cloudflare Workers)"]
   API --> D1[("D1<br/>données relationnelles")]
-  API --> KV[("KV<br/>sessions, rate-limit")]
+  API --> KV[("KV<br/>sessions")]
   API --> R2[("R2<br/>médias")]
-  API --> DO["Durable Object<br/>réservation atomique de billets"]
+  API --> DO["EventDO<br/>sérialisation des opérations billetterie"]
+  API --> RLDO["RateLimitDO<br/>compteurs de limitation de débit"]
   API --> AIW["Workers AI<br/>recherche, suggestions"]
   API --> Stripe["Stripe<br/>paiements, Connect"]
   API --> Email["Cloudflare Email Sending"]
   API -.optionnel.-> Sentry["Sentry<br/>suivi d'erreurs"]
 ```
 
-`apps/web` sert le rendu (statique et SSR) et appelle `apps/api` côté client pour toutes les opérations dynamiques (auth, billetterie, sponsoring…). `apps/api` centralise l'accès aux données et aux services tiers ; le Durable Object `EventDO` garantit l'atomicité des réservations de billets (pas de survente en cas de requêtes concurrentes).
+`apps/web` sert le rendu (statique et SSR) et appelle `apps/api` côté client pour toutes les opérations dynamiques (auth, billetterie, sponsoring…). `apps/api` centralise l'accès aux données et aux services tiers.
+
+### Cohérence de la billetterie
+
+Le Durable Object `EventDO` sérialise les opérations qui touchent aux compteurs de billets. **Attention à ne pas se reposer sur sa seule existence** : `EventDO` ne stocke rien localement, tout son état vit dans D1. L'*input gating* qui sérialise naturellement les requêtes d'un DO ne couvre que les `await` sur le stockage du DO lui-même — sur un `await` vers D1, une seconde requête entre et s'entrelace. La cohérence repose donc sur trois couches, et il faut les trois :
+
+1. `blockConcurrencyWhile` autour de chaque opération mutante (`src/do/event-do.ts`). Le refus métier y est renvoyé **comme valeur, jamais comme exception** : une exception qui traverse `blockConcurrencyWhile` fait détruire et redémarrer le Durable Object.
+2. Des écritures conditionnelles (`WHERE … AND status = 'pending'`, `WHERE sold + ? <= quantity`) dont on vérifie `meta.changes`. Seul garde-fou qui survit à une migration ou un redémarrage du DO, où deux instances peuvent coexister brièvement.
+3. Les contraintes `CHECK (sold >= 0 AND sold <= quantity)` de la base, dernier filet.
+
+Deux tâches planifiées complètent le dispositif : le balayage horaire des réservations restées `pending` plus de 45 minutes (`releaseStalePendingTransactions`) libère les places retenues par un panier abandonné dont le webhook Stripe `checkout.session.expired` ne serait jamais arrivé.
 
 ## Prérequis
 
@@ -75,7 +86,7 @@ pnpm --filter @eventgalo/web deploy
 | `STRIPE_SECRET_KEY` | Clé API Stripe. Sans elle, les paiements sont désactivés (billets gratuits uniquement) |
 | `STRIPE_WEBHOOK_SECRET` | Vérifie la signature du webhook Stripe principal (paiements) |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | Vérifie la signature du webhook des comptes connectés Stripe (`account.updated`) |
-| `TURNSTILE_SECRET_KEY` | Vérification serveur de Cloudflare Turnstile — protège la demande de lien magique contre l'abus automatisé |
+| `TURNSTILE_SECRET_KEY` | Vérification serveur de Cloudflare Turnstile — protège la demande de lien magique contre l'abus automatisé. **Obligatoire en production** : sans elle, la vérification échoue au lieu d'être ignorée en silence |
 | `SENTRY_DSN` | Optionnel — désactive le suivi d'erreurs si absent |
 | `PLATFORM_FEE_PERCENT` / `PLATFORM_FEE_FIXED_CENTS` | Optionnels — frais de service par billet (défaut : 5 % + 99 ¢ si non définis) |
 

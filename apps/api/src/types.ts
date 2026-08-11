@@ -4,6 +4,8 @@ export interface Env {
   MEDIA: R2Bucket;
   AI: Ai;
   EVENT_DO: DurableObjectNamespace;
+  /** Compteurs de limitation de débit (une instance par bucket + clé). */
+  RATE_LIMIT_DO: DurableObjectNamespace;
   EMAIL: SendEmail;
   WEB_BASE_URL: string;
   /** URL publique de cette API (pour les images dans les emails). */

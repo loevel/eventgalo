@@ -142,7 +142,7 @@ export default function EventAdmin() {
   if (!data) {
     return (
       <main className="container">
-        {error ? <div className="alert err">{error}</div> : <p className="muted">Chargement…</p>}
+        {error ? <div className="alert err" role="alert">{error}</div> : <p className="muted">Chargement…</p>}
       </main>
     );
   }
@@ -194,8 +194,8 @@ export default function EventAdmin() {
         <CopyField value={`${WEB}/e/${ev.public_slug}`} />
       </div>
 
-      {error && <div className="alert err">{error}</div>}
-      {flash && <div className="alert ok">{flash}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
+      {flash && <div className="alert ok" role="status">{flash}</div>}
 
       <div className="tabs">
         {[
@@ -703,7 +703,7 @@ function MediaTab({
           }}
         />
         {uploading && <p className="muted">Envoi en cours…</p>}
-        {error && <div className="alert err">{error}</div>}
+        {error && <div className="alert err" role="alert">{error}</div>}
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Galerie</h3>
@@ -1971,7 +1971,7 @@ function SponsorsTab({
                     {s.proposal_status === "pending" && (
                       <tr>
                         <td colSpan={5} style={{ paddingTop: 0 }}>
-                          <div className="alert warn" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "4px 0" }}>
+                          <div className="alert warn" role="alert" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "4px 0" }}>
                             <span style={{ flex: 1, minWidth: 220 }}>
                               <strong>Contre-proposition :</strong>{" "}
                               {formatPrice(s.proposed_cents ?? 0, "CAD")} au lieu de{" "}
@@ -2538,9 +2538,9 @@ function WebhooksTab({ eventId }: { eventId: string }) {
         <code>X-EventGalo-Signature</code>) pour vérifier qu&apos;il vient bien d&apos;EventGalo.
       </p>
 
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {newSecret && (
-        <div className="alert warn">
+        <div className="alert warn" role="alert">
           <strong>Secret du webhook (affiché une seule fois) :</strong>
           <CopyField value={newSecret} />
           Conservez-le pour vérifier la signature des envois — on ne pourra plus vous le remontrer.

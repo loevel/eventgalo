@@ -1,6 +1,6 @@
 import type { Env } from "../types";
 import { nowIso } from "./crypto";
-import { layout, sendEmail } from "./email";
+import { esc, layout, sendEmail } from "./email";
 
 /**
  * Notifie les premiers inscrits sur liste d'attente lorsque des places se libèrent
@@ -32,7 +32,7 @@ export async function notifyWaitlist(env: Env, categoryId: string, freedSlots: n
       `Une place s'est libérée — ${entry.event_title}`,
       layout(
         `Bonne nouvelle, ${entry.name} !`,
-        `<p>Une place vient de se libérer dans la catégorie <strong>${entry.category_name}</strong> pour <strong>${entry.event_title}</strong>.</p>
+        `<p>Une place vient de se libérer dans la catégorie <strong>${esc(entry.category_name)}</strong> pour <strong>${esc(entry.event_title)}</strong>.</p>
          <p>Les places partent vite : <a href="${url}">réservez maintenant</a>.</p>`,
         { logoUrl, eventTitle: entry.event_title },
       ),

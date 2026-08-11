@@ -104,8 +104,8 @@ export default function CompanyAdsPage() {
         Ciblage optionnel par secteur et par région — laissez vide pour être visible partout.
       </p>
 
-      {flash && <div className="alert ok">{flash}</div>}
-      {error && <div className="alert err">{error}</div>}
+      {flash && <div className="alert ok" role="status">{flash}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {ads.length > 0 && (
         <div className="card">

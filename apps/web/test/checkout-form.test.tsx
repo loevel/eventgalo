@@ -17,8 +17,28 @@ const CATEGORIES = [
   { id: "vip-plus", name: "VIP+", price_cents: 10000, currency: "CAD", quantity: 5, sold: 5 },
 ];
 
+/**
+ * Le formulaire rafraîchit les compteurs de stock au montage (la page événement
+ * est mise en cache 60 s côté serveur). Ce premier appel ne doit pas consommer
+ * la réponse préparée pour la soumission : on route donc les réponses par chemin
+ * d'API plutôt que par ordre d'appel.
+ */
+function stubApi(routes: Record<string, unknown> = {}) {
+  mockedApi.mockImplementation(async (path: string) => {
+    if (path in routes) {
+      const value = routes[path];
+      if (value instanceof Error) throw value;
+      return value as never;
+    }
+    // Rafraîchissement du stock : on renvoie les compteurs inchangés.
+    if (path.startsWith("/api/public/events/")) return { categories: CATEGORIES } as never;
+    return {} as never;
+  });
+}
+
 beforeEach(() => {
   mockedApi.mockReset();
+  stubApi();
 });
 
 describe("CheckoutForm", () => {
@@ -58,7 +78,7 @@ describe("CheckoutForm", () => {
   });
 
   it("soumet la liste d'attente avec la bonne charge utile", async () => {
-    mockedApi.mockResolvedValueOnce({});
+    stubApi({ "/api/public/waitlist": {} });
     const user = userEvent.setup();
     render(<CheckoutForm slug="mon-gala" categories={CATEGORIES} />);
     await user.click(screen.getByRole("radio", { name: /VIP\+/ }));
@@ -77,9 +97,8 @@ describe("CheckoutForm", () => {
   });
 
   it("émet les billets directement quand le mode n'est pas stripe", async () => {
-    mockedApi.mockResolvedValueOnce({
-      mode: "free",
-      tickets: [{ serial: "ABC123", url: "/t/ABC123" }],
+    stubApi({
+      "/api/public/checkout": { mode: "free", tickets: [{ serial: "ABC123", url: "/t/ABC123" }] },
     });
     const user = userEvent.setup();
     render(<CheckoutForm slug="mon-gala" categories={CATEGORIES} />);
@@ -100,7 +119,7 @@ describe("CheckoutForm", () => {
   });
 
   it("affiche l'erreur retournée par l'API lors de la soumission", async () => {
-    mockedApi.mockRejectedValueOnce(new Error("Cette catégorie est complète"));
+    stubApi({ "/api/public/checkout": new Error("Cette catégorie est complète") });
     const user = userEvent.setup();
     render(<CheckoutForm slug="mon-gala" categories={CATEGORIES} />);
     await user.type(screen.getByLabelText("Nom complet (billet nominatif)"), "Grace Hopper");

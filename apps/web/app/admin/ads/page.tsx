@@ -63,7 +63,7 @@ export default function AdminAdsPage() {
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Bandeau publicitaire</h3>
       <p className="muted">Créneaux achetés par des entreprises pour le bandeau défilant de la page d&apos;accueil.</p>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {!ads ? (
         <p className="muted">Chargement…</p>
       ) : (

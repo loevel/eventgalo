@@ -57,7 +57,7 @@ export default function AdminReviewsPage() {
         <input type="checkbox" checked={onlyLow} onChange={(e) => setOnlyLow(e.target.checked)} />
         N&apos;afficher que les avis à 1 ou 2 étoiles (potentiellement litigieux)
       </label>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {!reviews ? (
         <p className="muted">Chargement…</p>
       ) : (

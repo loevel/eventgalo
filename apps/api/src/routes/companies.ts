@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../types";
 import { nowIso, randomToken, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
-import { eventLogoUrl, layout, sendEmail } from "../lib/email";
+import { esc, eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { createNotification } from "../lib/notifications";
 import { deleteProcessedImage, putProcessedImage, THUMB_SUFFIX, validateMediaFile } from "../lib/media";
 import { clampText, sanitizeSocials, sanitizeVideoUrl } from "../lib/profile";
@@ -273,9 +273,9 @@ company.post("/apply", async (c) => {
         `Une entreprise se propose comme sponsor — ${event.title}`,
         layout(
           `${co.name} veut sponsoriser ${event.title} !`,
-          `<p><strong>${co.name}</strong> a découvert votre événement dans les opportunités de sponsoring
-             EventGalo et s'engage sur le palier <strong>${tier.name}</strong> (${amount}&nbsp;$).</p>
-           ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${message} »</p>` : ""}
+          `<p><strong>${esc(co.name)}</strong> a découvert votre événement dans les opportunités de sponsoring
+             EventGalo et s'engage sur le palier <strong>${esc(tier.name)}</strong> (${esc(amount)}&nbsp;$).</p>
+           ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${esc(message)} »</p>` : ""}
            <p>Confirmez ou déclinez depuis l'onglet Sponsors de votre tableau de bord :</p>
            <p><a href="${c.env.WEB_BASE_URL}/dashboard/e/${event.id}">Ouvrir le tableau de bord</a></p>`,
           { logoUrl: await eventLogoUrl(c.env, event.id), eventTitle: event.title },
@@ -361,10 +361,10 @@ company.post("/verify/request", async (c) => {
     "Vérifiez votre entreprise sur EventGalo",
     layout(
       `Vérification de ${co.name}`,
-      `<p>Quelqu'un (sans doute vous) demande à faire vérifier le profil <strong>${co.name}</strong>
+      `<p>Quelqu'un (sans doute vous) demande à faire vérifier le profil <strong>${esc(co.name)}</strong>
          sur EventGalo en prouvant ${co.kind === "professional"
-           ? `son affiliation au domaine <strong>${domain}</strong>`
-           : `le contrôle du domaine <strong>${domain}</strong>`}.</p>
+           ? `son affiliation au domaine <strong>${esc(domain)}</strong>`
+           : `le contrôle du domaine <strong>${esc(domain)}</strong>`}.</p>
        <p><a href="${url}">Confirmer la vérification</a></p>
        <p style="color:#777;font-size:13px">Ce lien expire dans 24&nbsp;heures. Si vous n'êtes pas à
          l'origine de cette demande, ignorez simplement ce message.</p>`,

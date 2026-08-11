@@ -24,7 +24,7 @@ export default function TicketPage() {
       .catch((e) => setError(e.message));
   }, [serial]);
 
-  if (error) return <main className="container narrow"><div className="alert err">{error}</div></main>;
+  if (error) return <main className="container narrow"><div className="alert err" role="alert">{error}</div></main>;
   if (!data) return <main className="container narrow"><p className="muted">Chargement…</p></main>;
 
   const t = data.ticket;
@@ -116,7 +116,7 @@ export default function TicketPage() {
               Transférer ce billet
             </button>
           ) : transfer.done ? (
-            <div className="alert ok">Billet transféré. Le nouveau titulaire a reçu un email.</div>
+            <div className="alert ok" role="status">Billet transféré. Le nouveau titulaire a reçu un email.</div>
           ) : (
             <>
               <h3 style={{ marginTop: 0 }}>Transférer ce billet</h3>
@@ -126,7 +126,7 @@ export default function TicketPage() {
               <input value={transfer.newName} onChange={(e) => setTransfer({ ...transfer, newName: e.target.value })} />
               <label>Email du nouveau titulaire</label>
               <input type="email" value={transfer.newEmail} onChange={(e) => setTransfer({ ...transfer, newEmail: e.target.value })} />
-              {transfer.err && <div className="alert err">{transfer.err}</div>}
+              {transfer.err && <div className="alert err" role="alert">{transfer.err}</div>}
               <button
                 className="btn-accent"
                 disabled={transfer.busy}
@@ -155,7 +155,7 @@ export default function TicketPage() {
               Demander un remboursement
             </button>
           ) : refund.done ? (
-            <div className="alert ok">Demande envoyée. L&apos;organisateur va l&apos;examiner.</div>
+            <div className="alert ok" role="status">Demande envoyée. L&apos;organisateur va l&apos;examiner.</div>
           ) : (
             <>
               <h3 style={{ marginTop: 0 }}>Demande de remboursement</h3>
@@ -163,7 +163,7 @@ export default function TicketPage() {
               <input type="email" value={refund.email} onChange={(e) => setRefund({ ...refund, email: e.target.value })} />
               <label>Motif (optionnel)</label>
               <textarea rows={2} value={refund.reason} onChange={(e) => setRefund({ ...refund, reason: e.target.value })} />
-              {refund.err && <div className="alert err">{refund.err}</div>}
+              {refund.err && <div className="alert err" role="alert">{refund.err}</div>}
               <button
                 className="btn-accent"
                 onClick={() =>

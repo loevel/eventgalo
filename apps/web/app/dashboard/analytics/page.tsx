@@ -61,7 +61,7 @@ function AiSummaryCard() {
       {text && (
         <div style={{ marginTop: 12, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{text}</div>
       )}
-      {error && <p className="alert err" style={{ marginTop: 12 }}>{error}</p>}
+      {error && <p className="alert err" role="alert" style={{ marginTop: 12 }}>{error}</p>}
       {!text && !error && !busy && (
         <p className="muted" style={{ marginTop: 8 }}>
           Obtenez en un clic une lecture rapide de vos tendances et un point d&apos;attention à surveiller.
@@ -92,7 +92,7 @@ export default function AnalyticsPage() {
   if (error) {
     return (
       <main className="container">
-        <div className="alert err">{error}</div>
+        <div className="alert err" role="alert">{error}</div>
       </main>
     );
   }

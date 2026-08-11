@@ -222,7 +222,7 @@ export default function CompanyPage() {
   if (!loaded) {
     return (
       <main className="container narrow">
-        {error ? <div className="alert err">{error}</div> : <p className="muted">Chargement…</p>}
+        {error ? <div className="alert err" role="alert">{error}</div> : <p className="muted">Chargement…</p>}
       </main>
     );
   }
@@ -241,8 +241,8 @@ export default function CompanyPage() {
         la page d&apos;accueil.
       </p>
 
-      {flash && <div className="alert ok">{flash}</div>}
-      {error && <div className="alert err">{error}</div>}
+      {flash && <div className="alert ok" role="status">{flash}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {requests.length > 0 && (() => {
         const confirmed = requests.filter((r) => r.status === "confirmed");

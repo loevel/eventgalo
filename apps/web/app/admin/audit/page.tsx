@@ -51,7 +51,7 @@ export default function AdminAuditPage() {
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Journal d&apos;audit</h3>
       <p className="muted">Historique des actions administratives sensibles : suspensions, changements de rôle, modération d&apos;événements, paramètres.</p>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {!entries ? (
         <p className="muted">Chargement…</p>
       ) : (

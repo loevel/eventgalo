@@ -30,7 +30,7 @@ export function ApplySponsorship({ eventId, eventTitle, tiers }: { eventId: stri
 
   if (doneToken) {
     return (
-      <div className="alert ok" style={{ margin: 0 }}>
+      <div className="alert ok" role="status" style={{ margin: 0 }}>
         <strong>Candidature envoyée !</strong> L&apos;organisation de {eventTitle} va l&apos;examiner.{" "}
         <a href={`/sp/${doneToken}`}>Suivre ma candidature (et payer en ligne)</a>
       </div>
@@ -116,7 +116,7 @@ export function ApplySponsorship({ eventId, eventTitle, tiers }: { eventId: stri
         placeholder="Pourquoi votre entreprise veut soutenir cet événement…"
       />
       {error && (
-        <div className="alert err">
+        <div className="alert err" role="alert">
           {error}
           {error.includes("profil entreprise") && (
             <p style={{ margin: "6px 0 0" }}>

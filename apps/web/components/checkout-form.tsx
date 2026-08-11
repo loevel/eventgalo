@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { api, formatPrice } from "@/lib/api";
 import { parsePerks } from "@/lib/perks";
@@ -19,14 +19,18 @@ interface Category {
 
 export function CheckoutForm({
   slug,
-  categories,
+  categories: initialCategories,
   sellerCode,
 }: {
   slug: string;
   categories: Category[];
   sellerCode?: string;
 }) {
-  const [catId, setCatId] = useState(categories[0]?.id ?? "");
+  // La page événement est mise en cache 60 s : les compteurs rendus côté serveur
+  // peuvent être légèrement en retard. On les rafraîchit à l'affichage du
+  // formulaire, seul endroit où le nombre de places restantes engage l'acheteur.
+  const [categories, setCategories] = useState(initialCategories);
+  const [catId, setCatId] = useState(initialCategories[0]?.id ?? "");
   const [qty, setQty] = useState(1);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,6 +42,29 @@ export function CheckoutForm({
 
   const selected = categories.find((c) => c.id === catId);
   const remaining = selected ? selected.quantity - selected.sold : 0;
+
+  useEffect(() => {
+    let canceled = false;
+    api<{ categories: Category[] }>(`/api/public/events/${slug}`, { auth: false })
+      .then((data) => {
+        // Les quotas vendeur ne sont pas dans la réponse publique : on ne remplace
+        // que les compteurs de stock, et on garde le reste des props d'origine.
+        if (canceled || !data.categories?.length) return;
+        setCategories((current) =>
+          current.map((c) => {
+            const fresh = data.categories.find((f) => f.id === c.id);
+            return fresh ? { ...c, quantity: fresh.quantity, sold: fresh.sold } : c;
+          }),
+        );
+      })
+      .catch(() => {
+        // Silencieux : les compteurs du rendu serveur restent affichés, et c'est
+        // de toute façon la réservation qui fait foi.
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [slug]);
 
   async function joinWaitlist(e: React.FormEvent) {
     e.preventDefault();
@@ -60,7 +87,7 @@ export function CheckoutForm({
 
   if (waitlistDone) {
     return (
-      <div className="alert ok">
+      <div className="alert ok" role="status">
         <strong>Vous êtes sur la liste d&apos;attente !</strong> Nous vous préviendrons par email si une place se
         libère.
       </div>
@@ -69,7 +96,7 @@ export function CheckoutForm({
 
   if (done) {
     return (
-      <div className="alert ok">
+      <div className="alert ok" role="status">
         <strong>Billets émis !</strong> Un email de confirmation a été envoyé.
         {done.map((t) => (
           <p key={t.serial}>
@@ -204,7 +231,7 @@ export function CheckoutForm({
           </label>
         </div>
       )}
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       <button type="submit" className="btn-accent" disabled={busy || !selected}>
         {busy
           ? "Traitement…"

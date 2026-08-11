@@ -56,7 +56,7 @@ export function ProposeSponsorship({ companyId, companyName }: { companyId: stri
   }
 
   if (done) {
-    return <div className="alert ok" style={{ margin: 0 }}>Demande envoyée à {companyName} ✓</div>;
+    return <div className="alert ok" role="status" style={{ margin: 0 }}>Demande envoyée à {companyName} ✓</div>;
   }
 
   if (!open) {
@@ -101,7 +101,7 @@ export function ProposeSponsorship({ companyId, companyName }: { companyId: stri
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Pourquoi ce partenariat a du sens…"
           />
-          {error && <div className="alert err">{error}</div>}
+          {error && <div className="alert err" role="alert">{error}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="btn-sm btn-accent" disabled={busy || !eventId} onClick={send}>
               {busy ? "Envoi…" : "Envoyer la demande"}

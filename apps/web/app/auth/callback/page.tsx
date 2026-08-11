@@ -28,7 +28,7 @@ export default function AuthCallback() {
   return (
     <main className="container narrow">
       {error ? (
-        <div className="alert err">
+        <div className="alert err" role="alert">
           {error} — <Link href="/">retour à l&apos;accueil</Link>
         </div>
       ) : (

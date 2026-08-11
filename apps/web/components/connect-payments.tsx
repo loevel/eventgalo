@@ -65,7 +65,7 @@ export function ConnectPaymentsCard() {
               ? "Stripe vérifie vos informations ou attend un dernier détail. Reprenez la configuration pour terminer."
               : "Configurez vos paiements en 5 minutes : vos ventes de billets seront versées chaque semaine sur votre compte bancaire, et vous gardez 100 % du prix affiché — les frais de service sont payés par l'acheteur."}
           </div>
-          {error && <div className="alert err" style={{ marginTop: 8 }}>{error}</div>}
+          {error && <div className="alert err" role="alert" style={{ marginTop: 8 }}>{error}</div>}
         </div>
         <button className="btn btn-accent" onClick={startOnboarding} disabled={busy}>
           {busy ? "Redirection…" : status.onboarded ? "Reprendre la configuration" : "Configurer mes paiements"}

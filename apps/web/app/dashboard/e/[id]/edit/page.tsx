@@ -32,7 +32,7 @@ export default function EditEvent() {
   if (!event) {
     return (
       <main className="container narrow">
-        {error ? <div className="alert err">{error}</div> : <p className="muted">Chargement…</p>}
+        {error ? <div className="alert err" role="alert">{error}</div> : <p className="muted">Chargement…</p>}
       </main>
     );
   }

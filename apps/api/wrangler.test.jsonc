@@ -31,15 +31,24 @@
     }
   ],
   "durable_objects": {
-    "bindings": [{ "name": "EVENT_DO", "class_name": "EventDO" }]
+    "bindings": [
+      { "name": "EVENT_DO", "class_name": "EventDO" },
+      { "name": "RATE_LIMIT_DO", "class_name": "RateLimitDO" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventDO"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["EventDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["RateLimitDO"] }
+  ],
   "triggers": { "crons": ["0 4 * * *", "0 * * * *"] },
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
     "WEB_BASE_URL": "https://eventgalo.com",
     "API_BASE_URL": "https://eventgalo-api.davechendjou.workers.dev",
-    "ENVIRONMENT": "production",
+    // "test" et non "production" : les gardes-fous qui n'ont de sens qu'en
+    // production (refus de Turnstile sans secret configuré, notamment) doivent
+    // rester inactifs ici, sinon la suite exige des secrets qu'elle n'a pas.
+    "ENVIRONMENT": "test",
     "EMAIL_FROM": "EventGalo <billetterie@eventgalo.com>"
   }
 }

@@ -62,7 +62,7 @@ export default function InvitePage() {
     }
   }
 
-  if (error) return <main className="container narrow"><div className="alert err">{error}</div></main>;
+  if (error) return <main className="container narrow"><div className="alert err" role="alert">{error}</div></main>;
   if (!data) return <main className="container narrow"><p className="muted">Chargement…</p></main>;
 
   const { guest, event: ev } = data;
@@ -129,7 +129,7 @@ export default function InvitePage() {
             <input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
             <label htmlFor="edit-phone">Téléphone</label>
             <input id="edit-phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
-            {contactError && <div className="alert err">{contactError}</div>}
+            {contactError && <div className="alert err" role="alert">{contactError}</div>}
             <button className="btn-sm btn-accent" disabled={busy} onClick={saveContact}>
               Enregistrer
             </button>{" "}
@@ -174,7 +174,7 @@ export default function InvitePage() {
           </>
         ) : guest.rsvp_status === "yes" ? (
           <>
-            <div className="alert ok">✓ Présence confirmée — merci !</div>
+            <div className="alert ok" role="status">✓ Présence confirmée — merci !</div>
             {guest.rsvp_note && (
               <p className="muted" style={{ fontSize: 13 }}>
                 {ev.rsvp_question ?? "Votre réponse"} : {guest.rsvp_note}
@@ -259,7 +259,7 @@ function PhotosCard({ token }: { token: string }) {
         }}
       />
       {uploading && <p className="muted">Envoi en cours…</p>}
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       {media === null ? (
         <p className="muted">Chargement…</p>
       ) : (

@@ -25,7 +25,7 @@ export default function AdminOverviewPage() {
     api<Overview>("/api/admin/overview").then(setData).catch((e) => setError(e.message));
   }, []);
 
-  if (error) return <div className="alert err">{error}</div>;
+  if (error) return <div className="alert err" role="alert">{error}</div>;
   if (!data) return <p className="muted">Chargement…</p>;
 
   const stat = (num: string | number, label: string) => (

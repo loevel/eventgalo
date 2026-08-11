@@ -123,7 +123,7 @@ export default function AdminHeroSlidesPage() {
         Diapositives du fond plein écran du hero — image et/ou légende, réordonnables. Une diapositive
         désactivée n&apos;apparaît plus sur le site public.
       </p>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {!slides ? (
         <p className="muted">Chargement…</p>

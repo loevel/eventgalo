@@ -116,13 +116,13 @@ export function CompanyVerification({
         c&apos;est encore mieux).
       </p>
 
-      {flash && <div className="alert ok">{flash}</div>}
+      {flash && <div className="alert ok" role="status">{flash}</div>}
       {debugUrl && (
-        <div className="alert ok">
+        <div className="alert ok" role="status">
           Mode dev : <a href={debugUrl}>lien de vérification</a>
         </div>
       )}
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {/* --- 1. Email au domaine du site web --- */}
       <h4 style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>

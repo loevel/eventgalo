@@ -1,16 +1,24 @@
 import type { Context } from "hono";
 import type { AppContext, Env } from "../types";
 
-/** Adresse IP du client, telle que vue par Cloudflare. */
+/**
+ * Adresse IP du client, telle que vue par Cloudflare. `cf-connecting-ip` est
+ * toujours posé par le réseau Cloudflare et ne peut pas être falsifié par le
+ * client ; on ne retombe volontairement pas sur `x-forwarded-for`, qui est un
+ * en-tête libre et permettait de repartir d'un compteur neuf à chaque requête.
+ */
 export function clientIp(c: Context<AppContext>): string {
-  return c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for") ?? "unknown";
+  return c.req.header("cf-connecting-ip") ?? "unknown";
 }
 
 /**
- * Limitation de débit approximative basée sur KV : un compteur par (bucket, clé),
- * expirant après `windowSeconds`. Imprécis sous forte concurrence (pas d'incrément
- * atomique), mais suffisant pour dissuader le spam/abus sur les endpoints publics
- * sans dépendre d'un binding Workers Rate Limiting (plan payant).
+ * Limitation de débit par (bucket, clé), adossée à un Durable Object dont le
+ * stockage est transactionnel — voir `do/rate-limit-do.ts` pour le détail et
+ * pour la raison du passage depuis KV.
+ *
+ * En cas d'indisponibilité du DO, on laisse passer : ces limites protègent des
+ * abus, elles ne sont pas un contrôle d'accès, et une panne du compteur ne doit
+ * pas fermer la billetterie.
  */
 export async function isRateLimited(
   env: Env,
@@ -19,12 +27,20 @@ export async function isRateLimited(
   limit: number,
   windowSeconds: number,
 ): Promise<boolean> {
-  const k = `ratelimit:${bucket}:${key}`;
-  const raw = await env.KV.get(k);
-  const count = raw ? Number(raw) : 0;
-  if (count >= limit) return true;
-  await env.KV.put(k, String(count + 1), { expirationTtl: windowSeconds });
-  return false;
+  try {
+    const stub = env.RATE_LIMIT_DO.get(env.RATE_LIMIT_DO.idFromName(`${bucket}:${key}`));
+    const res = await stub.fetch("https://do/check", {
+      method: "POST",
+      body: JSON.stringify({ limit, windowSeconds }),
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { limited: boolean };
+    return data.limited === true;
+  } catch (err) {
+    console.error(`[rate-limit] compteur indisponible pour ${bucket}:`, err);
+    return false;
+  }
 }
 
 export function tooManyRequests(c: Context) {

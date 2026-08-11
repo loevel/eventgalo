@@ -59,7 +59,7 @@ export default function AdminFinancesPage() {
 
   return (
     <>
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       <div className="card" style={{ marginBottom: 20 }}>
         <h3 style={{ marginTop: 0 }}>Comptes Stripe Connect</h3>

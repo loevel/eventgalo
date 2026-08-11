@@ -456,7 +456,7 @@ export function EventForm({
         </div>
       )}
 
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
       <button type="submit" className="btn-accent" disabled={busy}>
         {busy ? "Enregistrement…" : submitLabel}
       </button>

@@ -26,7 +26,7 @@ export default function SellerPage() {
     }
   }, [tab, code]);
 
-  if (error) return <main className="container narrow"><div className="alert err">{error}</div></main>;
+  if (error) return <main className="container narrow"><div className="alert err" role="alert">{error}</div></main>;
   if (!data) return <main className="container narrow"><p className="muted">Chargement…</p></main>;
 
   const ev = data.event;

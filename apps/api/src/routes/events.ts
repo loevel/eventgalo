@@ -4,12 +4,12 @@ import { z } from "zod";
 import type { AppContext, Env } from "../types";
 import { nowIso, randomToken, slugify, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
-import { eventLogoUrl, layout, sendEmail } from "../lib/email";
+import { esc, eventLogoUrl, layout, sendEmail } from "../lib/email";
 import { deleteProcessedImage, MAX_MEDIA_PER_EVENT, MEDIA_LIST_QUERY, putProcessedImage, validateMediaFile } from "../lib/media";
 import { callEventDO, DOError } from "../do/event-do";
 import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
-import { triggerWebhooks } from "../lib/webhooks";
+import { triggerWebhooks, validateWebhookUrl } from "../lib/webhooks";
 import { deleteEventCascade } from "../lib/event-delete";
 import { generateAgendaSuggestion, generateDraft } from "../lib/ai";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
@@ -360,8 +360,8 @@ events.post("/:id/collaborators", async (c) => {
       `Vous co-organisez maintenant : ${event.title}`,
       layout(
         "Vous êtes co-organisateur·rice",
-        `<p>${user.name ?? user.email} vous a ajouté·e comme co-organisateur·rice de <strong>${event.title}</strong>.</p>
-         <p>Connectez-vous sur EventGalo avec cette adresse (${email}) pour y accéder.</p>`,
+        `<p>${esc(user.name ?? user.email)} vous a ajouté·e comme co-organisateur·rice de <strong>${esc(event.title)}</strong>.</p>
+         <p>Connectez-vous sur EventGalo avec cette adresse (${esc(email)}) pour y accéder.</p>`,
       ),
     ),
   );
@@ -467,7 +467,7 @@ events.post("/:id/guests", async (c) => {
             layout(
               `Vous êtes invité·e — ${event.title}`,
               `<p>Voici votre lien d'invitation personnel :</p>
-               <p><a href="${url}">${url}</a></p>
+               <p><a href="${url}">${esc(url)}</a></p>
                <p>Vous y trouverez tous les détails et pourrez confirmer votre présence en un clic.</p>`,
               { logoUrl: await eventLogoUrl(c.env, event.id), eventTitle: String(event.title) },
             ),
@@ -1123,8 +1123,8 @@ events.post("/:id/sponsors", async (c) => {
     `Devenez sponsor — ${event.title}`,
     layout(
       `Invitation à sponsoriser ${event.title}`,
-      `<p>Bonjour${b.contact_name ? ` ${b.contact_name}` : ""},</p>
-       <p>L'organisation de <strong>${event.title}</strong> vous invite à devenir sponsor de l'événement.
+      `<p>Bonjour${b.contact_name ? ` ${esc(b.contact_name)}` : ""},</p>
+       <p>L'organisation de <strong>${esc(event.title)}</strong> vous invite à devenir sponsor de l'événement.
        Découvrez les paliers de sponsoring et leurs avantages, puis confirmez votre engagement en ligne :</p>
        <p><a href="${url}">Voir les offres de sponsoring</a></p>`,
       { logoUrl, eventTitle: String(event.title) },
@@ -1178,9 +1178,9 @@ events.post("/:id/sponsors/from-directory", async (c) => {
     `Proposition de sponsoring — ${event.title}`,
     layout(
       `${co.name} : une association aimerait vous avoir comme sponsor !`,
-      `<p>L'organisation de <strong>${event.title}</strong> a découvert votre profil dans l'annuaire
+      `<p>L'organisation de <strong>${esc(event.title)}</strong> a découvert votre profil dans l'annuaire
          EventGalo et vous propose de sponsoriser son événement.</p>
-       ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${message} »</p>` : ""}
+       ${message ? `<p style="border-left:3px solid #f2c078;padding-left:12px;color:#555">« ${esc(message)} »</p>` : ""}
        <p>Découvrez les paliers proposés et leurs avantages, puis engagez-vous en ligne — ou déclinez si
           l'occasion ne vous convient pas :</p>
        <p><a href="${url}">Voir la proposition</a></p>`,
@@ -1223,8 +1223,8 @@ events.patch("/:id/sponsors/:sid", async (c) => {
         `Sponsoring confirmé — ${event.title}`,
         layout(
           "Votre sponsoring est confirmé !",
-          `<p>Merci ! ${sponsor.company_name ? `<strong>${sponsor.company_name}</strong> figure` : "Vous figurez"}
-           désormais parmi les sponsors de <strong>${event.title}</strong>.
+          `<p>Merci ! ${sponsor.company_name ? `<strong>${esc(sponsor.company_name)}</strong> figure` : "Vous figurez"}
+           désormais parmi les sponsors de <strong>${esc(event.title)}</strong>.
            Votre logo apparaît sur la page publique de l'événement.</p>`,
           { logoUrl, eventTitle: String(event.title) },
         ),
@@ -1286,11 +1286,11 @@ events.post("/:id/sponsors/:sid/proposal", async (c) => {
       layout(
         accepted ? "Votre proposition est acceptée !" : "Contre-proposition refusée",
         accepted
-          ? `<p>L'organisation de <strong>${event.title}</strong> accepte votre proposition de
-               <strong>${proposed}&nbsp;$</strong>. Vous pouvez maintenant régler votre sponsoring en ligne :</p>
+          ? `<p>L'organisation de <strong>${esc(event.title)}</strong> accepte votre proposition de
+               <strong>${esc(proposed)}&nbsp;$</strong>. Vous pouvez maintenant régler votre sponsoring en ligne :</p>
              <p><a href="${url}">Finaliser mon sponsoring</a></p>`
-          : `<p>L'organisation de <strong>${event.title}</strong> a refusé votre proposition de
-               ${proposed}&nbsp;$. Le montant du palier
+          : `<p>L'organisation de <strong>${esc(event.title)}</strong> a refusé votre proposition de
+               ${esc(proposed)}&nbsp;$. Le montant du palier
                ${sponsor.amount_cents != null ? `(<strong>${(sponsor.amount_cents / 100).toFixed(2)}&nbsp;$</strong>)` : ""}
                reste en vigueur — vous pouvez le régler en ligne, proposer un autre montant ou décliner :</p>
              <p><a href="${url}">Ouvrir mon espace sponsor</a></p>`,
@@ -1524,12 +1524,8 @@ events.post("/:id/webhooks", async (c) => {
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const b = await c.req.json<{ url?: string; event_types?: string[] }>().catch(() => ({}) as Record<string, never>);
   const url = String(b.url ?? "").trim().slice(0, 500);
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") throw new Error();
-  } catch {
-    return c.json({ error: "URL invalide — utilisez une adresse https://" }, 400);
-  }
+  const invalidUrl = validateWebhookUrl(url);
+  if (invalidUrl) return c.json({ error: invalidUrl }, 400);
   const id = uuid();
   const secret = randomToken(32);
   await c.env.DB.prepare(
@@ -1555,12 +1551,8 @@ events.patch("/:id/webhooks/:wid", async (c) => {
   const values: unknown[] = [];
   if (b.url !== undefined) {
     const url = String(b.url).trim().slice(0, 500);
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "https:") throw new Error();
-    } catch {
-      return c.json({ error: "URL invalide — utilisez une adresse https://" }, 400);
-    }
+    const invalidUrl = validateWebhookUrl(url);
+    if (invalidUrl) return c.json({ error: invalidUrl }, 400);
     sets.push("url = ?");
     values.push(url);
   }

@@ -124,7 +124,7 @@ export default function ScanPage() {
           )}
         </div>
       )}
-      {error && <div className="alert err">{error}</div>}
+      {error && <div className="alert err" role="alert">{error}</div>}
 
       {!running ? (
         <button className="btn-accent" disabled={!key} onClick={() => { setError(null); setRunning(true); }}>
