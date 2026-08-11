@@ -51,9 +51,12 @@ async function getDiscover(params: SearchParams) {
     const value = one(params, key);
     if (value) query.set(key, value);
   }
+  // `no-store` : le Data Cache de Next n'est pas opérationnel sur cette cible
+  // (voir le commentaire de `getEvent` dans app/e/[slug]/page.tsx), et tout
+  // `fetch` qui y passait renvoyait une réponse en erreur une fois déployé.
   const [listRes, facetRes] = await Promise.all([
-    fetch(`${API_BASE}/api/public/discover?${query}`, { next: { revalidate: 120 } }),
-    fetch(`${API_BASE}/api/public/discover/facets`, { next: { revalidate: 600 } }),
+    fetch(`${API_BASE}/api/public/discover?${query}`, { cache: "no-store" }),
+    fetch(`${API_BASE}/api/public/discover/facets`, { cache: "no-store" }),
   ]);
   if (!listRes.ok) return null;
   const list = (await listRes.json()) as {

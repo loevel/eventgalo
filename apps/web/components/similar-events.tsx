@@ -71,7 +71,9 @@ export function EventMiniCard({ ev }: { ev: SimilarEvent }) {
 export async function SimilarEvents({ slug }: { slug: string }) {
   let events: SimilarEvent[] = [];
   try {
-    const res = await fetch(`${API_BASE}/api/public/events/${slug}/similar`, { next: { revalidate: 300 } });
+    // `no-store` pour la même raison que la page événement qui nous rend :
+    // le Data Cache de Next n'est pas opérationnel sur cette cible.
+    const res = await fetch(`${API_BASE}/api/public/events/${slug}/similar`, { cache: "no-store" });
     if (res.ok) events = ((await res.json()) as { events: SimilarEvent[] }).events;
   } catch {
     // Suggestions indisponibles : la page événement se passe très bien du bandeau.

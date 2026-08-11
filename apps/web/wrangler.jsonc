@@ -9,6 +9,15 @@
     "binding": "ASSETS"
   },
   "observability": { "enabled": true },
+  // Magasin du cache de données de Next (`next: { revalidate }`).
+  //
+  // Sans ce binding, OpenNext n'a nulle part où ranger une réponse à revalider :
+  // tout `fetch` passant par le Data Cache échoue, et la page qui en dépend rend
+  // son état d'erreur. Les pages qui utilisent `cache: "no-store"` contournent le
+  // Data Cache et marchaient donc malgré son absence, ce qui masquait le trou.
+  "kv_namespaces": [
+    { "binding": "NEXT_INC_CACHE_KV", "id": "db3fe5ec4f694d7e8425c0f11f5e22ba" }
+  ],
   // Custom domains (eventgalo.com, www.eventgalo.com) are attached via the
   // Cloudflare dashboard: the CI token lacks zone-level Workers Routes access.
   "env": {
@@ -18,6 +27,9 @@
         "directory": ".open-next/assets",
         "binding": "ASSETS"
       },
+      "kv_namespaces": [
+        { "binding": "NEXT_INC_CACHE_KV", "id": "c3f4b5115c0d49e1985231b8d3f0b429" }
+      ],
       "observability": { "enabled": true }
     }
   }

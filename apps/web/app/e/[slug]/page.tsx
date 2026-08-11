@@ -103,18 +103,22 @@ function SponsorLinks({ sponsor }: { sponsor: EventPayload["sponsors"][number] }
 }
 
 /**
- * `revalidate` plutôt que `no-store` : la page est appelée deux fois par vue
- * (une fois par `generateMetadata`, une fois par le composant), et `no-store`
- * désactivait aussi la déduplication de Next au sein d'un même rendu. Chaque
- * visite, chaque crawler et chaque aperçu partagé déclenchaient donc deux
- * allers-retours vers l'API, plus cinq requêtes D1 à chaque fois.
+ * `no-store` et non `next: { revalidate }`.
  *
- * Contrepartie : les compteurs de places peuvent avoir jusqu'à 60 s de retard.
- * `CheckoutForm` les rafraîchit donc côté client à l'affichage, et c'est de
- * toute façon la réservation qui fait foi.
+ * L'audit avait fait passer cette page en `revalidate: 60` pour éviter le double
+ * aller-retour vers l'API à chaque vue (`generateMetadata` puis le composant),
+ * puisque `no-store` désactive aussi la déduplication de Next au sein d'un même
+ * rendu. Le raisonnement tient, mais pas sur cette cible : une fois déployé sur
+ * Cloudflare, tout `fetch` passant par le Data Cache de Next échouait et la page
+ * rendait un 404 — vérifié sur staging avant toute mise en production. Ajouter
+ * le magasin `NEXT_INC_CACHE_KV` attendu par OpenNext n'a pas suffi.
+ *
+ * On revient donc au motif éprouvé par les quatre autres pages serveur du site.
+ * Le double appel reste un coût connu et assumé, à reprendre le jour où la
+ * chaîne ISR d'OpenNext sera configurée et vérifiée de bout en bout.
  */
 async function getEvent(slug: string): Promise<EventPayload | null> {
-  const res = await fetch(`${API_BASE}/api/public/events/${slug}`, { next: { revalidate: 60 } });
+  const res = await fetch(`${API_BASE}/api/public/events/${slug}`, { cache: "no-store" });
   if (!res.ok) return null;
   const data = (await res.json()) as EventPayload;
   data.gallery ??= [];
