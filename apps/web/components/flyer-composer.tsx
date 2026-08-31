@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { Sparkles, RefreshCw, Download, ImagePlus } from "lucide-react";
 import { API_BASE, api } from "@/lib/api";
-import { bitmapFromBase64, bitmapFromUrl, drawCover, fit, resolveFont, roundedRect } from "@/lib/compose";
+import { bitmapFromBase64, bitmapFromUrl, resolveFont } from "@/lib/compose";
+import { buildContent, ensureFonts, renderEventVisual } from "@/lib/event-visual";
 
 /** Formats de diffusion proposés. Les dimensions du fond IA sont côté API. */
 const FORMATS = {
@@ -47,30 +48,6 @@ export interface FlyerEvent {
 export interface FlyerCategory {
   price_cents: number;
   currency?: string;
-}
-
-/** « samedi 14 novembre 2026 » — la casse initiale est ajoutée pour un titre. */
-function longDate(iso: string): string {
-  const d = new Intl.DateTimeFormat("fr-CA", { dateStyle: "full" }).format(new Date(iso));
-  return d.charAt(0).toUpperCase() + d.slice(1);
-}
-
-function timeOf(iso: string): string {
-  return new Intl.DateTimeFormat("fr-CA", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-}
-
-/**
- * Ligne de prix du dépliant. Un événement privé n'a pas de billetterie : afficher
- * « Gratuit » y serait trompeur, on annonce donc l'invitation.
- */
-function priceLine(ev: FlyerEvent, categories: FlyerCategory[]): string {
-  if (ev.type !== "ticketed") return "Sur invitation";
-  if (categories.length === 0) return "";
-  const min = Math.min(...categories.map((c) => c.price_cents));
-  if (min === 0) return "Entrée gratuite · réservation requise";
-  const currency = categories[0]?.currency ?? "CAD";
-  const amount = new Intl.NumberFormat("fr-CA", { style: "currency", currency }).format(min / 100);
-  return categories.length > 1 ? `Billets à partir de ${amount}` : `Billets ${amount}`;
 }
 
 export function FlyerComposer({
@@ -170,206 +147,20 @@ export function FlyerComposer({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { w: W, h: H } = FORMATS[format];
-    canvas.width = W;
-    canvas.height = H;
-    // Toutes les tailles sont exprimées pour une largeur de 1080 puis mises à
-    // l'échelle : un même gabarit sert du carré Instagram à l'impression A4.
-    const u = W / 1080;
-    const px = (n: number) => Math.round(n * u);
+    const { w, h } = FORMATS[format];
+    canvas.width = w;
+    canvas.height = h;
 
     const display = resolveFont("--font-display", "Georgia, serif");
     const sans = resolveFont("--font-sans", "system-ui, sans-serif");
-    if (document.fonts?.load) {
-      await Promise.all([
-        document.fonts.load(`700 ${px(96)}px ${display}`),
-        document.fonts.load(`600 ${px(40)}px ${sans}`),
-        document.fonts.load(`400 ${px(30)}px ${sans}`),
-      ]).catch(() => undefined);
-    }
+    await ensureFonts(display, sans);
 
-    const pad = px(84);
-    const qrSize = px(figureQr(format));
-    const qrPad = px(16);
-    const qrBox = qrSize + qrPad * 2;
-    const gap = px(40);
-    const colWidth = qrRef.current ? W - pad * 2 - qrBox - gap : W - pad * 2;
-
-    /* ------------------------------ Bloc de texte ------------------------------ */
-
-    const kickerText = (kicker || (event.type === "ticketed" ? "Billetterie" : "Vous êtes invité")).trim();
-    const dateText = `${longDate(event.starts_at)} · ${timeOf(event.starts_at)}`;
-    const venueText = (event.venue ?? "").trim();
-    const addressText = (event.address ?? "").trim();
-    const price = priceLine(event, categories);
-
-    ctx.textAlign = "left";
-    const title = fit(
+    renderEventVisual(
       ctx,
-      event.title,
-      display,
-      700,
-      [px(96), px(84), px(74), px(64), px(56)],
-      colWidth,
-      3,
+      buildContent(event, categories, kicker, shortUrl),
+      { background: bgRef.current, logo: logoRef.current, qr: qrRef.current },
+      { width: w, height: h, layout, display, sans },
     );
-
-    /*
-     * Chaque ligne porte sa hauteur de corps et l'espace qui la précède, et la
-     * ligne de base avance de `lead + size`. Un modèle à interligne fixe par
-     * ligne ne marche pas ici : le surtitre en 26 px précède un titre en 96 px,
-     * et son interligne à lui faisait passer le titre par-dessus.
-     */
-    type Row =
-      | { kind: "text"; text: string; font: string; color: string; size: number; lead: number; spacing?: string }
-      | { kind: "rule"; size: number; lead: number };
-    const rows: Row[] = [];
-    if (kickerText) {
-      rows.push({
-        kind: "text",
-        text: kickerText.toUpperCase(),
-        font: `600 ${px(26)}px ${sans}`,
-        color: "#d9a662",
-        size: px(26),
-        lead: 0,
-        spacing: `${px(3)}px`,
-      });
-    }
-    title.lines.forEach((line, i) => {
-      rows.push({
-        kind: "text",
-        text: line,
-        font: `700 ${title.size}px ${display}`,
-        color: "#ffffff",
-        size: title.size,
-        lead: i === 0 ? px(22) : Math.round(title.size * 0.1),
-      });
-    });
-    rows.push({ kind: "rule", size: Math.max(2, px(3)), lead: px(38) });
-    rows.push({ kind: "text", text: dateText, font: `600 ${px(38)}px ${sans}`, color: "#ffffff", size: px(38), lead: px(30) });
-    if (venueText) {
-      rows.push({ kind: "text", text: venueText, font: `500 ${px(33)}px ${sans}`, color: "#e8d9c2", size: px(33), lead: px(12) });
-    }
-    if (addressText) {
-      rows.push({ kind: "text", text: addressText, font: `400 ${px(27)}px ${sans}`, color: "#b3a695", size: px(27), lead: px(10) });
-    }
-    if (price) {
-      rows.push({ kind: "text", text: price, font: `600 ${px(31)}px ${sans}`, color: "#d9a662", size: px(31), lead: px(20) });
-    }
-
-    // Réserve sous la dernière ligne de base, pour les jambages descendants.
-    const descender = px(12);
-    const blockHeight = rows.reduce((sum, r) => sum + r.lead + r.size, 0) + descender;
-    const footerH = px(56);
-    const bottom = H - pad;
-    // Le bloc de texte et le cartouche QR sont calés sur la même ligne de base
-    // basse, chacun dans sa colonne : ils ne peuvent donc pas se chevaucher.
-    let y = bottom - footerH - blockHeight;
-
-    /* ------------------------------- Fond ------------------------------------- */
-
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#120f0c";
-    ctx.fillRect(0, 0, W, H);
-    // Sans image, un aplat noir donne un dépliant terne : on pose une lueur
-    // chaude très discrète, dans les tons de la marque.
-    const glow = ctx.createRadialGradient(W * 0.5, H * 0.3, 0, W * 0.5, H * 0.3, W * 0.9);
-    glow.addColorStop(0, "rgba(143,64,9,0.34)");
-    glow.addColorStop(0.55, "rgba(60,32,12,0.16)");
-    glow.addColorStop(1, "rgba(18,15,12,0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, H);
-
-    const bg = bgRef.current;
-    // La coupe du gabarit « affiche » suit le haut réel du contenu au lieu d'une
-    // fraction fixe de la hauteur : sur une story, une coupe à 56 % laissait une
-    // large bande noire vide entre l'image et le texte.
-    const contentTop = Math.min(y, qrRef.current ? bottom - footerH - qrBox : H);
-    const splitY =
-      layout === "affiche"
-        ? Math.round(Math.min(Math.max(contentTop - px(64), H * 0.34), H * 0.78))
-        : H;
-    if (bg) drawCover(ctx, bg, 0, 0, W, splitY);
-
-    if (layout === "affiche") {
-      // Fondu court sous l'image pour que la coupe ne soit pas une ligne nette.
-      const seam = ctx.createLinearGradient(0, splitY - px(120), 0, splitY);
-      seam.addColorStop(0, "rgba(18,15,12,0)");
-      seam.addColorStop(1, "rgba(18,15,12,1)");
-      ctx.fillStyle = seam;
-      ctx.fillRect(0, splitY - px(120), W, px(120));
-      ctx.fillStyle = "#120f0c";
-      ctx.fillRect(0, splitY, W, H - splitY);
-    } else if (bg) {
-      // Voile progressif : le texte occupe le bas, l'image reste lisible en haut.
-      const scrim = ctx.createLinearGradient(0, H * 0.3, 0, H);
-      scrim.addColorStop(0, "rgba(18,15,12,0)");
-      scrim.addColorStop(0.45, "rgba(18,15,12,0.72)");
-      scrim.addColorStop(1, "rgba(18,15,12,0.97)");
-      ctx.fillStyle = scrim;
-      ctx.fillRect(0, 0, W, H);
-    }
-
-    /* ------------------------------- Texte ------------------------------------ */
-
-    ctx.shadowColor = layout === "photo" ? "rgba(0,0,0,0.5)" : "transparent";
-    ctx.shadowBlur = layout === "photo" ? px(20) : 0;
-
-    for (const row of rows) {
-      y += row.lead + row.size;
-      if (row.kind === "rule") {
-        ctx.save();
-        ctx.shadowColor = "transparent";
-        ctx.fillStyle = "#d9a662";
-        ctx.fillRect(pad, y - row.size, px(96), row.size);
-        ctx.restore();
-        continue;
-      }
-      ctx.font = row.font;
-      ctx.fillStyle = row.color;
-      ctx.letterSpacing = row.spacing ?? "0px";
-      ctx.fillText(row.text, pad, y);
-      ctx.letterSpacing = "0px";
-    }
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-
-    /* -------------------------------- Code QR --------------------------------- */
-
-    const qr = qrRef.current;
-    if (qr) {
-      const qx = W - pad - qrBox;
-      const qy = bottom - footerH - qrBox;
-      ctx.fillStyle = "#ffffff";
-      roundedRect(ctx, qx, qy, qrBox, qrBox, px(18));
-      ctx.fill();
-      ctx.drawImage(qr, qx + qrPad, qy + qrPad, qrSize, qrSize);
-      ctx.font = `600 ${px(21)}px ${sans}`;
-      ctx.fillStyle = "#e8d9c2";
-      ctx.textAlign = "center";
-      ctx.fillText("Réservez ici", qx + qrBox / 2, qy - px(16));
-      ctx.textAlign = "left";
-    }
-
-    /* --------------------------------- Pied ----------------------------------- */
-
-    ctx.font = `500 ${px(24)}px ${sans}`;
-    ctx.fillStyle = "#8d8377";
-    ctx.fillText(shortUrl, pad, bottom);
-
-    /* --------------------------- Logo de l'organisateur ------------------------ */
-
-    const logo = logoRef.current;
-    if (logo) {
-      const size = px(112);
-      ctx.save();
-      ctx.fillStyle = "rgba(255,255,255,0.92)";
-      roundedRect(ctx, pad, pad, size, size, px(20));
-      ctx.fill();
-      ctx.clip();
-      drawCover(ctx, logo, pad + px(10), pad + px(10), size - px(20), size - px(20));
-      ctx.restore();
-    }
 
     setReady(true);
   }, [event, categories, format, layout, kicker, shortUrl]);
@@ -562,7 +353,3 @@ export function FlyerComposer({
   );
 }
 
-/** Le code QR occupe une part plus faible d'une story, très haute et étroite. */
-function figureQr(format: Format): number {
-  return format === "story" ? 176 : 200;
-}

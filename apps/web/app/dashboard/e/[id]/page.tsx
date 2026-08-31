@@ -28,6 +28,11 @@ const FlyerComposer = dynamic(() => import("@/components/flyer-composer").then((
   loading: () => <p className="muted">Chargement de l’atelier…</p>,
 });
 
+const KitComposer = dynamic(() => import("@/components/kit-composer").then((m) => m.KitComposer), {
+  ssr: false,
+  loading: () => <p className="muted">Chargement de l’atelier…</p>,
+});
+
 interface Detail {
   event: Record<string, any>;
   is_owner: boolean;
@@ -157,6 +162,7 @@ export default function EventAdmin() {
           ["annonces", "Annonces"],
           ["photos", "Photos"],
           ["depliant", "Dépliant"],
+          ["kit", "Kit de com"],
           ["sponsors", `Sponsors (${sponsors.filter((s) => s.status === "pending").length ? `${sponsors.filter((s) => s.status === "pending").length} à traiter` : sponsors.length})`],
           ["artistes", `Artistes (${performers.length})`],
           ["rapport", "Rapport"],
@@ -358,6 +364,10 @@ export default function EventAdmin() {
 
       {tab === "depliant" && (
         <FlyerComposer event={ev as FlyerEvent} categories={categories as FlyerCategory[]} webOrigin={WEB} />
+      )}
+
+      {tab === "kit" && (
+        <KitComposer event={ev as FlyerEvent} categories={categories as FlyerCategory[]} webOrigin={WEB} />
       )}
 
       {tab === "sponsors" && <SponsorsTab ev={ev} tiers={sponsor_tiers} sponsors={sponsors} act={act} />}

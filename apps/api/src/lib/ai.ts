@@ -516,6 +516,10 @@ export const FLYER_FORMATS = {
   story: { width: 864, height: 1536 },
   carre: { width: 1152, height: 1152 },
   a4: { width: 1024, height: 1448 },
+  // Le kit de communication décline un *seul* fond sur des formats allant du
+  // 9:16 au très large : le carré est la seule source qui se recadre
+  // acceptablement dans les deux sens.
+  kit: { width: 1280, height: 1280 },
 } as const;
 
 export type FlyerFormat = keyof typeof FLYER_FORMATS;
