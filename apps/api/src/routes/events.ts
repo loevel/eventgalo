@@ -11,7 +11,14 @@ import { notifyWaitlist } from "../lib/waitlist";
 import { clampText } from "../lib/profile";
 import { triggerWebhooks, validateWebhookUrl } from "../lib/webhooks";
 import { deleteEventCascade } from "../lib/event-delete";
-import { generateAgendaSuggestion, generateDraft } from "../lib/ai";
+import {
+  FLYER_FORMATS,
+  generateAgendaSuggestion,
+  generateDraft,
+  generateFlyerBackground,
+  type FlyerFormat,
+  type FlyerMood,
+} from "../lib/ai";
 import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 import { parseBody } from "../lib/validate";
 import { announcementRecipients, deliverAnnouncement } from "../lib/announce";
@@ -933,6 +940,48 @@ events.get("/:id/media", async (c) => {
   if (!event) return c.json({ error: "Événement introuvable" }, 404);
   const rows = await c.env.DB.prepare(MEDIA_LIST_QUERY).bind(event.id).all();
   return c.json({ media: rows.results });
+});
+
+/* -------------------- Dépliant d'événement assisté par IA ------------------ */
+
+const FLYER_MOODS: FlyerMood[] = ["gala", "festif", "chaleureux", "epure"];
+
+/**
+ * Fond de dépliant généré par Workers AI. Ne renvoie qu'une image : le titre,
+ * la date, le lieu, le prix et le code QR sont composés par-dessus dans le
+ * navigateur (voir components/flyer-composer).
+ *
+ * Le format est choisi dans une liste fermée plutôt que transmis en pixels :
+ * les dimensions pilotent directement le coût de génération, elles ne doivent
+ * pas être dictées par le client.
+ */
+events.post("/:id/flyer/background", async (c) => {
+  const user = c.get("user");
+  const event = await getOwnedEvent(c.env, c.req.param("id"), user.id);
+  if (!event) return c.json({ error: "Événement introuvable" }, 404);
+
+  if (await isRateLimited(c.env, "flyer-ai-background", user.id, 10, 3600)) return tooManyRequests(c);
+
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const rawFormat = String(b.format ?? "affiche");
+  const format: FlyerFormat = rawFormat in FLYER_FORMATS ? (rawFormat as FlyerFormat) : "affiche";
+  const rawMood = String(b.mood ?? "gala");
+  const mood: FlyerMood = (FLYER_MOODS as string[]).includes(rawMood) ? (rawMood as FlyerMood) : "gala";
+  const hint = typeof b.hint === "string" ? b.hint.replace(/\s+/g, " ").trim().slice(0, 200) : undefined;
+
+  try {
+    const image = await generateFlyerBackground(c.env, {
+      title: event.title,
+      venue: typeof event.venue === "string" ? event.venue : null,
+      hint,
+      mood,
+      format,
+    });
+    return c.json({ image, ...FLYER_FORMATS[format] });
+  } catch (err) {
+    console.error("[events] génération du fond de dépliant impossible:", err);
+    return c.json({ error: "Génération indisponible pour le moment, réessayez dans un instant." }, 502);
+  }
 });
 
 events.post("/:id/media", async (c) => {

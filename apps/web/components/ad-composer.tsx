@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import { bitmapFromBase64, drawCover, fit, resolveFont } from "@/lib/compose";
 
 /** Format d'affichage du bandeau de la page d'accueil (.ad-card img : 220x110). */
 const W = 1024;
@@ -25,77 +26,6 @@ const TEMPLATE_LABELS: Record<Template, string> = {
   centre: "Texte centré",
   bas: "Texte en bas",
 };
-
-/**
- * Résout la vraie famille de police derrière une variable CSS. next/font génère
- * un nom de famille haché (`__Fraunces_abc123`) : sans cette résolution, le
- * canvas retomberait silencieusement sur une police système.
- */
-function resolveFont(variable: string, fallback: string): string {
-  if (typeof window === "undefined") return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
-  return value || fallback;
-}
-
-/** Coupe un texte en lignes qui tiennent dans `maxWidth`, au plus `maxLines`. */
-function wrap(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  maxLines: number,
-): { lines: string[]; truncated: boolean } {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (let i = 0; i < words.length; i += 1) {
-    const candidate = current ? `${current} ${words[i]}` : words[i];
-    if (ctx.measureText(candidate).width <= maxWidth || !current) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = words[i];
-      if (lines.length === maxLines) return { lines, truncated: true };
-    }
-  }
-  if (current) lines.push(current);
-  // Un mot seul plus large que la colonne passe quand même : il faut le signaler.
-  const overflows = lines.some((line) => ctx.measureText(line).width > maxWidth);
-  return { lines, truncated: overflows };
-}
-
-/**
- * Compose un bloc de texte qui tient dans la colonne : on réduit d'abord le
- * corps, et seulement en dernier recours on coupe avec une ellipse. Sans ça, une
- * accroche un peu longue était tronquée en silence — l'annonceur payait pour un
- * bandeau amputé sans l'avoir vu.
- */
-function fit(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  family: string,
-  weight: number,
-  sizes: number[],
-  maxWidth: number,
-  maxLines: number,
-): { lines: string[]; size: number } {
-  for (const size of sizes) {
-    ctx.font = `${weight} ${size}px ${family}`;
-    const { lines, truncated } = wrap(ctx, text, maxWidth, maxLines);
-    if (!truncated) return { lines, size };
-  }
-  const size = sizes[sizes.length - 1];
-  ctx.font = `${weight} ${size}px ${family}`;
-  const { lines } = wrap(ctx, text, maxWidth, maxLines);
-  const last = lines.length - 1;
-  if (last >= 0) {
-    let clipped = lines[last];
-    while (clipped.length > 1 && ctx.measureText(`${clipped}…`).width > maxWidth) {
-      clipped = clipped.slice(0, -1);
-    }
-    lines[last] = `${clipped.trimEnd()}…`;
-  }
-  return { lines, size };
-}
 
 export function AdComposer({
   title, sector, onVisual,
@@ -142,14 +72,9 @@ export function AdComposer({
     ctx.fillStyle = "#120f0c";
     ctx.fillRect(0, 0, W, H);
 
+    // Recadrage « cover » : le modèle rend du carré, le bandeau est en 2:1.
     const bg = bgRef.current;
-    if (bg) {
-      // Recadrage « cover » : le modèle rend du carré, le bandeau est en 2:1.
-      const scale = Math.max(W / bg.width, H / bg.height);
-      const dw = bg.width * scale;
-      const dh = bg.height * scale;
-      ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    }
+    if (bg) drawCover(ctx, bg, 0, 0, W, H);
 
     // Voile dégradé : le texte occupe un peu plus de la moitié de la largeur, le
     // dégradé doit donc rester dense sur toute cette zone avant de s'ouvrir sur
@@ -247,11 +172,7 @@ export function AdComposer({
         method: "POST",
         body: { style, hint, sector: sector || null },
       });
-      // createImageBitmap plutôt qu'un HTMLImageElement : decode() sur une image
-      // détachée du document ne se résout pas de façon fiable, ce qui laissait
-      // le bouton bloqué sur « Génération… » et le fond jamais dessiné.
-      const bytes = Uint8Array.from(atob(res.image), (ch) => ch.charCodeAt(0));
-      bgRef.current = await createImageBitmap(new Blob([bytes], { type: "image/jpeg" }));
+      bgRef.current = await bitmapFromBase64(res.image);
       setHasBackground(true);
       await draw();
     } catch (err) {

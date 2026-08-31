@@ -499,3 +499,71 @@ export async function generateAdBackground(env: Env, ctx: AdBackgroundContext): 
   if (typeof image !== "string" || !image) throw new Error("Image non générée");
   return image;
 }
+
+/* ------------------- Fond de dépliant d'événement (IA) -------------------- */
+
+/**
+ * Modèle retenu pour les dépliants : contrairement à FLUX-schnell, qui ne rend
+ * que du 1024x1024, celui-ci accepte des dimensions arbitraires — indispensable
+ * pour une affiche portrait ou une story, qu'un recadrage depuis un carré
+ * amputerait de moitié.
+ */
+const POSTER_MODEL = "@cf/leonardo/lucid-origin";
+
+/** Formats proposés, avec les dimensions demandées au modèle. */
+export const FLYER_FORMATS = {
+  affiche: { width: 1024, height: 1280 },
+  story: { width: 864, height: 1536 },
+  carre: { width: 1152, height: 1152 },
+  a4: { width: 1024, height: 1448 },
+} as const;
+
+export type FlyerFormat = keyof typeof FLYER_FORMATS;
+export type FlyerMood = "gala" | "festif" | "chaleureux" | "epure";
+
+/** Direction artistique de chaque ambiance, en anglais : le modèle y répond mieux. */
+const MOOD_PROMPTS: Record<FlyerMood, string> = {
+  gala: "elegant black-tie gala atmosphere, deep warm tones, candlelight, refined and cinematic",
+  festif: "joyful celebration, warm bokeh lights, dancing colours, energetic evening mood",
+  chaleureux: "warm welcoming gathering, golden hour light, natural textures, intimate scale",
+  epure: "minimal editorial composition, generous negative space, soft neutral tones, subtle texture",
+};
+
+export interface FlyerBackgroundContext {
+  title: string;
+  venue: string | null;
+  /** Précision libre de l'organisateur (« mariage traditionnel », « concert jazz »…). */
+  hint?: string;
+  mood: FlyerMood;
+  format: FlyerFormat;
+}
+
+/**
+ * Génère **uniquement le fond** d'un dépliant. Le titre, la date, le lieu, le
+ * prix et le code QR sont composés par-dessus côté navigateur : ce sont des
+ * données exactes, qu'un modèle de diffusion réécrirait de travers.
+ *
+ * Renvoie l'image en base64, telle que fournie par le modèle.
+ */
+export async function generateFlyerBackground(env: Env, ctx: FlyerBackgroundContext): Promise<string> {
+  const subject = [ctx.hint, ctx.venue]
+    .map((s) => (s ?? "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(", ")
+    .slice(0, 300);
+
+  const { width, height } = FLYER_FORMATS[ctx.format] ?? FLYER_FORMATS.affiche;
+
+  const prompt = [
+    `background artwork for an event poster${subject ? `: ${subject}` : ""}`,
+    MOOD_PROMPTS[ctx.mood] ?? MOOD_PROMPTS.gala,
+    // Le bas de l'affiche reçoit le bloc de texte composé côté navigateur.
+    "vertical composition, the lower third calm and uncluttered",
+    "no text, no letters, no words, no numbers, no logo, no watermark, no poster lettering",
+  ].join(", ");
+
+  const result = await env.AI.run(POSTER_MODEL, { prompt, width, height, steps: 20 });
+  const image = (result as { image?: unknown }).image;
+  if (typeof image !== "string" || !image) throw new Error("Image non générée");
+  return image;
+}

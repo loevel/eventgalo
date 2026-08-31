@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { api, formatDate, formatPrice, getToken } from "@/lib/api";
 import { WEB } from "./_components/shared";
 import { AnnounceForm, AnnouncementCard, CollaboratorsCard, CopyField, DetailsCard, QuestionsCard } from "./_components/shared-cards";
@@ -14,6 +15,18 @@ import { SponsorsTab } from "./_components/sponsors-tab";
 import { ReportTab } from "./_components/report-tab";
 import { PerformersTab } from "./_components/performers-tab";
 import { WebhooksTab } from "./_components/webhooks-tab";
+import type { FlyerCategory, FlyerEvent } from "@/components/flyer-composer";
+
+/**
+ * Le compositeur de dépliants embarque la génération de codes QR et tout le
+ * moteur de composition canvas. Il n'est utile qu'une fois l'onglet ouvert :
+ * le charger à la demande évite d'en faire payer le poids à chaque ouverture
+ * du tableau de bord.
+ */
+const FlyerComposer = dynamic(() => import("@/components/flyer-composer").then((m) => m.FlyerComposer), {
+  ssr: false,
+  loading: () => <p className="muted">Chargement de l’atelier…</p>,
+});
 
 interface Detail {
   event: Record<string, any>;
@@ -143,6 +156,7 @@ export default function EventAdmin() {
           ["invites", `Invités (${guests.length})`],
           ["annonces", "Annonces"],
           ["photos", "Photos"],
+          ["depliant", "Dépliant"],
           ["sponsors", `Sponsors (${sponsors.filter((s) => s.status === "pending").length ? `${sponsors.filter((s) => s.status === "pending").length} à traiter` : sponsors.length})`],
           ["artistes", `Artistes (${performers.length})`],
           ["rapport", "Rapport"],
@@ -341,6 +355,10 @@ export default function EventAdmin() {
       )}
 
       {tab === "photos" && <MediaTab eventId={ev.id} coverId={ev.cover_media_id} logoId={ev.logo_media_id} act={act} />}
+
+      {tab === "depliant" && (
+        <FlyerComposer event={ev as FlyerEvent} categories={categories as FlyerCategory[]} webOrigin={WEB} />
+      )}
 
       {tab === "sponsors" && <SponsorsTab ev={ev} tiers={sponsor_tiers} sponsors={sponsors} act={act} />}
       {tab === "artistes" && <PerformersTab ev={ev} performers={performers} act={act} />}
