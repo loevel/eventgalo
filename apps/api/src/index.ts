@@ -30,9 +30,27 @@ const app = new Hono<AppContext>();
  * l'API avec un jeton volé, et empêchait de repérer un usage anormal. Le front
  * officiel est le seul consommateur navigateur : on s'y limite.
  */
+/** `https://eventgalo.com` → `https://www.eventgalo.com`, ou null si déjà en www. */
+function withWww(base: string): string | null {
+  try {
+    const url = new URL(base);
+    if (url.hostname.startsWith("www.")) return null;
+    url.hostname = `www.${url.hostname}`;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 function allowedOrigin(origin: string, env: Env): string | null {
   if (!origin) return null;
   if (origin === env.WEB_BASE_URL) return origin;
+  // Le site répond aussi bien avec que sans `www` — les deux domaines sont
+  // attachés au worker web côté Cloudflare. N'autoriser que l'apex faisait
+  // échouer la connexion depuis www.eventgalo.com par un « Failed to fetch »
+  // opaque : le navigateur bloque avant même que l'API voie la requête, donc
+  // rien n'apparaissait non plus dans les journaux.
+  if (origin === withWww(env.WEB_BASE_URL)) return origin;
   // Développement local : ports Next.js/Wrangler usuels.
   if (env.ENVIRONMENT !== "production" && /^http:\/\/localhost:\d+$/.test(origin)) return origin;
   return null;
