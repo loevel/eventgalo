@@ -448,3 +448,54 @@ export async function generateNotificationDigest(
   const response = (result as { response?: unknown }).response;
   return typeof response === "string" ? response.trim() : "";
 }
+
+/* -------------------- Fond de bandeau publicitaire (IA) -------------------- */
+
+const IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+
+export type AdBackgroundStyle = "photo" | "abstrait" | "festif" | "epure";
+
+/** Direction artistique de chaque style, en anglais : le modèle y répond mieux. */
+const STYLE_PROMPTS: Record<AdBackgroundStyle, string> = {
+  photo: "photorealistic editorial photograph, natural light, shallow depth of field, warm tones",
+  abstrait: "abstract geometric background, smooth gradients, soft shapes, modern brand aesthetic",
+  festif: "festive celebration atmosphere, warm bokeh lights, elegant evening mood, golden highlights",
+  epure: "minimal clean background, generous negative space, soft neutral tones, subtle texture",
+};
+
+export interface AdBackgroundContext {
+  companyName: string;
+  sector: string | null;
+  style: AdBackgroundStyle;
+  /** Précision libre de l'annonceur (« traiteur africain », « salle de réception »…). */
+  hint?: string;
+}
+
+/**
+ * Génère **uniquement un fond** de bandeau publicitaire. Le texte (nom de
+ * l'entreprise, accroche) est composé par-dessus côté navigateur, avec les
+ * vraies polices : les modèles de diffusion écrivent le texte de façon peu
+ * fiable et produiraient des mots inventés sur une créative payée.
+ *
+ * Renvoie l'image en base64 (JPEG), telle que fournie par le modèle.
+ */
+export async function generateAdBackground(env: Env, ctx: AdBackgroundContext): Promise<string> {
+  const subject = [ctx.hint, ctx.sector, ctx.companyName]
+    .map((s) => (s ?? "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(", ")
+    .slice(0, 300);
+
+  const prompt = [
+    `advertising banner background for a business: ${subject || "local business"}`,
+    STYLE_PROMPTS[ctx.style] ?? STYLE_PROMPTS.photo,
+    // La zone de gauche accueillera le texte composé côté navigateur.
+    "wide horizontal composition, uncluttered on the left side",
+    "no text, no letters, no words, no numbers, no logo, no watermark, no signage",
+  ].join(", ");
+
+  const result = await env.AI.run(IMAGE_MODEL, { prompt, steps: 6 });
+  const image = (result as { image?: unknown }).image;
+  if (typeof image !== "string" || !image) throw new Error("Image non générée");
+  return image;
+}

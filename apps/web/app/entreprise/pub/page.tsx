@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Megaphone, Upload } from "lucide-react";
 import { API_BASE, api, formatDate, formatPrice, getToken } from "@/lib/api";
 import { CANADIAN_REGIONS, COMPANY_SECTORS } from "@/lib/sponsor";
+import { AdComposer } from "@/components/ad-composer";
 
 interface AdSlot {
   id: string;
@@ -40,6 +41,7 @@ export default function CompanyAdsPage() {
   const [region, setRegion] = useState("");
   const [weeks, setWeeks] = useState(1);
   const [file, setFile] = useState<File | null>(null);
+  const [generated, setGenerated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -170,7 +172,11 @@ export default function CompanyAdsPage() {
           ))}
         </select>
 
-        <label>Image (format paysage recommandé)</label>
+        <label>Visuel du bandeau</label>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Pas de visuel sous la main ? Créez-le juste en dessous. Sinon, importez le vôtre
+          (format paysage 2:1 recommandé).
+        </p>
         <label className="btn-ghost btn-sm" style={{ display: "inline-flex", alignItems: "center", gap: 6, width: "fit-content", cursor: "pointer" }}>
           <Upload size={15} /> {file ? file.name : "Choisir une image"}
           <input
@@ -180,6 +186,11 @@ export default function CompanyAdsPage() {
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
         </label>
+        {generated && (
+          <p className="muted" style={{ marginTop: 8 }}>
+            ✓ Visuel généré prêt à être diffusé — il sera envoyé au paiement.
+          </p>
+        )}
 
         {estimate && (
           <p className="muted" style={{ marginTop: 12 }}>
@@ -191,6 +202,16 @@ export default function CompanyAdsPage() {
           {busy ? "…" : "Payer et diffuser"}
         </button>
       </form>
+
+      <AdComposer
+        title={title}
+        sector={sector}
+        onVisual={(f) => {
+          setFile(f);
+          setGenerated(true);
+          setFlash("Visuel appliqué à votre annonce.");
+        }}
+      />
     </main>
   );
 }

@@ -10,3 +10,7 @@ dist/
 .DS_Store
 *.tsbuildinfo
 .claude/
+
+# Secrets locaux Wrangler (jamais versionnés)
+.dev.vars
+.dev.vars.*

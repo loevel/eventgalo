@@ -5,6 +5,8 @@ import { nowIso, uuid } from "../lib/crypto";
 import { requireAuth } from "../lib/auth";
 import { deleteProcessedImage, putProcessedImage, THUMB_SUFFIX, validateMediaFile } from "../lib/media";
 import { getSetting } from "../lib/admin";
+import { generateAdBackground, type AdBackgroundStyle } from "../lib/ai";
+import { isRateLimited, tooManyRequests } from "../lib/rate-limit";
 
 /* ---------------------- Espace entreprise (authentifié) -------------------- */
 
@@ -76,6 +78,43 @@ company.post("/", async (c) => {
     .bind(id, co.id, title, linkUrl, sector, region, weeks, amountCents, nowIso())
     .run();
   return c.json({ id, amount_cents: amountCents }, 201);
+});
+
+/* ------------------- Générateur de créative assisté par IA ----------------- */
+
+const AD_STYLES: AdBackgroundStyle[] = ["photo", "abstrait", "festif", "epure"];
+
+/**
+ * Fond de bandeau généré par Workers AI. Ne renvoie qu'une image de fond :
+ * l'accroche et le nom de l'entreprise sont composés par-dessus dans le
+ * navigateur, avec les polices de la marque (voir components/ad-composer).
+ *
+ * Déclarée avant les routes `/:id/...` et coûteuse en calcul, d'où la limite
+ * par compte plutôt que par IP — un annonceur derrière un NAT d'entreprise ne
+ * doit pas consommer le quota de ses collègues.
+ */
+company.post("/ai/background", async (c) => {
+  const user = c.get("user");
+  const co = await c.env.DB.prepare("SELECT id, name, sector FROM companies WHERE owner_user_id = ?")
+    .bind(user.id)
+    .first<{ id: string; name: string; sector: string | null }>();
+  if (!co) return c.json({ error: "Créez d'abord votre profil entreprise" }, 409);
+
+  if (await isRateLimited(c.env, "ad-ai-background", user.id, 12, 3600)) return tooManyRequests(c);
+
+  const b = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const rawStyle = String(b.style ?? "photo");
+  const style = (AD_STYLES as string[]).includes(rawStyle) ? (rawStyle as AdBackgroundStyle) : "photo";
+  const hint = typeof b.hint === "string" ? b.hint.replace(/\s+/g, " ").trim().slice(0, 200) : undefined;
+  const sector = typeof b.sector === "string" && b.sector.trim() ? b.sector.trim().slice(0, 80) : co.sector;
+
+  try {
+    const image = await generateAdBackground(c.env, { companyName: co.name, sector, style, hint });
+    return c.json({ image });
+  } catch (err) {
+    console.error("[ads] génération du fond impossible:", err);
+    return c.json({ error: "Génération indisponible pour le moment, réessayez dans un instant." }, 502);
+  }
 });
 
 /** Créative publicitaire (image), même pipeline que le logo entreprise. */
